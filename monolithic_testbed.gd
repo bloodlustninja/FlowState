@@ -2972,16 +2972,8 @@ func _spawn_tire_slap_puffs() -> void:
 # PROCEDURAL ARCADE AUDIO SYNTHESIZER (ZERO-ASSET SELF-CONTAINED SOUNDS)
 # ==============================================================================
 func _setup_procedural_audio() -> void:
-	proc_audio_player = AudioStreamPlayer.new()
-	proc_audio_player.name = "ProcAudioPlayer"
-	var gen := AudioStreamGenerator.new()
-	gen.mix_rate = 22050
-	gen.buffer_length = 0.4
-	proc_audio_player.stream = gen
-	proc_audio_player.volume_db = -80.0
-	add_child(proc_audio_player)
-	proc_audio_player.play()
-	proc_audio_playback = proc_audio_player.get_stream_playback()
+	# Retired procedural synthesizer in favor of authentic sample suite (avoids WebAudio generator heap faults)
+	return
 
 func _play_proc_audio(sound_type: String) -> void:
 	if not is_instance_valid(proc_audio_playback):
