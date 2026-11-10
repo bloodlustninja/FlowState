@@ -954,9 +954,9 @@ func _setup_environment() -> void:
 	sun.light_energy = 1.25
 	sun.light_volumetric_fog_energy = 0.0 # Raw volumetric fog energy set to 0.0 per mandate (kills horizon glare strip)
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 220.0
-	sun.directional_shadow_blend_splits = true
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 180.0
+	sun.directional_shadow_blend_splits = false
 	sun.shadow_bias = 0.03
 	sun.shadow_normal_bias = 1.5
 	sun_light = sun
