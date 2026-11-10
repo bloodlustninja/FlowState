@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://verify_seasons_skyline"]
+
+[ext_resource type="Script" path="res://verify_all_seasons_skyline.gd" id="1_test"]
+
+[node name="VerifySkyline" type="Node3D"]
+script = ExtResource("1_test")

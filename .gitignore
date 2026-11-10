@@ -1,0 +1,39 @@
+# Godot 4+ specific ignores
+.godot/
+.import/
+export_templates/
+feature_profiles/
+text_editor_themes/
+script_templates/
+
+# Binaries and tools (Godot binary is >126MB, exceeds GitHub 100MB limit)
+.tools/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build outputs
+build/
+*.apk
+*.aab
+*.pck
+*.wasm
+bin/
+
+# Keystores & sensitive credentials
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+.env
+.env.*
+
+# Temporary / Scratch / System files
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+scratch/

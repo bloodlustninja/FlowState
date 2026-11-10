@@ -1,0 +1,126 @@
+[gd_scene load_steps=14 format=3 uid="uid://c8yhq0r0y66l0"]
+
+[ext_resource type="Script" path="res://vehicle_controller.gd" id="1_vehicle"]
+[ext_resource type="Script" path="res://test_track.gd" id="2_track"]
+[ext_resource type="Script" path="res://follow_camera.gd" id="3_camera"]
+[ext_resource type="Script" path="res://touch_controller.gd" id="4_touch"]
+[ext_resource type="Script" path="res://vehicle_visuals.gd" id="5_visuals"]
+[ext_resource type="Script" path="res://traffic_manager.gd" id="6_traffic_mgr"]
+[ext_resource type="Script" path="res://game_manager.gd" id="7_manager"]
+[ext_resource type="Script" path="res://hud.gd" id="8_hud"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_comic"]
+sky_top_color = Color(0.423529, 0.478431, 0.537255, 1)
+sky_horizon_color = Color(0.968627, 0.905882, 0.807843, 1)
+sky_curve = 0.15
+ground_bottom_color = Color(0.243137, 0.152941, 0.137255, 1)
+ground_horizon_color = Color(0.968627, 0.905882, 0.807843, 1)
+ground_curve = 0.15
+
+[sub_resource type="Sky" id="Sky_comic"]
+sky_material = SubResource("ProceduralSkyMaterial_comic")
+
+[sub_resource type="Environment" id="Environment_comic"]
+background_mode = 2
+sky = SubResource("Sky_comic")
+ambient_light_source = 3
+ambient_light_color = Color(0.169, 0.118, 0.227, 1)
+ambient_light_energy = 0.85
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(1.8, 0.7, 3.2)
+
+[node name="TestWorld" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_comic")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 0, 30, 0)
+light_color = Color(1, 0.972549, 0.905882, 1)
+light_energy = 1.35
+shadow_enabled = true
+
+[node name="TestGround" type="Node3D" parent="." node_paths=PackedStringArray("player_vehicle")]
+script = ExtResource("2_track")
+player_vehicle = NodePath("../Vehicle")
+
+[node name="Vehicle" type="RigidBody3D" parent="." node_paths=PackedStringArray("visual_chassis")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+collision_layer = 1
+collision_mask = 3
+mass = 1200.0
+gravity_scale = 0.0
+continuous_cd = true
+max_contacts_reported = 4
+contact_monitor = true
+script = ExtResource("1_vehicle")
+visual_chassis = NodePath("VisualChassis")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Vehicle"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+shape = SubResource("BoxShape3D_1")
+
+[node name="VisualChassis" type="Node3D" parent="Vehicle"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+script = ExtResource("5_visuals")
+
+[node name="SuspensionRays" type="Node3D" parent="Vehicle"]
+
+[node name="RayFL" type="RayCast3D" parent="Vehicle/SuspensionRays"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, -1.4)
+target_position = Vector3(0, -0.95, 0)
+
+[node name="RayFR" type="RayCast3D" parent="Vehicle/SuspensionRays"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0, -1.4)
+target_position = Vector3(0, -0.95, 0)
+
+[node name="RayRL" type="RayCast3D" parent="Vehicle/SuspensionRays"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, 1.4)
+target_position = Vector3(0, -0.95, 0)
+
+[node name="RayRR" type="RayCast3D" parent="Vehicle/SuspensionRays"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0, 1.4)
+target_position = Vector3(0, -0.95, 0)
+
+[node name="FollowCamera" type="Camera3D" parent="." node_paths=PackedStringArray("target_vehicle")]
+transform = Transform3D(1, 0, 0, 0, 0.848048, 0.529919, 0, -0.529919, 0.848048, 0, 5, 8)
+current = true
+fov = 65.0
+script = ExtResource("3_camera")
+target_vehicle = NodePath("../Vehicle")
+
+[node name="TrafficManager" type="Node3D" parent="." node_paths=PackedStringArray("player_vehicle", "road_track")]
+script = ExtResource("6_traffic_mgr")
+player_vehicle = NodePath("../Vehicle")
+road_track = NodePath("../TestGround")
+
+[node name="GameManager" type="Node" parent="." node_paths=PackedStringArray("player_vehicle", "follow_camera", "traffic_manager")]
+script = ExtResource("7_manager")
+player_vehicle = NodePath("../Vehicle")
+follow_camera = NodePath("../FollowCamera")
+traffic_manager = NodePath("../TrafficManager")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="HUD" type="Control" parent="UI" node_paths=PackedStringArray("player_vehicle", "game_manager")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_hud")
+player_vehicle = NodePath("../../Vehicle")
+game_manager = NodePath("../../GameManager")
+
+[node name="TouchController" type="Control" parent="UI" node_paths=PackedStringArray("vehicle")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4_touch")
+vehicle = NodePath("../../Vehicle")

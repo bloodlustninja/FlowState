@@ -1,0 +1,14 @@
+{
+  "project_name": "FlowState",
+  "version": "0.1.0",
+  "tech_stack": {
+    "engine": "Godot 4 (GDScript) / Three.js (Rapier.js Webview fallback)",
+    "target": "Mobile Portrait (9:16 aspect ratio)",
+    "physics_rate": "60 Hz fixed timestep"
+  },
+  "workflow": {
+    "mode": "structured",
+    "commit_frequency": "phase",
+    "verification": "uat"
+  }
+}
