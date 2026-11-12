@@ -245,26 +245,32 @@ var stream_car_crash: AudioStream
 var radio_chatter_cooldown: float = 0.0
 var _audio_unlocked: bool = false
 
-# In-Car Rally Music Radio Track Timestamps (for continuous shuffle)
+# In-Car Future Funk Radio Track Timestamps (for continuous shuffle)
 const RALLY_TRACKS: Array[Dictionary] = [
-	{"title": "sweet Rally — ilysam, Mc Ster", "start": 0.0, "end": 66.0},
-	{"title": "Fake ID (Coke & Rum Remix) — Riton, Kah-Lo, GEE LEE", "start": 66.0, "end": 188.0},
-	{"title": "words (Higgo Remix) — piri, Tommy Villiers, Higgo", "start": 188.0, "end": 360.0},
-	{"title": "MARLBORO CLUB — PXRKX", "start": 360.0, "end": 464.0},
-	{"title": "Rally House — prod.DTM", "start": 464.0, "end": 558.0},
-	{"title": "The Bomb (These Sounds Fall Into My Mind) — The Bucketheads", "start": 558.0, "end": 760.0},
-	{"title": "Shoreditch — Vrdnyn", "start": 760.0, "end": 908.0},
-	{"title": "Back 2 Back — Inlie", "start": 908.0, "end": 1062.0},
-	{"title": "RALLY FUNK — prod.DTM", "start": 1062.0, "end": 1150.0},
-	{"title": "Hold Your Tears — Kolter", "start": 1150.0, "end": 1529.0},
-	{"title": "Vent — NOIT", "start": 1529.0, "end": 1705.0},
-	{"title": "Some Nights — Class Fools", "start": 1705.0, "end": 1867.0},
-	{"title": "Flying Rally — prod.DTM", "start": 1867.0, "end": 1961.0},
-	{"title": "Vision — Palace", "start": 1961.0, "end": 2262.0},
-	{"title": "WOW — GEE LEE", "start": 2262.0, "end": 2386.0},
-	{"title": "Groove District — Starjunk 95", "start": 2386.0, "end": 2570.0},
-	{"title": "Spectra Ocean Dream Circuit — Starjunk 95", "start": 2570.0, "end": 2760.0},
-	{"title": "sweet rally 2 — ilysam", "start": 2760.0, "end": 2821.0}
+	{"title": "Tim Legend — Soda City Funk", "start": 0.0, "end": 83.0},
+	{"title": "Bastetrak — Def Insanity", "start": 83.0, "end": 180.0},
+	{"title": "Desired — Emotions", "start": 180.0, "end": 240.0},
+	{"title": "DIGITAL WAVES — Fresh", "start": 240.0, "end": 317.0},
+	{"title": "Pop Up! — Keepin' your love", "start": 317.0, "end": 378.0},
+	{"title": "Macross 82-99 — 82.99 F.M", "start": 378.0, "end": 463.0},
+	{"title": "コンシャスTHOUGHTS — Star Struck", "start": 463.0, "end": 509.0},
+	{"title": "眠 / Lopu$ — I blame you (remix)", "start": 509.0, "end": 562.0},
+	{"title": "眠, Aevv, Lopu$ — Love Letter", "start": 562.0, "end": 629.0},
+	{"title": "Groovy Kaiju — Take Me Back to Shinjuku", "start": 629.0, "end": 672.0},
+	{"title": "AnTgry — DANCE!", "start": 672.0, "end": 716.0},
+	{"title": "Android52 — Eternal Groove", "start": 716.0, "end": 789.0},
+	{"title": "ナイト Naito — Talk About Love", "start": 789.0, "end": 863.0},
+	{"title": "Macross 82-99 — Dance!", "start": 863.0, "end": 908.0},
+	{"title": "Castle Carousel — yachtpop", "start": 908.0, "end": 976.0},
+	{"title": "Skule Toyama — Hot Chance", "start": 976.0, "end": 1028.0},
+	{"title": "Yung Bae — Welcome to the Disco (feat. Macross 82-99)", "start": 1028.0, "end": 1081.0},
+	{"title": "LORDSUN — 手さぐりのBREAK", "start": 1081.0, "end": 1164.0},
+	{"title": "Yung Bae — I can tell", "start": 1164.0, "end": 1248.0},
+	{"title": "Macross 82-99 — Tokyo Bounce (feat. Vantage)", "start": 1248.0, "end": 1298.0},
+	{"title": "Castle Carousel — Internet Moms", "start": 1298.0, "end": 1358.0},
+	{"title": "Dan Mason ダン・メイソン x Aritus — Kensaku Love", "start": 1358.0, "end": 1422.0},
+	{"title": "Night Tempo — Two of us", "start": 1422.0, "end": 1486.0},
+	{"title": "Downtown 溝", "start": 1486.0, "end": 1532.0}
 ]
 
 var current_rally_track_idx: int = -1
@@ -3041,11 +3047,11 @@ func _play_proc_audio(sound_type: String) -> void:
 func _setup_game_audio() -> void:
 	# 1. Preload audio stream resources safely with type verification
 	if OS.has_feature("web"):
-		if ResourceLoader.exists("res://assets/audio/web_rally.mp3"):
-			stream_rally_music = load("res://assets/audio/web_rally.mp3")
+		if ResourceLoader.exists("res://assets/audio/web_future_funk.mp3"):
+			stream_rally_music = load("res://assets/audio/web_future_funk.mp3")
 	else:
-		if ResourceLoader.exists("res://assets/audio/rallymusic.mp3"):
-			stream_rally_music = load("res://assets/audio/rallymusic.mp3")
+		if ResourceLoader.exists("res://assets/audio/future_funk.mp3"):
+			stream_rally_music = load("res://assets/audio/future_funk.mp3")
 	if ResourceLoader.exists("res://assets/audio/chatter.mp3"):
 		stream_radio_chatter = load("res://assets/audio/chatter.mp3")
 	if ResourceLoader.exists("res://assets/audio/rivalentry.mp3"):
