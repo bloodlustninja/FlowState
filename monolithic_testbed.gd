@@ -275,6 +275,7 @@ const RALLY_TRACKS: Array[Dictionary] = [
 
 var current_rally_track_idx: int = -1
 var current_rally_track_end: float = 0.0
+var playlist_volume: float = 0.425 # Reduced by 15% from 0.50
 var rally_track_hud_box: Control
 var rally_track_hud_label: Label
 var rally_track_hud_tween: Tween
@@ -3079,7 +3080,7 @@ func _setup_game_audio() -> void:
 	rally_music_player = AudioStreamPlayer.new()
 	rally_music_player.name = "RallyMusicPlayer"
 	rally_music_player.stream = stream_rally_music
-	rally_music_player.volume_db = linear_to_db(0.50)
+	rally_music_player.volume_db = linear_to_db(playlist_volume)
 	add_child(rally_music_player)
 	rally_music_player.finished.connect(_play_random_rally_track)
 
@@ -3150,7 +3151,7 @@ func _play_random_rally_track() -> void:
 		current_rally_track_idx = 0
 		var track: Dictionary = RALLY_TRACKS[0]
 		current_rally_track_end = float(track["end"])
-		rally_music_player.volume_db = linear_to_db(0.50)
+		rally_music_player.volume_db = linear_to_db(playlist_volume)
 		rally_music_player.play(0.0)
 		_show_music_track_popup(str(track["title"]))
 		return
@@ -3166,7 +3167,7 @@ func _play_random_rally_track() -> void:
 
 	var track: Dictionary = RALLY_TRACKS[current_rally_track_idx]
 	current_rally_track_end = float(track["end"])
-	rally_music_player.volume_db = linear_to_db(0.50)
+	rally_music_player.volume_db = linear_to_db(playlist_volume)
 	rally_music_player.play(float(track["start"]))
 	_show_music_track_popup(str(track["title"]))
 
@@ -3189,9 +3190,9 @@ func _show_music_track_popup(title: String) -> void:
 	)
 
 func _process_audio_mixing(delta: float) -> void:
-	# 1. Rally Playlist Continuous Background Shuffle Guard (50% volume)
+	# 1. Rally Playlist Continuous Background Shuffle Guard (Reduced by 15%)
 	if is_instance_valid(rally_music_player):
-		rally_music_player.volume_db = linear_to_db(0.50)
+		rally_music_player.volume_db = linear_to_db(playlist_volume)
 		if not rally_music_player.playing and stream_rally_music:
 			_play_random_rally_track()
 		elif current_rally_track_end > 0.0:
