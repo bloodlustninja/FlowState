@@ -3040,8 +3040,12 @@ func _play_proc_audio(sound_type: String) -> void:
 # ==============================================================================
 func _setup_game_audio() -> void:
 	# 1. Preload audio stream resources safely with type verification
-	if ResourceLoader.exists("res://assets/audio/rallymusic.mp3"):
-		stream_rally_music = load("res://assets/audio/rallymusic.mp3")
+	if OS.has_feature("web"):
+		if ResourceLoader.exists("res://assets/audio/web_rally.mp3"):
+			stream_rally_music = load("res://assets/audio/web_rally.mp3")
+	else:
+		if ResourceLoader.exists("res://assets/audio/rallymusic.mp3"):
+			stream_rally_music = load("res://assets/audio/rallymusic.mp3")
 	if ResourceLoader.exists("res://assets/audio/chatter.mp3"):
 		stream_radio_chatter = load("res://assets/audio/chatter.mp3")
 	if ResourceLoader.exists("res://assets/audio/rivalentry.mp3"):
@@ -3136,6 +3140,15 @@ func _setup_game_audio() -> void:
 func _play_random_rally_track() -> void:
 	if not is_instance_valid(rally_music_player) or not stream_rally_music:
 		return
+	if OS.has_feature("web"):
+		current_rally_track_idx = 0
+		var track: Dictionary = RALLY_TRACKS[0]
+		current_rally_track_end = float(track["end"])
+		rally_music_player.volume_db = linear_to_db(0.50)
+		rally_music_player.play(0.0)
+		_show_music_track_popup(str(track["title"]))
+		return
+
 	var available_indices: Array[int] = []
 	for i in range(RALLY_TRACKS.size()):
 		if i != current_rally_track_idx:
