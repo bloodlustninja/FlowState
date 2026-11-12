@@ -243,6 +243,7 @@ var stream_tire_drift: AudioStream
 var stream_car_crash: AudioStream
 
 var radio_chatter_cooldown: float = 0.0
+var _audio_unlocked: bool = false
 
 # In-Car Rally Music Radio Track Timestamps (for continuous shuffle)
 const RALLY_TRACKS: Array[Dictionary] = [
@@ -3071,7 +3072,6 @@ func _setup_game_audio() -> void:
 	rally_music_player.volume_db = linear_to_db(0.50)
 	add_child(rally_music_player)
 	rally_music_player.finished.connect(_play_random_rally_track)
-	_play_random_rally_track()
 
 	# 3. Radio Comms Chatter SFX Player
 	radio_chatter_player = AudioStreamPlayer.new()
@@ -3098,8 +3098,6 @@ func _setup_game_audio() -> void:
 		if is_instance_valid(engine_audio_player):
 			engine_audio_player.play()
 	)
-	engine_audio_player.play()
-
 	# 6. Dog-Box Sequential Gear Upshift SFX Player
 	gear_shift_player = AudioStreamPlayer.new()
 	gear_shift_player.name = "GearShiftPlayer"
@@ -3124,6 +3122,16 @@ func _setup_game_audio() -> void:
 	crash_audio_player.stream = stream_car_crash
 	crash_audio_player.volume_db = linear_to_db(1.35)
 	add_child(crash_audio_player)
+
+	# 9. Initialize audio playback safely based on platform.
+	# On Web (HTML5/Wasm), browsers strictly require user interaction before running audio contexts.
+	if OS.has_feature("web"):
+		AudioServer.set_bus_mute(0, true)
+	else:
+		_audio_unlocked = true
+		if is_instance_valid(engine_audio_player):
+			engine_audio_player.play()
+		_play_random_rally_track()
 
 func _play_random_rally_track() -> void:
 	if not is_instance_valid(rally_music_player) or not stream_rally_music:
@@ -5405,6 +5413,14 @@ func _setup_hud() -> void:
 # 10. TOUCH DISPATCHER (DEADZONE & PROPORTIONAL STEERING)
 # ==============================================================================
 func _input(event: InputEvent) -> void:
+	if not _audio_unlocked and event.is_pressed():
+		_audio_unlocked = true
+		AudioServer.set_bus_mute(0, false)
+		if is_instance_valid(engine_audio_player) and not engine_audio_player.playing:
+			engine_audio_player.play()
+		if is_instance_valid(rally_music_player) and not rally_music_player.playing:
+			_play_random_rally_track()
+
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
 			set_weather_rain(not is_raining)
