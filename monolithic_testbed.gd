@@ -420,9 +420,35 @@ class TrafficVehicleData:
 	var flinch_timer: float = 0.0
 	var flinch_swerve_offset: float = 0.0
 	var flinch_target_swerve: float = 0.0
+	var graze_grace_timer: float = 0.0
+	var graze_grace_active: bool = false
 
 var traffic_pool: Array[TrafficVehicleData] = []
 const TRAFFIC_POOL_SIZE: int = 12
+
+# Nitro & Double-Tap System
+const DOUBLE_TAP_WINDOW: float = 0.25
+var last_tap_time: float = -999.0
+var nitro_charge: float = 0.0          # 0.0 to 100.0
+var drift_charge: float = 0.0          # 0.0 to 100.0
+var nitro_active: bool = false
+var nitro_timer: float = 0.0
+var nitro_tier: int = 1                # 1 = 50-99% (+18%), 2 = 100% (+25%)
+var nitro_speed_mult: float = 1.0
+
+# Graze Boost & Exit Kick
+var graze_speed_kick_timer: float = 0.0
+var cam_fov_punch: float = 0.0
+var cam_fov_punch_timer: float = 0.0
+
+# HUD & Audio Elements for Boost / Graze
+var hud_nitro_bar_bg: ColorRect
+var hud_nitro_bar: ColorRect
+var hud_nitro_ready_badge: Label
+var graze_audio_player: AudioStreamPlayer
+var scrape_audio_player: AudioStreamPlayer
+var nitro_audio_player: AudioStreamPlayer
+var nitro_flame_mat: ShaderMaterial
 
 const TRAFFIC_CONFIGS: Dictionary = {
 	"truck": { "path": "res://assets/vehicles/traffic/heavy_truck.fbx", "speed": 20.0, "half_w": 1.23, "half_l": 1.94, "color": Color(0.18, 0.52, 0.28) },
@@ -678,6 +704,12 @@ func _setup_materials() -> void:
 	if not toon_flame_mat:
 		toon_flame_mat = ShaderMaterial.new()
 		toon_flame_mat.shader = toon_flame_shader
+	if not nitro_flame_mat and toon_flame_shader:
+		nitro_flame_mat = ShaderMaterial.new()
+		nitro_flame_mat.shader = toon_flame_shader
+		nitro_flame_mat.set_shader_parameter("core_color", Color(1.0, 1.0, 1.0, 1.0))
+		nitro_flame_mat.set_shader_parameter("mid_color", Color("#00E5FF"))
+		nitro_flame_mat.set_shader_parameter("rim_color", Color(0.0, 0.4, 1.0, 1.0))
 
 	if not tunnel_concrete_mat:
 		tunnel_concrete_mat = StandardMaterial3D.new()
@@ -3239,6 +3271,27 @@ func _setup_game_audio() -> void:
 	crash_audio_player.volume_db = linear_to_db(1.35)
 	add_child(crash_audio_player)
 
+	# 8b. Escalating Graze Chime SFX Player
+	graze_audio_player = AudioStreamPlayer.new()
+	graze_audio_player.name = "GrazeAudioPlayer"
+	graze_audio_player.stream = stream_gear_upshift
+	graze_audio_player.volume_db = 1.0
+	add_child(graze_audio_player)
+
+	# 8c. Glancing Metallic Scrape SFX Player
+	scrape_audio_player = AudioStreamPlayer.new()
+	scrape_audio_player.name = "ScrapeAudioPlayer"
+	scrape_audio_player.stream = stream_car_crash
+	scrape_audio_player.volume_db = -6.0
+	add_child(scrape_audio_player)
+
+	# 8d. Nitro Surge / Overdrive Activation SFX Player
+	nitro_audio_player = AudioStreamPlayer.new()
+	nitro_audio_player.name = "NitroAudioPlayer"
+	nitro_audio_player.stream = stream_rival_entry
+	nitro_audio_player.volume_db = 2.0
+	add_child(nitro_audio_player)
+
 	# 9. Initialize audio playback safely based on platform.
 	# On Web (HTML5/Wasm), browsers strictly require user interaction before running audio contexts.
 	if OS.has_feature("web"):
@@ -3763,6 +3816,12 @@ func _setup_player_car() -> void:
 	if not toon_flame_mat:
 		toon_flame_mat = ShaderMaterial.new()
 		toon_flame_mat.shader = toon_flame_shader
+	if not nitro_flame_mat and toon_flame_shader:
+		nitro_flame_mat = ShaderMaterial.new()
+		nitro_flame_mat.shader = toon_flame_shader
+		nitro_flame_mat.set_shader_parameter("core_color", Color(1.0, 1.0, 1.0, 1.0))
+		nitro_flame_mat.set_shader_parameter("mid_color", Color("#00E5FF"))
+		nitro_flame_mat.set_shader_parameter("rim_color", Color(0.0, 0.4, 1.0, 1.0))
 
 	var flame_cyl := CylinderMesh.new()
 	flame_cyl.top_radius = 0.0     # Pointed cone tip
@@ -4708,17 +4767,27 @@ func _process_rival_ai(delta: float) -> void:
 	# Direct Collision / Graze between Player and Rival (if player catches up)
 	var dz_hero: float = abs(rival_z - player_z)
 	var dx_hero: float = abs(rival_lane_x - player_lane_x)
-	var crash_w: float = HERO_HALF_W + RIVAL_HALF_W
+	var fatal_w: float = (HERO_HALF_W - 0.12) + RIVAL_HALF_W
+	var side_rub_w: float = HERO_HALF_W + RIVAL_HALF_W
 	var crash_l: float = HERO_HALF_L + RIVAL_HALF_L
 
 	# Dynamic Manga Comic Cut-In when Rival passes within 6m
 	if dz_hero < 6.0 and rival_active and not cutin_active and cutin_cooldown <= 0.0:
 		_trigger_manga_cutin("⚡ RIVAL INTERCEPTOR!")
 
-	if dz_hero < crash_l and dx_hero < crash_w:
-		_trigger_crash(null, "WRECKED BY RIVAL!")
-		return
-	elif not rival_grazed and dz_hero < (crash_l + 0.60) and dx_hero < (crash_w + 0.60):
+	if dz_hero < crash_l and dx_hero < side_rub_w:
+		if dx_hero >= fatal_w:
+			var side_r: float = sign(player_lane_x - rival_lane_x)
+			if side_r == 0.0: side_r = 1.0
+			player_lat_velocity = side_r * 4.0
+			player_lane_x += side_r * 0.08
+			screen_shake = max(screen_shake, 0.18)
+			_emit_guardrail_sparks(side_r, delta)
+			_play_scrape_sound()
+		else:
+			_trigger_crash(null, "WRECKED BY RIVAL!")
+			return
+	elif not rival_grazed and dz_hero < (crash_l + 0.60) and dx_hero < (side_rub_w + 0.60):
 		rival_grazed = true
 		near_miss_count += 1
 		combo_multiplier = mini(combo_multiplier + 1, 4)
@@ -4729,6 +4798,18 @@ func _process_rival_ai(delta: float) -> void:
 		hud_combo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 		_trigger_graze_microfreeze()
 		_spawn_floating_graze_badge(rival_root.global_position, pts)
+
+		# High-reward graze payoffs
+		var graze_boost_r: float = 50.0 if drift_active else 30.0
+		nitro_charge = min(100.0, nitro_charge + graze_boost_r)
+		drift_charge = min(100.0, drift_charge + graze_boost_r)
+		graze_speed_kick_timer = 0.4
+		player_speed += player_speed * 0.04
+		cam_fov_punch = 2.0
+		cam_fov_punch_timer = 0.15
+		_play_graze_chime()
+		var g_text: String = "DRIFT GRAZE! +50%" if drift_active else "GRAZE! +30% BOOST"
+		_spawn_floating_comic_text(rival_root.global_position + Vector3(0.0, 2.0, 0.0), g_text, Color("#FFF01F"), Color("#000000"), 36)
 
 	_snap_rival_to_road()
 
@@ -4884,6 +4965,14 @@ func _update_camera(delta: float) -> void:
 		target_fov = 74.0
 	elif boost_active:
 		target_fov = 76.0
+
+	# Punch camera FOV on graze kicks and nitro surges
+	if cam_fov_punch_timer > 0.0:
+		cam_fov_punch_timer -= delta
+		if cam_fov_punch_timer <= 0.0:
+			cam_fov_punch = 0.0
+	target_fov += cam_fov_punch
+
 	follow_cam.fov = lerp(follow_cam.fov, target_fov, 8.0 * delta)
 
 # ==============================================================================
@@ -5001,12 +5090,12 @@ func _setup_hud() -> void:
 
 	# Dark bracket backplate with cyan comic accent border
 	var cluster_bg := ColorRect.new()
-	cluster_bg.size = Vector2(340, 142)
+	cluster_bg.size = Vector2(340, 178)
 	cluster_bg.color = Color(0.05, 0.06, 0.10, 0.88)
 	speedo_cluster.add_child(cluster_bg)
 
 	var cluster_border := ReferenceRect.new()
-	cluster_border.size = Vector2(340, 142)
+	cluster_border.size = Vector2(340, 178)
 	cluster_border.border_color = Color("#00E5FF")
 	cluster_border.border_width = 2.5
 	cluster_border.editor_only = false
@@ -5071,9 +5160,35 @@ func _setup_hud() -> void:
 	hud_score_label.add_theme_constant_override("outline_size", 4)
 	speedo_cluster.add_child(hud_score_label)
 
+	# Nitro / Boost Gauge Bar
+	hud_nitro_bar_bg = ColorRect.new()
+	hud_nitro_bar_bg.position = Vector2(16, 136)
+	hud_nitro_bar_bg.size = Vector2(308, 8)
+	hud_nitro_bar_bg.color = Color(0.10, 0.12, 0.16, 0.95)
+	speedo_cluster.add_child(hud_nitro_bar_bg)
+
+	hud_nitro_bar = ColorRect.new()
+	hud_nitro_bar.position = Vector2(16, 136)
+	hud_nitro_bar.size = Vector2(0, 8)
+	hud_nitro_bar.color = Color("#00E5FF")
+	speedo_cluster.add_child(hud_nitro_bar)
+
+	# Visual "DOUBLE TAP!" Ready Prompt Badge
+	hud_nitro_ready_badge = Label.new()
+	hud_nitro_ready_badge.text = "⚡ DOUBLE TAP BOOST! ⚡"
+	hud_nitro_ready_badge.position = Vector2(16, 148)
+	hud_nitro_ready_badge.size = Vector2(308, 22)
+	hud_nitro_ready_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_nitro_ready_badge.add_theme_font_size_override("font_size", 14)
+	hud_nitro_ready_badge.add_theme_color_override("font_color", Color("#FFD000"))
+	hud_nitro_ready_badge.add_theme_color_override("font_outline_color", Color("#000000"))
+	hud_nitro_ready_badge.add_theme_constant_override("outline_size", 4)
+	hud_nitro_ready_badge.visible = false
+	speedo_cluster.add_child(hud_nitro_ready_badge)
+
 	# Combo Badge: Angled comic banner with small bounce tween on each graze trigger
 	hud_combo_container = Control.new()
-	hud_combo_container.position = Vector2(32, 195)
+	hud_combo_container.position = Vector2(32, 232)
 	hud_combo_container.rotation_degrees = -7.0
 	hud_combo_container.pivot_offset = Vector2(115, 24)
 	hud_combo_container.visible = false
@@ -5558,6 +5673,13 @@ func _input(event: InputEvent) -> void:
 
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			var now_sec: float = Time.get_ticks_msec() * 0.001
+			if (now_sec - last_tap_time) <= DOUBLE_TAP_WINDOW and (now_sec - last_tap_time) > 0.04:
+				last_tap_time = -999.0
+				if nitro_charge >= 50.0 and current_state == GameState.RACING:
+					_try_activate_double_tap_nitro()
+			else:
+				last_tap_time = now_sec
 			is_touching = true
 			touch_start = event.position
 			touch_current = event.position
@@ -5587,6 +5709,13 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
+				var now_sec: float = Time.get_ticks_msec() * 0.001
+				if (now_sec - last_tap_time) <= DOUBLE_TAP_WINDOW and (now_sec - last_tap_time) > 0.04:
+					last_tap_time = -999.0
+					if nitro_charge >= 50.0 and current_state == GameState.RACING:
+						_try_activate_double_tap_nitro()
+				else:
+					last_tap_time = now_sec
 				is_touching = true
 				touch_start = event.position
 				touch_current = event.position
@@ -5644,12 +5773,20 @@ func _physics_process(delta: float) -> void:
 	_process_skid_marks(delta)
 	_process_weather_cycle(delta)
 
-	# Exhaust backfire timers
-	if backfire_timer > 0.0:
-		backfire_timer -= delta
-		if backfire_timer <= 0.0:
-			if is_instance_valid(exhaust_flame_l): exhaust_flame_l.visible = false
-			if is_instance_valid(exhaust_flame_r): exhaust_flame_r.visible = false
+	# Drift charging (+30.0/sec while holding drift)
+	if drift_active and current_state == GameState.RACING:
+		nitro_charge = min(100.0, nitro_charge + 30.0 * delta)
+		drift_charge = min(100.0, drift_charge + 30.0 * delta)
+
+	# Exhaust backfire & nitro flames
+	if nitro_active:
+		_show_nitro_flames(true)
+	else:
+		if backfire_timer > 0.0:
+			backfire_timer -= delta
+			if backfire_timer <= 0.0:
+				if is_instance_valid(exhaust_flame_l): exhaust_flame_l.visible = false
+				if is_instance_valid(exhaust_flame_r): exhaust_flame_r.visible = false
 	if backfire_light_timer > 0.0:
 		backfire_light_timer -= delta
 		if backfire_light_timer <= 0.0:
@@ -5951,7 +6088,9 @@ func _process_day_night_cycle(delta: float) -> void:
 func _process_player_motion(delta: float) -> void:
 	# Drift Exit Slingshot Boost
 	if prev_drift_active and not drift_active:
-		player_speed += 14.0
+		var slingshot_bonus: float = 14.0 + (drift_charge * 0.08)
+		player_speed += slingshot_bonus
+		drift_charge = 0.0
 		screen_shake = 0.22
 		score += 600
 	prev_drift_active = drift_active
@@ -5964,7 +6103,24 @@ func _process_player_motion(delta: float) -> void:
 	else:
 		player_target_speed = CRUISE_SPEED
 
-	player_speed = lerp(player_speed, player_target_speed, 5.0 * delta)
+	# Graze forward velocity burst (+10% over 0.4s)
+	if graze_speed_kick_timer > 0.0:
+		graze_speed_kick_timer -= delta
+		player_target_speed *= 1.10
+
+	# Two-tier nitro surge forward velocity
+	if nitro_active:
+		nitro_timer -= delta
+		if nitro_timer <= 0.0:
+			nitro_active = false
+			nitro_speed_mult = 1.0
+			_show_nitro_flames(false)
+		else:
+			player_target_speed = max(player_target_speed, BOOST_SPEED) * nitro_speed_mult
+			player_speed = lerp(player_speed, player_target_speed, 8.0 * delta)
+
+	if not nitro_active:
+		player_speed = lerp(player_speed, player_target_speed, 5.0 * delta)
 	player_z -= player_speed * delta
 
 	# Lateral velocity with momentum
@@ -6245,10 +6401,179 @@ func _spawn_floating_graze_badge(world_pos: Vector3, pts: int) -> void:
 	tw.chain().tween_property(badge, "modulate:a", 0.0, 0.35)
 	tw.chain().tween_callback(badge.queue_free)
 
+func _play_graze_chime() -> void:
+	if is_instance_valid(graze_audio_player) and stream_gear_upshift:
+		graze_audio_player.pitch_scale = clamp(1.25 + float(combo_multiplier) * 0.22, 1.25, 2.8)
+		graze_audio_player.play()
+
+func _play_scrape_sound() -> void:
+	if is_instance_valid(scrape_audio_player) and stream_car_crash:
+		if not scrape_audio_player.playing:
+			scrape_audio_player.pitch_scale = randf_range(1.6, 2.2)
+			scrape_audio_player.play()
+
+func _play_nitro_sound() -> void:
+	if is_instance_valid(nitro_audio_player) and stream_rival_entry:
+		nitro_audio_player.pitch_scale = 1.35 if nitro_tier == 2 else 1.15
+		nitro_audio_player.play()
+
+func _show_nitro_flames(show: bool) -> void:
+	if not is_instance_valid(exhaust_flame_l) or not is_instance_valid(exhaust_flame_r):
+		return
+	if show:
+		exhaust_flame_l.material_override = nitro_flame_mat if nitro_flame_mat else toon_flame_mat
+		exhaust_flame_r.material_override = nitro_flame_mat if nitro_flame_mat else toon_flame_mat
+		exhaust_flame_l.visible = true
+		exhaust_flame_r.visible = true
+		var flame_scale: Vector3 = (Vector3(2.2, 2.2, 2.2) if nitro_tier == 2 else Vector3(1.6, 1.6, 1.6)) * randf_range(0.9, 1.2)
+		exhaust_flame_l.scale = flame_scale
+		exhaust_flame_r.scale = flame_scale
+		if is_instance_valid(exhaust_bumper_flash):
+			exhaust_bumper_flash.light_color = Color("#00E5FF")
+			exhaust_bumper_flash.light_energy = 6.0
+			exhaust_bumper_flash.visible = true
+	else:
+		exhaust_flame_l.material_override = toon_flame_mat
+		exhaust_flame_r.material_override = toon_flame_mat
+		exhaust_flame_l.visible = false
+		exhaust_flame_r.visible = false
+		if is_instance_valid(exhaust_bumper_flash):
+			exhaust_bumper_flash.light_color = Color("#FF9500")
+			exhaust_bumper_flash.visible = false
+
+func _trigger_overdrive_shockwave() -> void:
+	# 1. Force traffic within 18m ahead to swerve into outer lanes
+	for td in traffic_pool:
+		var dist_ahead: float = player_z - td.current_z
+		if dist_ahead > 0.0 and dist_ahead < 18.0 and not td.is_roadblock:
+			var outer_lane: float = -3.8 if td.lane_offset < 0.0 else 3.8
+			td.is_switching = true
+			td.switch_start_x = td.lane_offset
+			td.switch_target_x = outer_lane
+			td.switch_progress = 0.0
+			_trigger_traffic_flinch(td)
+
+	# 2. Outward expanding comic ink shockwave ring
+	var ring_mesh := TorusMesh.new()
+	ring_mesh.inner_radius = 0.8
+	ring_mesh.outer_radius = 1.2
+	ring_mesh.rings = 16
+	ring_mesh.ring_segments = 24
+	var ring_mat := StandardMaterial3D.new()
+	ring_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ring_mat.albedo_color = Color("#00E5FF")
+	ring_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	var ring_node := MeshInstance3D.new()
+	ring_node.mesh = ring_mesh
+	ring_node.material_override = ring_mat
+	ring_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if is_instance_valid(car_root):
+		ring_node.global_transform = Transform3D(Basis(), car_root.global_position + Vector3(0.0, 0.1, 0.0))
+	add_child(ring_node)
+
+	var tw := ring_node.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring_node, "scale", Vector3(14.0, 1.0, 14.0), 0.40).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ring_mat, "albedo_color:a", 0.0, 0.40)
+	tw.chain().tween_callback(ring_node.queue_free)
+
+func _spawn_floating_comic_text(world_pos: Vector3, text: String, color: Color = Color("#FFF01F"), shadow_color: Color = Color("#000000"), font_size: int = 38) -> void:
+	if not is_instance_valid(hud_graze_container) or not is_instance_valid(follow_cam):
+		return
+	var screen_pos: Vector2 = follow_cam.unproject_position(world_pos)
+	var badge := Label.new()
+	badge.text = text
+	badge.position = screen_pos + Vector2(randf_range(-25, 25), randf_range(-35, -15))
+	badge.add_theme_font_size_override("font_size", font_size)
+	badge.add_theme_color_override("font_color", color)
+	badge.add_theme_color_override("font_outline_color", Color("#000000"))
+	badge.add_theme_constant_override("outline_size", 6)
+	badge.add_theme_color_override("font_shadow_color", shadow_color)
+	badge.add_theme_constant_override("shadow_offset_x", 3)
+	badge.add_theme_constant_override("shadow_offset_y", 3)
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_graze_container.add_child(badge)
+
+	var tw := badge.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(badge, "position:y", badge.position.y - 75.0, 0.75).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(badge, "scale", Vector2(1.2, 1.2), 0.15).from(Vector2(0.6, 0.6))
+	tw.chain().tween_property(badge, "modulate:a", 0.0, 0.35)
+	tw.chain().tween_callback(badge.queue_free)
+
+func _trigger_traffic_scrape(td: TrafficVehicleData, effective_x: float) -> void:
+	var side: float = sign(player_lane_x - effective_x)
+	if side == 0.0: side = 1.0
+	player_lat_velocity = side * 3.5
+	player_lane_x += side * 0.06
+	screen_shake = max(screen_shake, 0.14)
+	_emit_guardrail_sparks(side, 0.016)
+	_play_scrape_sound()
+
+func _try_activate_double_tap_nitro() -> void:
+	if nitro_charge < 50.0:
+		return
+	nitro_active = true
+	if nitro_charge >= 99.5:
+		# Tier 2: 100% full charge Overdrive
+		nitro_tier = 2
+		nitro_timer = 2.2
+		nitro_speed_mult = 1.25
+		cam_fov_punch = 5.0
+		cam_fov_punch_timer = 0.45
+		screen_shake = max(screen_shake, 0.35)
+		_trigger_overdrive_shockwave()
+		if is_instance_valid(car_root):
+			_spawn_floating_comic_text(car_root.global_position + Vector3(0.0, 2.0, 0.0), "MAX OVERDRIVE!!", Color("#00E5FF"), Color("#000000"), 46)
+	else:
+		# Tier 1: 50% to 99% charge Nitro Surge
+		nitro_tier = 1
+		nitro_timer = 1.4
+		nitro_speed_mult = 1.18
+		cam_fov_punch = 3.5
+		cam_fov_punch_timer = 0.35
+		screen_shake = max(screen_shake, 0.22)
+		if is_instance_valid(car_root):
+			_spawn_floating_comic_text(car_root.global_position + Vector3(0.0, 2.0, 0.0), "NITRO SURGE!", Color("#00E5FF"), Color("#000000"), 42)
+
+	nitro_charge = 0.0
+	_play_nitro_sound()
+	_show_nitro_flames(true)
+
+func _apply_graze_rewards(td: TrafficVehicleData) -> void:
+	td.grazed = true
+	td.graze_grace_active = true
+	td.graze_grace_timer = 0.35
+	near_miss_count += 1
+	combo_multiplier = mini(combo_multiplier + 1, 4)
+	combo_timer = 2.5
+	_trigger_graze_microfreeze()
+	_trigger_traffic_flinch(td)
+
+	# High-Reward Graze Payoffs:
+	var boost_inj: float = 50.0 if drift_active else 30.0
+	nitro_charge = min(100.0, nitro_charge + boost_inj)
+	drift_charge = min(100.0, drift_charge + boost_inj)
+	graze_speed_kick_timer = 0.4
+	player_speed += player_speed * 0.04
+	cam_fov_punch = 2.0
+	cam_fov_punch_timer = 0.15
+	_play_graze_chime()
+
+	var g_msg: String = "DRIFT GRAZE! +50%" if drift_active else "GRAZE! +30% BOOST"
+	_spawn_floating_comic_text(td.instance.global_position + Vector3(0.0, 1.8, 0.0), g_msg, Color("#FFF01F"), Color("#000000"), 36)
+
 func _process_traffic_and_collisions(delta: float) -> void:
 	var t_ms: float = Time.get_ticks_msec() * 0.001
 
 	for td in traffic_pool:
+		# Collision immunity grace timer
+		if td.graze_grace_active:
+			td.graze_grace_timer -= delta
+			if td.graze_grace_timer <= 0.0:
+				td.graze_grace_active = false
+
 		# Adaptive Following: Check distance to vehicle directly ahead in same lane
 		var closest_ahead_gap: float = 999.0
 		var ahead_speed: float = td.speed
@@ -6369,6 +6694,8 @@ func _process_traffic_and_collisions(delta: float) -> void:
 			td.lane_offset = _find_clear_lane(target_spawn_z)
 			td.current_z = target_spawn_z
 			td.grazed = false
+			td.graze_grace_active = false
+			td.graze_grace_timer = 0.0
 			td.is_lane_switcher = (randf() < 0.25)
 			td.is_switching = false
 			td.switch_progress = 0.0
@@ -6394,57 +6721,52 @@ func _process_traffic_and_collisions(delta: float) -> void:
 
 		_snap_traffic_to_road(td)
 
-		# TRUE PHYSICAL COLLISION: Exact sum of vehicle half-extents
+		# TRUE PHYSICAL COLLISION & LATERAL INSET
 		var dz: float = abs(td.current_z - player_z)
 		var effective_x: float = td.lane_offset + td.flinch_swerve_offset
 		var dx: float = abs(effective_x - player_lane_x)
 
-		var crash_limit_x: float = HERO_HALF_W + td.half_w
+		# Inset the lateral (X-axis) width of the player's fatal crash hitbox by 0.12m on left and right edges
+		var fatal_crash_limit_x: float = (HERO_HALF_W - 0.12) + td.half_w
+		var side_rub_limit_x: float = HERO_HALF_W + td.half_w
 		var crash_limit_z: float = HERO_HALF_L + td.half_l
 
-		# Instant Physical Impact -> CRASH!
-		if dz < crash_limit_z and dx < crash_limit_x:
-			_trigger_crash(td, "CRASHED INTO ROADBLOCK!" if td.is_roadblock else "CRASHED!")
-			return
+		# Instant Physical Impact -> Scrape or Crash!
+		if dz < crash_limit_z and dx < side_rub_limit_x:
+			if td.is_roadblock and not td.graze_grace_active:
+				_trigger_crash(td, "CRASHED INTO ROADBLOCK!")
+				return
+			elif td.graze_grace_active or dx >= fatal_crash_limit_x:
+				# Non-fatal glancing scrape / graze ghost exit clip!
+				_trigger_traffic_scrape(td, effective_x)
+			else:
+				# Direct rear-end impact -> Fatal CRASH!
+				_trigger_crash(td, "CRASHED!")
+				return
 
 		# Roadblock & Graze Scoring
-		elif not td.grazed and dz < (crash_limit_z + 0.90) and dx < (crash_limit_x + 0.90):
+		elif not td.grazed and dz < (crash_limit_z + 0.90) and dx < (side_rub_limit_x + 0.90):
 			if td.is_roadblock:
-				td.grazed = true
-				near_miss_count += 1
-				combo_multiplier = mini(combo_multiplier + 1, 4)
-				combo_timer = 2.5
 				var pts: int = 2500 * combo_multiplier
 				score += pts
 				hud_combo_label.text = "⚡ ROADBLOCK ESCAPE! +" + str(pts) + " ⚡"
 				hud_combo_label.modulate = Color(1.0, 0.85, 0.1, 1.0)
-				_trigger_graze_microfreeze()
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
-				_trigger_traffic_flinch(td)
+				_apply_graze_rewards(td)
 			elif td.is_disrupted:
-				td.grazed = true
-				near_miss_count += 1
-				combo_multiplier = mini(combo_multiplier + 1, 4)
-				combo_timer = 2.5
 				var pts: int = 800 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else "x" + str(combo_multiplier) + " CHAIN!")
 				hud_combo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
-				_trigger_graze_microfreeze()
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
-				_trigger_traffic_flinch(td)
-			elif dz < (crash_limit_z + 0.60) and dx < (crash_limit_x + 0.60):
-				td.grazed = true
-				near_miss_count += 1
-				combo_multiplier = mini(combo_multiplier + 1, 4)
-				combo_timer = 2.5
+				_apply_graze_rewards(td)
+			elif dz < (crash_limit_z + 0.60) and dx < (side_rub_limit_x + 0.60):
 				var pts: int = 250 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else ("x" + str(combo_multiplier) + " CHAIN!" if combo_multiplier > 1 else "GRAZE!"))
 				hud_combo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
-				_trigger_graze_microfreeze()
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
-				_trigger_traffic_flinch(td)
+				_apply_graze_rewards(td)
 				if patrol_evasion_active:
 					patrol_evaded_cars += 1
 					if patrol_evaded_cars >= 3:
@@ -7052,6 +7374,22 @@ func _update_hud(delta: float) -> void:
 	var speed_kmh: int = int(round(player_speed * 3.6))
 	hud_speed_label.text = str(max(0, speed_kmh))
 	hud_score_label.text = "SCORE: " + str(int(displayed_score))
+
+	# Update Nitro / Boost Gauge and Double-Tap Prompt
+	if is_instance_valid(hud_nitro_bar):
+		hud_nitro_bar.size.x = (nitro_charge / 100.0) * 308.0
+		if nitro_charge >= 50.0:
+			var pulse: float = sin(Time.get_ticks_msec() * 0.014) * 0.5 + 0.5
+			var pulse_col: Color = Color("#00E5FF").lerp(Color("#FFD000"), pulse)
+			hud_nitro_bar.color = pulse_col
+			if is_instance_valid(hud_nitro_ready_badge):
+				hud_nitro_ready_badge.visible = true
+				hud_nitro_ready_badge.text = "⚡ MAX OVERDRIVE READY! ⚡" if nitro_charge >= 99.5 else "⚡ DOUBLE TAP BOOST! ⚡"
+				hud_nitro_ready_badge.add_theme_color_override("font_color", pulse_col)
+		else:
+			hud_nitro_bar.color = Color("#00B4D8")
+			if is_instance_valid(hud_nitro_ready_badge):
+				hud_nitro_ready_badge.visible = false
 
 	# Update Arcade Speedometer Rev Bar & Gear Indicator
 	if is_instance_valid(hud_rev_bar):
