@@ -39,8 +39,8 @@ const COLOR_PLAYER_CAR: Color = Color(0.941, 0.937, 0.918)  # Warm paper white/c
 const COLOR_ANIME_SHADOW: Color = Color(0.196, 0.208, 0.290) # Cool slate violet/indigo #32354A
 
 # Game States
-enum GameState { RACING, CRASHED }
-var current_state: GameState = GameState.RACING
+enum GameState { START, RACING, CRASHED }
+var current_state: GameState = GameState.START
 
 # Skid Decals Data & Object Pool
 class SkidDecal:
@@ -364,6 +364,122 @@ static var comic_outline_mat: ShaderMaterial
 static var contact_shadow_mat: ShaderMaterial
 static var speedlines_mat: ShaderMaterial
 
+# --- 4 JAPANESE MANGA BIOMES SYSTEM ---
+const BIOMES: Dictionary = {
+	"shuto_dusk": {
+		"name": "SHUTO DUSK",
+		"kanji": "首都高 DUSK",
+		"badge": "SHUTO EXPRESSWAY // DUSK",
+		"sky_top": Color("#0E2864"),
+		"sky_horizon": Color("#E8827A"),
+		"ground_horizon": Color("#242B3D"),
+		"sun_color": Color("#FFF8EB"),
+		"sun_energy": 1.25,
+		"ambient_color": Color("#2A283D"),
+		"ambient_energy": 0.28,
+		"fog_color": Color("#242B3D"),
+		"fog_density": 0.001,
+		"weather": "sunny",
+		"traffic_min_dist": 160.0,
+		"traffic_max_dist": 230.0,
+	},
+	"neo_shinjuku": {
+		"name": "NEO-SHINJUKU",
+		"kanji": "新宿 ALLEY",
+		"badge": "NEO-SHINJUKU // URBAN CANYON",
+		"sky_top": Color("#080816"),
+		"sky_horizon": Color("#4A1535"),
+		"ground_horizon": Color("#0A0A14"),
+		"sun_color": Color("#3A4A7A"),
+		"sun_energy": 0.65,
+		"ambient_color": Color("#181428"),
+		"ambient_energy": 0.35,
+		"fog_color": Color("#100C1C"),
+		"fog_density": 0.0018,
+		"weather": "rain",
+		"traffic_min_dist": 200.0,
+		"traffic_max_dist": 290.0,
+	},
+	"enoshima_coast": {
+		"name": "ENOSHIMA COAST",
+		"kanji": "江の島 COAST",
+		"badge": "ENOSHIMA COAST // OCEAN HIGHWAY",
+		"sky_top": Color("#1E5FA8"),
+		"sky_horizon": Color("#FFAA44"),
+		"ground_horizon": Color("#3D6075"),
+		"sun_color": Color("#FFE5B4"),
+		"sun_energy": 1.40,
+		"ambient_color": Color("#4A5568"),
+		"ambient_energy": 0.32,
+		"fog_color": Color("#F4D58D"),
+		"fog_density": 0.0007,
+		"weather": "sunny",
+		"traffic_min_dist": 280.0,
+		"traffic_max_dist": 390.0,
+	},
+	"hakone_snow": {
+		"name": "HAKONE SNOW",
+		"kanji": "箱根 TOUGE",
+		"badge": "HAKONE SNOW // ALPINE PASS",
+		"sky_top": Color("#4A6B8A"),
+		"sky_horizon": Color("#B8D2E6"),
+		"ground_horizon": Color("#7A96B2"),
+		"sun_color": Color("#E6F2FF"),
+		"sun_energy": 1.10,
+		"ambient_color": Color("#859CB5"),
+		"ambient_energy": 0.30,
+		"fog_color": Color("#A4BED5"),
+		"fog_density": 0.0012,
+		"weather": "snow",
+		"traffic_min_dist": 450.0,
+		"traffic_max_dist": 680.0,
+	}
+}
+
+const STAGE_INTERVAL_METERS: float = 2500.0
+var stage_tier: int = 1
+var stage_start_z: float = 0.0
+var current_biome_id: String = "shuto_dusk"
+var discovered_biomes: Array[String] = ["shuto_dusk"]
+
+var fork_left_biome: String = "hakone_snow"
+var fork_right_biome: String = "enoshima_coast"
+var fork_active: bool = false
+var active_fork_mid_z: float = -999999.0
+var active_fork_exit_z: float = -999999.0
+var fork_transition_done: bool = false
+const SAVE_DATA_PATH: String = "user://save_data.cfg"
+
+# Start Screen & Vibe Pill UI
+var hud_start_screen: Control
+var hud_vibe_label: Label
+var hud_stage_banner: Control
+var hud_stage_label: Label
+var hud_stage_sub: Label
+
+# Biome Prop Materials
+static var coastal_sand_mat: StandardMaterial3D
+static var ocean_water_mat: StandardMaterial3D
+static var ocean_foam_mat: StandardMaterial3D
+static var palm_trunk_mat: StandardMaterial3D
+static var palm_frond_mat: StandardMaterial3D
+static var coastal_cliff_mat: StandardMaterial3D
+
+static var snow_rock_mat: StandardMaterial3D
+static var snow_foliage_mat: StandardMaterial3D
+static var snowbank_mat: StandardMaterial3D
+
+static var shinjuku_building_mat: StandardMaterial3D
+static var shinjuku_window_mat: StandardMaterial3D
+static var neon_pink_mat: StandardMaterial3D
+static var neon_cyan_mat: StandardMaterial3D
+static var neon_yellow_mat: StandardMaterial3D
+static var vending_body_mat: StandardMaterial3D
+static var vending_glass_mat: StandardMaterial3D
+static var power_pole_mat: StandardMaterial3D
+static var power_line_mat: StandardMaterial3D
+static var attenuator_mat: StandardMaterial3D
+
 # Player Motion State
 var player_z: float = 0.0
 var player_lane_x: float = 0.0
@@ -513,12 +629,164 @@ var hud_summary_stats: Label
 var hud_speedlines: ColorRect
 var hud_graze_container: Control
 
+func _get_stage_top_speed_kmh(tier: int) -> float:
+	match tier:
+		1: return 165.0
+		2: return 185.0
+		3: return 205.0
+		4: return 225.0
+		_: return minf(245.0, 225.0 + float(tier - 4) * 10.0)
+
+func _get_stage_cruise_speed() -> float:
+	return _get_stage_top_speed_kmh(stage_tier) / 3.6
+
+func _get_stage_boost_speed() -> float:
+	return (_get_stage_top_speed_kmh(stage_tier) + 35.0) / 3.6
+
+func _get_stage_score_multiplier(tier: int) -> float:
+	match tier:
+		1: return 1.0
+		2: return 1.25
+		3: return 1.5
+		4: return 2.0
+		_: return 2.0 + float(tier - 4) * 0.5
+
+func _load_save_data() -> void:
+	var cfg := ConfigFile.new()
+	var all_default_biomes: Array = ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+	if cfg.load(SAVE_DATA_PATH) == OK:
+		var loaded_list = cfg.get_value("biomes", "discovered_biomes", all_default_biomes)
+		if loaded_list is Array:
+			discovered_biomes.clear()
+			for b in loaded_list:
+				var s := String(b)
+				if s in BIOMES and not s in discovered_biomes:
+					discovered_biomes.append(s)
+		if discovered_biomes.is_empty():
+			discovered_biomes = ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+		var last_b: String = cfg.get_value("biomes", "last_biome", "shuto_dusk")
+		if last_b in discovered_biomes:
+			current_biome_id = last_b
+		else:
+			current_biome_id = discovered_biomes[0]
+	else:
+		discovered_biomes = ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+		current_biome_id = "shuto_dusk"
+
+func _save_save_data() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("biomes", "discovered_biomes", discovered_biomes)
+	cfg.set_value("biomes", "last_biome", current_biome_id)
+	cfg.save(SAVE_DATA_PATH)
+
+func _discover_biome(b_id: String) -> void:
+	if not b_id in discovered_biomes:
+		discovered_biomes.append(b_id)
+		_save_save_data()
+		_trigger_radio_chatter("TACHIBANA SPOTTER", "NEW BIOME UNLOCKED: " + BIOMES[b_id]["name"] + "!", Color("#FFD700"))
+
+func _rebuild_start_chunks() -> void:
+	for chunk in road_chunks:
+		if is_instance_valid(chunk):
+			chunk.queue_free()
+	road_chunks.clear()
+	next_chunk_z = 0.0
+	chunk_spawn_count = 0
+	_setup_road_system()
+
+func _apply_biome_transition(new_biome_id: String) -> void:
+	if not new_biome_id in BIOMES:
+		return
+	current_biome_id = new_biome_id
+	var b_data: Dictionary = BIOMES[new_biome_id]
+
+	# Sky & Atmosphere
+	if is_instance_valid(procedural_sky_mat):
+		procedural_sky_mat.sky_top_color = b_data["sky_top"]
+		procedural_sky_mat.sky_horizon_color = b_data["sky_horizon"]
+		procedural_sky_mat.ground_horizon_color = b_data["ground_horizon"]
+	if is_instance_valid(world_env_resource):
+		world_env_resource.ambient_light_color = b_data["ambient_color"]
+		world_env_resource.ambient_light_energy = b_data["ambient_energy"]
+		world_env_resource.fog_light_color = b_data["fog_color"]
+		world_env_resource.fog_density = b_data["fog_density"]
+
+	# Directional Sun
+	if is_instance_valid(sun_light):
+		sun_light.light_color = b_data["sun_color"]
+		sun_light.light_energy = b_data["sun_energy"]
+
+	# Horizon Mountain / Island Silhouette Manager
+	if is_instance_valid(horizon_manager):
+		horizon_manager.set_biome_style(new_biome_id)
+
+	# Distant Tokyo Skyline (Show on Shuto Dusk and Neo-Shinjuku; hide in Hakone Snow and Enoshima Coast)
+	if is_instance_valid(background_rig):
+		background_rig.visible = (new_biome_id in ["shuto_dusk", "neo_shinjuku"])
+
+	# Weather state
+	match b_data["weather"]:
+		"rain":
+			set_weather_rain(true)
+		"snow":
+			_set_weather_state(WeatherState.SNOW)
+		_:
+			set_weather_rain(false)
+
+func _cycle_start_biome(dir: int) -> void:
+	if discovered_biomes.is_empty():
+		return
+	var cur_idx := discovered_biomes.find(current_biome_id)
+	if cur_idx == -1:
+		cur_idx = 0
+	cur_idx = (cur_idx + dir + discovered_biomes.size()) % discovered_biomes.size()
+	current_biome_id = discovered_biomes[cur_idx]
+	_apply_biome_transition(current_biome_id)
+	if is_instance_valid(hud_vibe_label):
+		hud_vibe_label.text = BIOMES[current_biome_id]["name"]
+	if current_state == GameState.START:
+		_rebuild_start_chunks()
+	_save_save_data()
+
+func _start_race() -> void:
+	if current_state != GameState.START:
+		return
+	current_state = GameState.RACING
+	if is_instance_valid(hud_start_screen):
+		hud_start_screen.visible = false
+	if is_instance_valid(engine_audio_player) and not engine_audio_player.playing:
+		engine_audio_player.play()
+	if is_instance_valid(rally_music_player) and not rally_music_player.playing:
+		_play_random_rally_track()
+	_trigger_radio_chatter("TACHIBANA SPOTTER", "Race started! Heading into " + BIOMES[current_biome_id]["name"] + "!", Color("#FFD700"))
+
+func _trigger_stage_badge(tier: int, kmh: int) -> void:
+	if not is_instance_valid(hud_stage_banner):
+		return
+	hud_stage_banner.visible = true
+	hud_stage_banner.modulate.a = 1.0
+	hud_stage_banner.scale = Vector2(1.25, 1.25)
+	if is_instance_valid(hud_stage_label):
+		hud_stage_label.text = "STAGE " + str(tier) + " // +20 KM/H"
+	if is_instance_valid(hud_stage_sub):
+		hud_stage_sub.text = "BASE TOP SPEED: " + str(kmh) + " KM/H (" + str(_get_stage_score_multiplier(tier)) + "x SCORE)"
+	_play_proc_audio("high_rev")
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(hud_stage_banner, "scale", Vector2(1.0, 1.0), 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var tw_seq := create_tween()
+	tw_seq.tween_interval(2.2)
+	tw_seq.tween_property(hud_stage_banner, "modulate:a", 0.0, 0.5)
+	tw_seq.tween_callback(func(): if is_instance_valid(hud_stage_banner): hud_stage_banner.visible = false)
+
 func _ready() -> void:
+	_load_save_data()
 	_setup_procedural_audio()
 	_setup_game_audio()
 	_setup_materials()
 	_setup_environment()
 	_setup_background_layers()
+	_apply_biome_transition(current_biome_id)
 	_setup_road_system()
 	_setup_skid_pool()
 	_setup_spark_pools()
@@ -862,6 +1130,106 @@ func _setup_materials() -> void:
 		sodium_pool_mat.albedo_color = Color(1.0, 0.627, 0.071, 0.0)
 		sodium_pool_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
+	# --- 4 BIOMES MATERIALS INITIALIZATION ---
+	if not coastal_sand_mat:
+		coastal_sand_mat = StandardMaterial3D.new()
+		coastal_sand_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		coastal_sand_mat.specular_mode = BaseMaterial3D.SPECULAR_TOON
+		coastal_sand_mat.albedo_color = Color("#F4D58D")
+		coastal_sand_mat.roughness = 0.95
+
+	if not ocean_water_mat:
+		ocean_water_mat = StandardMaterial3D.new()
+		ocean_water_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ocean_water_mat.albedo_color = Color("#1E6FA8")
+
+	if not ocean_foam_mat:
+		ocean_foam_mat = StandardMaterial3D.new()
+		ocean_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ocean_foam_mat.albedo_color = Color("#FFFFFF")
+
+	if not palm_trunk_mat:
+		palm_trunk_mat = StandardMaterial3D.new()
+		palm_trunk_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		palm_trunk_mat.albedo_color = Color("#8B5A2B")
+
+	if not palm_frond_mat:
+		palm_frond_mat = StandardMaterial3D.new()
+		palm_frond_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		palm_frond_mat.albedo_color = Color("#2E8B57")
+		palm_frond_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	if not coastal_cliff_mat:
+		coastal_cliff_mat = StandardMaterial3D.new()
+		coastal_cliff_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		coastal_cliff_mat.albedo_color = Color("#C49A5A")
+
+	if not snow_rock_mat:
+		snow_rock_mat = StandardMaterial3D.new()
+		snow_rock_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		snow_rock_mat.albedo_color = Color("#DCE8F2")
+
+	if not snow_foliage_mat:
+		snow_foliage_mat = StandardMaterial3D.new()
+		snow_foliage_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		snow_foliage_mat.albedo_color = Color("#EBF2F7")
+		snow_foliage_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	if not snowbank_mat:
+		snowbank_mat = StandardMaterial3D.new()
+		snowbank_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		snowbank_mat.albedo_color = Color("#F0F6FA")
+
+	if not shinjuku_building_mat:
+		shinjuku_building_mat = StandardMaterial3D.new()
+		shinjuku_building_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		shinjuku_building_mat.albedo_color = Color("#282A33")
+
+	if not shinjuku_window_mat:
+		shinjuku_window_mat = StandardMaterial3D.new()
+		shinjuku_window_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		shinjuku_window_mat.albedo_color = Color("#FFD27F")
+
+	if not neon_pink_mat:
+		neon_pink_mat = StandardMaterial3D.new()
+		neon_pink_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		neon_pink_mat.albedo_color = Color("#FF2A55")
+
+	if not neon_cyan_mat:
+		neon_cyan_mat = StandardMaterial3D.new()
+		neon_cyan_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		neon_cyan_mat.albedo_color = Color("#00E5FF")
+
+	if not neon_yellow_mat:
+		neon_yellow_mat = StandardMaterial3D.new()
+		neon_yellow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		neon_yellow_mat.albedo_color = Color("#FFD000")
+
+	if not vending_body_mat:
+		vending_body_mat = StandardMaterial3D.new()
+		vending_body_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		vending_body_mat.albedo_color = Color("#D92027")
+
+	if not vending_glass_mat:
+		vending_glass_mat = StandardMaterial3D.new()
+		vending_glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		vending_glass_mat.albedo_color = Color("#00E5FF")
+
+	if not power_pole_mat:
+		power_pole_mat = StandardMaterial3D.new()
+		power_pole_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
+		power_pole_mat.albedo_color = Color("#4A4D54")
+
+	if not power_line_mat:
+		power_line_mat = StandardMaterial3D.new()
+		power_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		power_line_mat.albedo_color = Color("#111115")
+
+	if not attenuator_mat:
+		attenuator_mat = StandardMaterial3D.new()
+		attenuator_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		attenuator_mat.albedo_color = Color("#FFD000")
+
 	if not cliff_mat:
 		var cliff_sh: Shader = load("res://shaders/anime_cliff.gdshader")
 		cliff_mat = ShaderMaterial.new()
@@ -1095,15 +1463,15 @@ func _setup_environment() -> void:
 # 2B. HORIZON DEPTH: MULTI-LAYER PARALLAX MOUNTAINS, SKYLINES & ANIME CLOUDS
 # ==============================================================================
 func _setup_background_layers() -> void:
-	# 1. Camera-Anchored Horizon Rig (Retired flat unshaded cards; replaced by GrandMountainPeak 3D anime cel massif)
-	# var hm_script = load("res://scripts/HorizonManager.gd")
-	# if hm_script:
-	# 	horizon_manager = hm_script.new()
-	# 	horizon_manager.name = "HorizonManager"
-	# 	horizon_manager.mountain_distance = 480.0
-	# 	if is_instance_valid(follow_cam):
-	# 		horizon_manager.player_camera = follow_cam
-	# 	add_child(horizon_manager)
+	# 1. Camera-Anchored Horizon Rig (Grand Mountain Massifs, Enoshima Island & Sun Disc)
+	var hm_script = load("res://scripts/HorizonManager.gd")
+	if hm_script:
+		horizon_manager = hm_script.new()
+		horizon_manager.name = "HorizonManager"
+		horizon_manager.mountain_distance = 480.0
+		if is_instance_valid(follow_cam):
+			horizon_manager.player_camera = follow_cam
+		add_child(horizon_manager)
 
 	background_rig = Node3D.new()
 	background_rig.name = "BackgroundRig"
@@ -2156,7 +2524,10 @@ func _setup_road_system() -> void:
 
 func _create_road_chunk(start_z: float) -> Node3D:
 	chunk_spawn_count += 1
-	var is_tunnel: bool = (chunk_spawn_count % 14 == 3)
+	var dist_from_stage: float = abs(start_z - stage_start_z)
+	var is_fork_approach: bool = (dist_from_stage >= 2380.0 and dist_from_stage < 2500.0)
+	var is_twin_tunnel: bool = (dist_from_stage >= 2500.0 and dist_from_stage < 2620.0)
+	var is_tunnel: bool = is_twin_tunnel or (not is_fork_approach and (chunk_spawn_count % 14 == 3))
 
 	var chunk_root := Node3D.new()
 	chunk_root.position.z = start_z
@@ -2179,8 +2550,38 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	var barrier_cap_st := SurfaceTool.new()
 	barrier_cap_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var half_w: float = ROAD_WIDTH * 0.5
+	# Biome-specific surface tools for batched draw calls
+	var sand_st := SurfaceTool.new()
+	var water_st := SurfaceTool.new()
+	var trunk_st := SurfaceTool.new()
+	var snow_st := SurfaceTool.new()
+	var win_st := SurfaceTool.new()
+	var pole_st := SurfaceTool.new()
+	var line_st := SurfaceTool.new()
+
+	if current_biome_id == "enoshima_coast":
+		sand_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		water_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		trunk_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	elif current_biome_id == "hakone_snow":
+		snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	elif current_biome_id == "neo_shinjuku":
+		win_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		pole_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		line_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
 	var step_z: float = CHUNK_LENGTH / float(CHUNK_SEGMENTS)
+
+	# Pick candidate biomes for fork if approaching
+	if is_fork_approach:
+		var candidates: Array[String] = []
+		for b in BIOMES.keys():
+			if b != current_biome_id:
+				candidates.append(b)
+		candidates.shuffle()
+		if candidates.size() >= 2:
+			fork_left_biome = candidates[0]
+			fork_right_biome = candidates[1]
 
 	for i in range(CHUNK_SEGMENTS + 1):
 		var local_z: float = -float(i) * step_z
@@ -2190,15 +2591,21 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var bank_angle: float = _sample_road_bank(global_z)
 		var right_vec: Vector3 = _sample_road_right(global_z)
 
-		var center_pt := Vector3(center_x, 0.0, local_z)
+		var half_w: float = ROAD_WIDTH * 0.5
+		if is_fork_approach:
+			var widen_t: float = float(i) / float(CHUNK_SEGMENTS)
+			half_w = lerp(ROAD_WIDTH * 0.5, 14.5, widen_t)
+		elif is_twin_tunnel:
+			half_w = 14.5
 
+		var center_pt := Vector3(center_x, 0.0, local_z)
 		var left_pt := center_pt - (right_vec * half_w) + Vector3(0.0, sin(bank_angle) * half_w, 0.0)
 		var right_pt := center_pt + (right_vec * half_w) - Vector3(0.0, sin(bank_angle) * half_w, 0.0)
 
 		var normal := Vector3(0.0, 1.0, 0.0)
 		var v_uv: float = float(i)
 
-		# 1. 20m Highway Surface
+		# 1. Roadway Surface
 		road_st.set_normal(normal)
 		road_st.set_uv(Vector2(0.0, v_uv))
 		road_st.add_vertex(left_pt)
@@ -2207,75 +2614,90 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		road_st.set_uv(Vector2(1.0, v_uv))
 		road_st.add_vertex(right_pt)
 
-		# 2. Japanese Stepped Retaining Terraces (3 Retaining Walls & 3 Lush Green Shelves + Mountain Massif)
-		var n_macro: float = sin(global_z * 0.012) * 5.5 + cos(global_z * 0.027) * 3.5
-		var n_meso: float = sin(global_z * 0.048) * 2.2 + cos(global_z * 0.088) * 1.4
-		var n_micro: float = sin(global_z * 0.13) * 0.8 + cos(global_z * 0.26) * 0.5
+		# 2. Roadside Formations per Biome
+		if current_biome_id == "shuto_dusk" or is_fork_approach or is_twin_tunnel:
+			var n_macro: float = sin(global_z * 0.012) * 5.5 + cos(global_z * 0.027) * 3.5
+			var n_meso: float = sin(global_z * 0.048) * 2.2 + cos(global_z * 0.088) * 1.4
+			var n_micro: float = sin(global_z * 0.13) * 0.8 + cos(global_z * 0.26) * 0.5
 
-		var h1: float = 1.2 + n_micro * 0.2
-		var h2: float = 1.8 + n_micro * 0.3
-		var h3: float = 6.2 + n_micro * 0.4
-		var h4: float = 7.0 + n_meso * 0.5
-		var h5: float = 15.5 + n_meso * 0.8
-		var h6: float = 16.8 + n_macro * 0.7
-		var h7: float = 36.0 + n_macro * 1.8
-		var h8: float = 48.0 + n_macro * 2.2
+			var h1: float = 1.2 + n_micro * 0.2
+			var h2: float = 1.8 + n_micro * 0.3
+			var h3: float = 6.2 + n_micro * 0.4
+			var h4: float = 7.0 + n_meso * 0.5
+			var h5: float = 15.5 + n_meso * 0.8
+			var h6: float = 16.8 + n_macro * 0.7
+			var h7: float = 36.0 + n_macro * 1.8
+			var h8: float = 48.0 + n_macro * 2.2
 
-		var pt0 := left_pt
-		var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, h1, 0.0)
-		var pt2 := left_pt - (right_vec * 7.5) + Vector3(0.0, h2, 0.0)
-		var pt3 := left_pt - (right_vec * 7.9) + Vector3(0.0, h3, 0.0)
-		var pt4 := left_pt - (right_vec * 19.5) + Vector3(0.0, h4, 0.0)
-		var pt5 := left_pt - (right_vec * 20.2) + Vector3(0.0, h5, 0.0)
-		var pt6 := left_pt - (right_vec * 36.0) + Vector3(0.0, h6, 0.0)
-		var pt7 := left_pt - (right_vec * 72.0) + Vector3(0.0, h7, 0.0)
-		var pt8 := left_pt - (right_vec * 135.0) + Vector3(0.0, h8, 0.0)
+			var pt0 := left_pt
+			var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, h1, 0.0)
+			var pt2 := left_pt - (right_vec * 7.5) + Vector3(0.0, h2, 0.0)
+			var pt3 := left_pt - (right_vec * 7.9) + Vector3(0.0, h3, 0.0)
+			var pt4 := left_pt - (right_vec * 19.5) + Vector3(0.0, h4, 0.0)
+			var pt5 := left_pt - (right_vec * 20.2) + Vector3(0.0, h5, 0.0)
+			var pt6 := left_pt - (right_vec * 36.0) + Vector3(0.0, h6, 0.0)
+			var pt7 := left_pt - (right_vec * 72.0) + Vector3(0.0, h7, 0.0)
+			var pt8 := left_pt - (right_vec * 135.0) + Vector3(0.0, h8, 0.0)
 
-		var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
-		var bands: Array = [
-			{"p0": pt0, "p1": pt1, "v0": 0.0,  "v1": 0.08}, # Retaining Wall 1 (Concrete formwork)
-			{"p0": pt1, "p1": pt2, "v0": 0.08, "v1": 0.22}, # Terrace Shelf 1 (Verge grass)
-			{"p0": pt2, "p1": pt3, "v0": 0.22, "v1": 0.30}, # Retaining Wall 2 (Vertical panel)
-			{"p0": pt3, "p1": pt4, "v0": 0.30, "v1": 0.44}, # Terrace Shelf 2 (Mid grass shelf)
-			{"p0": pt4, "p1": pt5, "v0": 0.44, "v1": 0.52}, # Retaining Wall 3 (High wall)
-			{"p0": pt5, "p1": pt6, "v0": 0.52, "v1": 0.62}, # Terrace Shelf 3 (Upper terrace grass)
-			{"p0": pt6, "p1": pt7, "v0": 0.62, "v1": 0.82}, # Mountain Slope (Faceted rock strata)
-			{"p0": pt7, "p1": pt8, "v0": 0.82, "v1": 1.0}   # Mountain Crest (Canopy ridge)
-		]
-		for b in bands:
-			hillside_st.set_uv(Vector2(hs_u, b["v0"]))
-			hillside_st.add_vertex(b["p0"])
-			hillside_st.set_uv(Vector2(hs_u, b["v1"]))
-			hillside_st.add_vertex(b["p1"])
+			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
+			var bands: Array = [
+				{"p0": pt0, "p1": pt1, "v0": 0.0,  "v1": 0.08},
+				{"p0": pt1, "p1": pt2, "v0": 0.08, "v1": 0.22},
+				{"p0": pt2, "p1": pt3, "v0": 0.22, "v1": 0.30},
+				{"p0": pt3, "p1": pt4, "v0": 0.30, "v1": 0.44},
+				{"p0": pt4, "p1": pt5, "v0": 0.44, "v1": 0.52},
+				{"p0": pt5, "p1": pt6, "v0": 0.52, "v1": 0.62},
+				{"p0": pt6, "p1": pt7, "v0": 0.62, "v1": 0.82},
+				{"p0": pt7, "p1": pt8, "v0": 0.82, "v1": 1.0}
+			]
+			for b in bands:
+				hillside_st.set_uv(Vector2(hs_u, b["v0"]))
+				hillside_st.add_vertex(b["p0"])
+				hillside_st.set_uv(Vector2(hs_u, b["v1"]))
+				hillside_st.add_vertex(b["p1"])
 
-		# 3. 3D Concrete Guardrail (Right)
+		elif current_biome_id == "enoshima_coast":
+			# LEFT: Coastal cliff rising up with rocky faces
+			var cliff_top := left_pt - (right_vec * 34.0) + Vector3(0.0, 28.0, 0.0)
+			hillside_st.add_vertex(left_pt)
+			hillside_st.add_vertex(cliff_top)
+
+			# RIGHT: Sandy beach shoulder sloping down into ocean water plane
+			var sand_end := right_pt + (right_vec * 16.0) - Vector3(0.0, 1.4, 0.0)
+			var ocean_end := right_pt + (right_vec * 240.0) - Vector3(0.0, 3.2, 0.0)
+			sand_st.add_vertex(right_pt)
+			sand_st.add_vertex(sand_end)
+			water_st.add_vertex(sand_end)
+			water_st.add_vertex(ocean_end)
+
+		elif current_biome_id == "hakone_snow":
+			var snow_l := left_pt - (right_vec * 2.8) + Vector3(0.0, 0.8, 0.0)
+			var cliff_l := left_pt - (right_vec * 45.0) + Vector3(0.0, 38.0, 0.0)
+			snow_st.add_vertex(left_pt); snow_st.add_vertex(snow_l)
+			hillside_st.add_vertex(snow_l); hillside_st.add_vertex(cliff_l)
+
+			var snow_r := right_pt + (right_vec * 2.8) + Vector3(0.0, 0.8, 0.0)
+			var cliff_r := right_pt + (right_vec * 45.0) + Vector3(0.0, 38.0, 0.0)
+			snow_st.add_vertex(right_pt); snow_st.add_vertex(snow_r)
+			hillside_st.add_vertex(snow_r); hillside_st.add_vertex(cliff_r)
+
+		elif current_biome_id == "neo_shinjuku":
+			var sw_l := left_pt - (right_vec * 3.8) + Vector3(0.0, 0.22, 0.0)
+			var sw_r := right_pt + (right_vec * 3.8) + Vector3(0.0, 0.22, 0.0)
+			hillside_st.add_vertex(left_pt); hillside_st.add_vertex(sw_l)
+			hillside_st.add_vertex(right_pt); hillside_st.add_vertex(sw_r)
+
+		# 3. Guardrails (Right side)
 		var bar_inner_top := right_pt + Vector3(0.0, 1.2, 0.0)
 		var bar_outer_top := right_pt + (right_vec * 0.55) + Vector3(0.0, 1.2, 0.0)
 		var bar_outer_bottom := right_pt + (right_vec * 0.55) - Vector3(0.0, 8.0, 0.0)
 
-		barrier_st.set_normal(-right_vec)
-		barrier_st.set_uv(Vector2(0.0, v_uv))
-		barrier_st.add_vertex(right_pt)
-
-		barrier_st.set_normal(-right_vec)
-		barrier_st.set_uv(Vector2(1.0, v_uv))
-		barrier_st.add_vertex(bar_inner_top)
-
-		barrier_cap_st.set_normal(Vector3(0, 1, 0))
-		barrier_cap_st.set_uv(Vector2(0.0, v_uv))
-		barrier_cap_st.add_vertex(bar_inner_top)
-
-		barrier_cap_st.set_normal(Vector3(0, 1, 0))
-		barrier_cap_st.set_uv(Vector2(1.0, v_uv))
-		barrier_cap_st.add_vertex(bar_outer_top)
-
-		barrier_st.set_normal(right_vec)
-		barrier_st.set_uv(Vector2(0.0, v_uv))
-		barrier_st.add_vertex(bar_outer_top)
-
-		barrier_st.set_normal(right_vec)
-		barrier_st.set_uv(Vector2(1.0, v_uv))
-		barrier_st.add_vertex(bar_outer_bottom)
+		barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(right_pt)
+		barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
+		barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
+		barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
+		barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
+		barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
 
 	for i in range(CHUNK_SEGMENTS):
 		var i2: int = i * 2
@@ -2286,19 +2708,43 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		road_st.add_index(i2 + 3)
 		road_st.add_index(i2 + 2)
 
-		for b in range(8):
-			var idx_curr_bot: int = (i * 8 + b) * 2
-			var idx_curr_top: int = idx_curr_bot + 1
-			var idx_next_bot: int = ((i + 1) * 8 + b) * 2
-			var idx_next_top: int = idx_next_bot + 1
-			hillside_st.add_index(idx_curr_bot)
-			hillside_st.add_index(idx_next_bot)
-			hillside_st.add_index(idx_curr_top)
-			hillside_st.add_index(idx_curr_top)
-			hillside_st.add_index(idx_next_bot)
-			hillside_st.add_index(idx_next_top)
+		if current_biome_id == "shuto_dusk" or is_fork_approach or is_twin_tunnel:
+			for b in range(8):
+				var idx_curr_bot: int = (i * 8 + b) * 2
+				var idx_curr_top: int = idx_curr_bot + 1
+				var idx_next_bot: int = ((i + 1) * 8 + b) * 2
+				var idx_next_top: int = idx_next_bot + 1
+				hillside_st.add_index(idx_curr_bot)
+				hillside_st.add_index(idx_next_bot)
+				hillside_st.add_index(idx_curr_top)
+				hillside_st.add_index(idx_curr_top)
+				hillside_st.add_index(idx_next_bot)
+				hillside_st.add_index(idx_next_top)
+		elif current_biome_id == "enoshima_coast":
+			sand_st.add_index(i2); sand_st.add_index(i2 + 2); sand_st.add_index(i2 + 1)
+			sand_st.add_index(i2 + 1); sand_st.add_index(i2 + 2); sand_st.add_index(i2 + 3)
+			water_st.add_index(i2); water_st.add_index(i2 + 2); water_st.add_index(i2 + 1)
+			water_st.add_index(i2 + 1); water_st.add_index(i2 + 2); water_st.add_index(i2 + 3)
+			hillside_st.add_index(i2); hillside_st.add_index(i2 + 1); hillside_st.add_index(i2 + 2)
+			hillside_st.add_index(i2 + 1); hillside_st.add_index(i2 + 3); hillside_st.add_index(i2 + 2)
+		elif current_biome_id == "hakone_snow":
+			var si: int = i * 4
+			snow_st.add_index(si); snow_st.add_index(si + 1); snow_st.add_index(si + 4)
+			snow_st.add_index(si + 1); snow_st.add_index(si + 5); snow_st.add_index(si + 4)
+			snow_st.add_index(si + 2); snow_st.add_index(si + 3); snow_st.add_index(si + 6)
+			snow_st.add_index(si + 3); snow_st.add_index(si + 7); snow_st.add_index(si + 6)
+			hillside_st.add_index(si); hillside_st.add_index(si + 1); hillside_st.add_index(si + 4)
+			hillside_st.add_index(si + 1); hillside_st.add_index(si + 5); hillside_st.add_index(si + 4)
+			hillside_st.add_index(si + 2); hillside_st.add_index(si + 3); hillside_st.add_index(si + 6)
+			hillside_st.add_index(si + 3); hillside_st.add_index(si + 7); hillside_st.add_index(si + 6)
+		elif current_biome_id == "neo_shinjuku":
+			var ni: int = i * 4
+			hillside_st.add_index(ni); hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 4)
+			hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 5); hillside_st.add_index(ni + 4)
+			hillside_st.add_index(ni + 2); hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 6)
+			hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 7); hillside_st.add_index(ni + 6)
 
-		# Diverse 4-Zone 3D Anime Nature (True 3D Low-Poly Puffy Trees, Conifers, Bamboo, Rocks, Bushes)
+		# Prop generation per segment
 		var seg_local_z: float = -float(i) * step_z
 		var seg_gz: float = start_z + seg_local_z
 		var seg_seed: float = sin(seg_gz * 73.15 + float(i) * 31.45) * 43758.5453
@@ -2306,119 +2752,86 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var seg_cx: float = _sample_road_x(seg_gz)
 		var seg_ba: float = _sample_road_bank(seg_gz)
 		var seg_rv: Vector3 = _sample_road_right(seg_gz)
-		var seg_left := Vector3(seg_cx, 0.0, seg_local_z) - (seg_rv * half_w) + Vector3(0.0, sin(seg_ba) * half_w, 0.0)
+		var seg_hw: float = ROAD_WIDTH * 0.5
+		var seg_left := Vector3(seg_cx, 0.0, seg_local_z) - (seg_rv * seg_hw) + Vector3(0.0, sin(seg_ba) * seg_hw, 0.0)
+		var seg_right := Vector3(seg_cx, 0.0, seg_local_z) + (seg_rv * seg_hw) - Vector3(0.0, sin(seg_ba) * seg_hw, 0.0)
 
-		# Zone 1: Shelf 1 Verge Terrace (lat 1.8m to 6.8m) - Lush Roadside Undergrowth, Boulders & Puffy Trees
-		if i % 2 == 0:
-			var b_lat: float = 2.0 + seg_rnd * 3.5
-			var b_ground_y: float = _sample_hillside_height(seg_gz, b_lat)
-			var b_pos := seg_left - (seg_rv * b_lat) + Vector3(0.0, b_ground_y, 0.0)
-			_add_3d_bush(foliage_st, b_pos, 1.15 + seg_rnd * 0.45, seg_rnd)
+		if current_biome_id == "shuto_dusk" and not is_fork_approach and not is_twin_tunnel:
+			if i % 2 == 0:
+				var b_lat: float = 2.0 + seg_rnd * 3.5
+				var b_ground_y: float = _sample_hillside_height(seg_gz, b_lat)
+				var b_pos := seg_left - (seg_rv * b_lat) + Vector3(0.0, b_ground_y, 0.0)
+				_add_3d_bush(foliage_st, b_pos, 1.15 + seg_rnd * 0.45, seg_rnd)
+				if seg_rnd < 0.70:
+					var tr_lat: float = 3.6 + fposmod(seg_rnd * 6.7, 2.8)
+					var tr_ground_y: float = _sample_hillside_height(seg_gz, tr_lat)
+					var tr_pos := seg_left - (seg_rv * tr_lat) + Vector3(0.0, tr_ground_y, 0.0)
+					_add_3d_puffy_tree(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
+				else:
+					var pn_lat: float = 4.2 + fposmod(seg_rnd * 5.5, 2.4)
+					var pn_ground_y: float = _sample_hillside_height(seg_gz, pn_lat)
+					var pn_pos := seg_left - (seg_rv * pn_lat) + Vector3(0.0, pn_ground_y, 0.0)
+					_add_3d_pine_tree(foliage_st, pn_pos, 0.90 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
+			if i % 3 == 0:
+				var tr2_lat: float = 10.2 + fposmod(seg_rnd * 4.1, 7.8)
+				var tr2_ground_y: float = _sample_hillside_height(seg_gz, tr2_lat)
+				var tr2_pos := seg_left - (seg_rv * tr2_lat) + Vector3(0.0, tr2_ground_y, 0.0)
+				_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25, seg_rnd)
 
-			var rk_lat: float = 2.4 + fposmod(seg_rnd * 2.3 + float(i) * 0.31, 3.8)
-			var rk_ground_y: float = _sample_hillside_height(seg_gz, rk_lat)
-			var rk_pos := seg_left - (seg_rv * rk_lat) + Vector3(0.0, rk_ground_y, 0.0)
-			_add_3d_boulder(rock_st, rk_pos, 1.1 + fposmod(seg_rnd * 4.9, 0.7), seg_rnd)
+		elif current_biome_id == "enoshima_coast" and not is_fork_approach and not is_twin_tunnel:
+			# Coastal palm trees along left cliff verge & right sandy beach
+			if i % 3 == 0:
+				var cliff_palm := seg_left - (seg_rv * (3.5 + seg_rnd * 4.0)) + Vector3(0.0, 1.2, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 0.95 + seg_rnd * 0.35, seg_rnd)
+			elif i % 5 == 2:
+				var beach_palm := seg_right + (seg_rv * (5.0 + seg_rnd * 3.5)) - Vector3(0.0, 0.8, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 0.85 + seg_rnd * 0.25, seg_rnd)
 
-			if seg_rnd < 0.70:
-				var tr_lat: float = 3.6 + fposmod(seg_rnd * 6.7, 2.8)
-				var tr_ground_y: float = _sample_hillside_height(seg_gz, tr_lat)
-				var tr_pos := seg_left - (seg_rv * tr_lat) + Vector3(0.0, tr_ground_y, 0.0)
-				_add_3d_puffy_tree(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
-			elif seg_rnd < 0.88:
-				var pn_lat: float = 4.2 + fposmod(seg_rnd * 5.5, 2.4)
-				var pn_ground_y: float = _sample_hillside_height(seg_gz, pn_lat)
-				var pn_pos := seg_left - (seg_rv * pn_lat) + Vector3(0.0, pn_ground_y, 0.0)
-				_add_3d_pine_tree(foliage_st, pn_pos, 0.90 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
-			else:
-				var bb_lat: float = 3.8 + fposmod(seg_rnd * 7.9, 2.5)
-				var bb_ground_y: float = _sample_hillside_height(seg_gz, bb_lat)
-				var bb_pos := seg_left - (seg_rv * bb_lat) + Vector3(0.0, bb_ground_y, 0.0)
-				_add_3d_bamboo_cluster(foliage_st, bb_pos, 4, 0.85, seg_rnd)
-		else:
-			var b2_lat: float = 1.6 + fposmod(seg_rnd * 3.7 + float(i) * 0.19, 4.2)
-			var b2_ground_y: float = _sample_hillside_height(seg_gz, b2_lat)
-			var b2_pos := seg_left - (seg_rv * b2_lat) + Vector3(0.0, b2_ground_y, 0.0)
-			_add_3d_bush(foliage_st, b2_pos, 0.85 + fposmod(seg_rnd * 5.1, 0.5), seg_rnd)
+		elif current_biome_id == "hakone_snow" and not is_fork_approach and not is_twin_tunnel:
+			# Snow-capped alpine pines along left and right
+			if i % 2 == 0:
+				var sp_l := seg_left - (seg_rv * (4.2 + seg_rnd * 6.0)) + Vector3(0.0, 1.2, 0.0)
+				_add_3d_snow_pine(foliage_st, snow_st, sp_l, 0.95 + seg_rnd * 0.45, seg_rnd)
+			if i % 3 == 1:
+				var sp_r := seg_right + (seg_rv * (4.5 + seg_rnd * 6.0)) + Vector3(0.0, 1.2, 0.0)
+				_add_3d_snow_pine(foliage_st, snow_st, sp_r, 0.95 + seg_rnd * 0.45, seg_rnd)
 
-		# Zone 2: Shelf 2 Middle Terrace (lat 9.5m to 19.5m) - Dense Studio Ghibli Canopies, Pines & Bamboo
-		if i % 3 == 0:
-			var t2_seed: float = fposmod(seg_rnd * 3.17 + float(i) * 0.23, 1.0)
-			var tr2_lat: float = 10.2 + fposmod(t2_seed * 4.1, 7.8)
-			var tr2_ground_y: float = _sample_hillside_height(seg_gz, tr2_lat)
-			var tr2_pos := seg_left - (seg_rv * tr2_lat) + Vector3(0.0, tr2_ground_y, 0.0)
-			_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25 + fposmod(t2_seed * 5.3, 0.65), t2_seed)
+		elif current_biome_id == "neo_shinjuku" and not is_fork_approach and not is_twin_tunnel:
+			# Stacked Japanese buildings on both sides
+			if i % 5 == 0:
+				var bld_pos_l := seg_left - (seg_rv * 16.0)
+				var bld_size_l := Vector3(12.0, 18.0 + seg_rnd * 16.0, 14.0)
+				_add_shinjuku_building(hillside_st, win_st, bld_pos_l - bld_size_l * 0.5, bld_pos_l + bld_size_l * 0.5, seg_rnd)
 
-			var rk2_lat: float = 12.0 + fposmod(t2_seed * 5.9, 6.5)
-			var rk2_ground_y: float = _sample_hillside_height(seg_gz, rk2_lat)
-			var rk2_pos := seg_left - (seg_rv * rk2_lat) + Vector3(0.0, rk2_ground_y, 0.0)
-			_add_3d_boulder(rock_st, rk2_pos, 1.45 + fposmod(t2_seed * 6.1, 0.8), t2_seed)
-		elif i % 3 == 1:
-			var t2_seed: float = fposmod(seg_rnd * 3.17 + float(i) * 0.23, 1.0)
-			var pn2_lat: float = 11.5 + fposmod(t2_seed * 6.7, 6.8)
-			var pn2_ground_y: float = _sample_hillside_height(seg_gz, pn2_lat)
-			var pn2_pos := seg_left - (seg_rv * pn2_lat) + Vector3(0.0, pn2_ground_y, 0.0)
-			_add_3d_pine_tree(foliage_st, pn2_pos, 1.35 + fposmod(t2_seed * 7.1, 0.65), t2_seed)
+				var bld_pos_r := seg_right + (seg_rv * 16.0)
+				var bld_size_r := Vector3(12.0, 18.0 + fposmod(seg_rnd * 3.7, 1.0) * 16.0, 14.0)
+				_add_shinjuku_building(hillside_st, win_st, bld_pos_r - bld_size_r * 0.5, bld_pos_r + bld_size_r * 0.5, seg_rnd)
 
-			var b_mid_lat: float = 10.5 + fposmod(t2_seed * 4.7, 7.5)
-			var b_mid_ground_y: float = _sample_hillside_height(seg_gz, b_mid_lat)
-			var b_mid_pos := seg_left - (seg_rv * b_mid_lat) + Vector3(0.0, b_mid_ground_y, 0.0)
-			_add_3d_bush(foliage_st, b_mid_pos, 1.35, t2_seed)
+				# Vending machines on sidewalks
+				_add_3d_vending_machine(foliage_st, win_st, seg_left - (seg_rv * 2.2), 0.0, seg_rnd)
+				_add_3d_vending_machine(foliage_st, win_st, seg_right + (seg_rv * 2.2), PI, seg_rnd)
 
-		# Zone 3: Shelf 3 Upper Terrace (lat 22.5m to 36.5m) - Towering Canopies & Mountain Pines
-		if i % 3 == 2:
-			var t3_seed: float = fposmod(seg_rnd * 5.83 + float(i) * 0.37, 1.0)
-			var tr3_lat: float = 23.5 + fposmod(t3_seed * 4.9, 10.5)
-			var tr3_ground_y: float = _sample_hillside_height(seg_gz, tr3_lat)
-			var tr3_pos := seg_left - (seg_rv * tr3_lat) + Vector3(0.0, tr3_ground_y, 0.0)
-			_add_3d_puffy_tree(foliage_st, tr3_pos, 1.65 + fposmod(t3_seed * 6.3, 0.8), t3_seed)
+				# Vertical neon blade signs projecting from buildings (Ref Image 2)
+				var neon_texts: Array[String] = ["東岸大寿司", "#0E5FF", "新宿 24H", "湾岸 LINE", "RAMEN 麺"]
+				var text_l: String = neon_texts[(i + int(seg_rnd * 10.0)) % neon_texts.size()]
+				var text_r: String = neon_texts[(i + 2 + int(seg_rnd * 10.0)) % neon_texts.size()]
+				var neon_pos_l := seg_left - (seg_rv * 9.8) + Vector3(0.0, 6.8, 0.0)
+				var neon_pos_r := seg_right + (seg_rv * 9.8) + Vector3(0.0, 6.8, 0.0)
+				var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
+				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, text_l, i)
+				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, text_r, i + 1)
 
-			var b_hi_lat: float = 24.0 + fposmod(t3_seed * 4.1, 9.0)
-			var b_hi_ground_y: float = _sample_hillside_height(seg_gz, b_hi_lat)
-			var b_hi_pos := seg_left - (seg_rv * b_hi_lat) + Vector3(0.0, b_hi_ground_y, 0.0)
-			_add_3d_bush(foliage_st, b_hi_pos, 1.55, t3_seed)
-		elif i % 3 == 0:
-			var t3_seed: float = fposmod(seg_rnd * 5.83 + float(i) * 0.37, 1.0)
-			var pn3_lat: float = 25.5 + fposmod(t3_seed * 7.5, 9.5)
-			var pn3_ground_y: float = _sample_hillside_height(seg_gz, pn3_lat)
-			var pn3_pos := seg_left - (seg_rv * pn3_lat) + Vector3(0.0, pn3_ground_y, 0.0)
-			_add_3d_pine_tree(foliage_st, pn3_pos, 1.80 + fposmod(t3_seed * 5.7, 0.8), t3_seed)
-
-		# Zone 4: Upper Mountain Ridge Crest (lat 42.0m to 85.0m) - Silhouetted Mountain Pines & Crags
-		if i % 4 == 0:
-			var t4_seed: float = fposmod(seg_rnd * 9.19 + float(i) * 0.49, 1.0)
-			var pn4_lat: float = 43.0 + fposmod(t4_seed * 4.3, 38.0)
-			var pn4_ground_y: float = _sample_hillside_height(seg_gz, pn4_lat)
-			var pn4_pos := seg_left - (seg_rv * pn4_lat) + Vector3(0.0, pn4_ground_y, 0.0)
-			_add_3d_pine_tree(foliage_st, pn4_pos, 2.6 + fposmod(t4_seed * 5.1, 1.6), t4_seed)
-		elif i % 4 == 2:
-			var t4_seed: float = fposmod(seg_rnd * 9.19 + float(i) * 0.49, 1.0)
-			var rk4_lat: float = 48.0 + fposmod(t4_seed * 8.9, 30.0)
-			var rk4_ground_y: float = _sample_hillside_height(seg_gz, rk4_lat)
-			var rk4_pos := seg_left - (seg_rv * rk4_lat) + Vector3(0.0, rk4_ground_y, 0.0)
-			_add_3d_boulder(rock_st, rk4_pos, 2.8 + fposmod(t4_seed * 4.5, 1.8), t4_seed)
+				# Utility poles with power lines
+				var next_pole_pos := seg_left - (seg_rv * 2.8) - Vector3(0.0, 0.0, step_z * 5.0)
+				_add_3d_power_pole(pole_st, line_st, seg_left - (seg_rv * 2.8), next_pole_pos)
 
 		var bi: int = i * 4
-		barrier_st.add_index(bi)
-		barrier_st.add_index(bi + 1)
-		barrier_st.add_index(bi + 4)
-		barrier_st.add_index(bi + 1)
-		barrier_st.add_index(bi + 5)
-		barrier_st.add_index(bi + 4)
-
-		barrier_cap_st.add_index(i2)
-		barrier_cap_st.add_index(i2 + 1)
-		barrier_cap_st.add_index(i2 + 2)
-		barrier_cap_st.add_index(i2 + 1)
-		barrier_cap_st.add_index(i2 + 3)
-		barrier_cap_st.add_index(i2 + 2)
-
-		barrier_st.add_index(bi + 2)
-		barrier_st.add_index(bi + 3)
-		barrier_st.add_index(bi + 6)
-		barrier_st.add_index(bi + 3)
-		barrier_st.add_index(bi + 7)
-		barrier_st.add_index(bi + 6)
+		barrier_st.add_index(bi); barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 4)
+		barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 4)
+		barrier_cap_st.add_index(i2); barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 2)
+		barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 3); barrier_cap_st.add_index(i2 + 2)
+		barrier_st.add_index(bi + 2); barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 6)
+		barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 6)
 
 	var road_inst := MeshInstance3D.new()
 	road_inst.mesh = road_st.commit()
@@ -2426,22 +2839,89 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	chunk_root.add_child(road_inst)
 
 	hillside_st.generate_normals()
-	var hillside_inst := MeshInstance3D.new()
-	hillside_inst.name = "HillsideLayer2"
-	hillside_inst.mesh = hillside_st.commit()
-	if is_instance_valid(cliff_mat):
-		hillside_inst.material_override = cliff_mat
-	else:
-		hillside_inst.material_override = hillside_layer2_mat
-	hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunk_root.add_child(hillside_inst)
+	var hillside_mesh := hillside_st.commit()
+	if is_instance_valid(hillside_mesh) and hillside_mesh.get_surface_count() > 0:
+		var hillside_inst := MeshInstance3D.new()
+		hillside_inst.name = "HillsideLayer2"
+		hillside_inst.mesh = hillside_mesh
+		if current_biome_id == "enoshima_coast":
+			hillside_inst.material_override = coastal_cliff_mat
+		elif current_biome_id == "hakone_snow":
+			hillside_inst.material_override = snow_rock_mat
+		elif current_biome_id == "neo_shinjuku":
+			hillside_inst.material_override = shinjuku_building_mat
+		else:
+			hillside_inst.material_override = cliff_mat if is_instance_valid(cliff_mat) else hillside_layer2_mat
+		hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		chunk_root.add_child(hillside_inst)
+
+	# Biome meshes
+	if current_biome_id == "enoshima_coast":
+		var sand_mesh := sand_st.commit()
+		if is_instance_valid(sand_mesh) and sand_mesh.get_surface_count() > 0:
+			var s_inst := MeshInstance3D.new()
+			s_inst.mesh = sand_mesh
+			s_inst.material_override = coastal_sand_mat
+			s_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(s_inst)
+		var w_mesh := water_st.commit()
+		if is_instance_valid(w_mesh) and w_mesh.get_surface_count() > 0:
+			var w_inst := MeshInstance3D.new()
+			w_inst.mesh = w_mesh
+			w_inst.material_override = ocean_water_mat
+			w_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(w_inst)
+		var tr_mesh := trunk_st.commit()
+		if is_instance_valid(tr_mesh) and tr_mesh.get_surface_count() > 0:
+			var tr_inst := MeshInstance3D.new()
+			tr_inst.mesh = tr_mesh
+			tr_inst.material_override = palm_trunk_mat
+			tr_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(tr_inst)
+	elif current_biome_id == "hakone_snow":
+		var snow_mesh := snow_st.commit()
+		if is_instance_valid(snow_mesh) and snow_mesh.get_surface_count() > 0:
+			var sn_inst := MeshInstance3D.new()
+			sn_inst.mesh = snow_mesh
+			sn_inst.material_override = snowbank_mat
+			sn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(sn_inst)
+	elif current_biome_id == "neo_shinjuku":
+		var win_mesh := win_st.commit()
+		if is_instance_valid(win_mesh) and win_mesh.get_surface_count() > 0:
+			var wn_inst := MeshInstance3D.new()
+			wn_inst.mesh = win_mesh
+			wn_inst.material_override = shinjuku_window_mat
+			wn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(wn_inst)
+		var p_mesh := pole_st.commit()
+		if is_instance_valid(p_mesh) and p_mesh.get_surface_count() > 0:
+			var p_inst := MeshInstance3D.new()
+			p_inst.mesh = p_mesh
+			p_inst.material_override = power_pole_mat
+			p_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(p_inst)
+		var l_mesh := line_st.commit()
+		if is_instance_valid(l_mesh) and l_mesh.get_surface_count() > 0:
+			var l_inst := MeshInstance3D.new()
+			l_inst.mesh = l_mesh
+			l_inst.material_override = power_line_mat
+			l_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(l_inst)
 
 	var fol_mesh := foliage_st.commit()
-	if fol_mesh.get_surface_count() > 0:
+	if is_instance_valid(fol_mesh) and fol_mesh.get_surface_count() > 0:
 		var fol_inst := MeshInstance3D.new()
 		fol_inst.name = "HillsideLayer1Foliage"
 		fol_inst.mesh = fol_mesh
-		fol_inst.material_override = hillside_foliage_mat
+		if current_biome_id == "enoshima_coast":
+			fol_inst.material_override = palm_frond_mat
+		elif current_biome_id == "hakone_snow":
+			fol_inst.material_override = snow_foliage_mat
+		elif current_biome_id == "neo_shinjuku":
+			fol_inst.material_override = vending_body_mat
+		else:
+			fol_inst.material_override = hillside_foliage_mat
 		fol_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		chunk_root.add_child(fol_inst)
 
@@ -2466,7 +2946,6 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	barrier_cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_cap_inst)
 
-	# Thick black rubber expansion joints across elevated viaduct road every 40 meters
 	for joint_step in [0.0, 40.0, 80.0]:
 		var j_rel_z: float = -joint_step
 		var j_gz: float = start_z + j_rel_z
@@ -2497,11 +2976,18 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 		chunk_root.add_child(joint_node)
 
-	# Roadside speed props
 	_spawn_chunk_speed_props(chunk_root, start_z, is_tunnel)
 
-
-	if is_tunnel:
+	if is_twin_tunnel:
+		_build_twin_tunnels(chunk_root, start_z)
+		active_tunnel_intervals.append(Vector2(start_z - 10.0, start_z - 110.0))
+		active_fork_mid_z = start_z - 60.0
+		active_fork_exit_z = start_z - 110.0
+		fork_active = true
+		fork_transition_done = false
+	elif is_fork_approach:
+		_build_fork_gantry(chunk_root, start_z, BIOMES[fork_left_biome]["name"], BIOMES[fork_right_biome]["name"])
+	elif is_tunnel:
 		_build_tunnel_module(chunk_root, start_z)
 		active_tunnel_intervals.append(Vector2(start_z - 30.0, start_z - 90.0))
 	else:
@@ -2513,9 +2999,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	if is_raining:
 		_spawn_chunk_puddles(chunk_root, start_z)
 
-	# Purge any inverted hull outline pass from road chunk, barriers, and props
 	purge_outlines(chunk_root)
-
 	return chunk_root
 
 func _spawn_chunk_speed_props(chunk: Node3D, start_z: float, is_tunnel: bool = false) -> void:
@@ -3017,6 +3501,438 @@ func _build_toll_plaza(chunk: Node3D, start_z: float) -> void:
 		gate_entry.is_open_lane = is_open
 		gate_entry.broken = false
 		tp.gates.append(gate_entry)
+
+# ==============================================================================
+# OUTRUN HIGHWAY FORKS & 4-BIOME 3D PROP BUILDERS
+# ==============================================================================
+func _build_fork_gantry(chunk: Node3D, start_z: float, left_name: String, right_name: String) -> void:
+	var g_rel_z: float = -45.0
+	var g_gz: float = start_z + g_rel_z
+	var g_cx: float = _sample_road_x(g_gz)
+	var g_tan: Vector3 = _sample_road_tangent(g_gz)
+
+	var gantry_root := Node3D.new()
+	gantry_root.name = "ForkGantry"
+	gantry_root.position = Vector3(g_cx, 0.0, g_rel_z)
+	gantry_root.transform.basis = Basis.looking_at(g_tan, Vector3.UP)
+
+	# 1. Industrial Steel Posts on Left & Right Highway Edges
+	var post_mesh := BoxMesh.new()
+	post_mesh.size = Vector3(0.9, 9.2, 0.9)
+	for side in [-15.2, 15.2]:
+		var post := MeshInstance3D.new()
+		post.mesh = post_mesh
+		post.material_override = barrier_material
+		post.position = Vector3(side, 4.6, 0.0)
+		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(post)
+
+	# 2. Heavy Double Lattice Cross-Truss
+	var truss_mesh := BoxMesh.new()
+	truss_mesh.size = Vector3(31.5, 1.2, 1.4)
+	for ty in [7.2, 8.8]:
+		var truss := MeshInstance3D.new()
+		truss.mesh = truss_mesh
+		truss.material_override = barrier_material
+		truss.position = Vector3(0.0, ty, 0.0)
+		truss.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(truss)
+
+	# 3. Dual Unshaded Neon Destination Billboards
+	# Left Billboard: [ ⬸ LEFT // HAKONE SNOW ]
+	var left_sign_bg := MeshInstance3D.new()
+	var bg_mesh_l := BoxMesh.new()
+	bg_mesh_l.size = Vector3(10.5, 2.8, 0.25)
+	left_sign_bg.mesh = bg_mesh_l
+	left_sign_bg.position = Vector3(-7.2, 8.0, 0.8)
+	left_sign_bg.material_override = expansion_rubber_mat
+	left_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gantry_root.add_child(left_sign_bg)
+
+	var left_lbl := Label3D.new()
+	left_lbl.text = "⬸ LEFT LANE //\n" + left_name
+	left_lbl.font_size = 46
+	left_lbl.modulate = Color("#00E5FF")
+	left_lbl.outline_modulate = Color("#002838")
+	left_lbl.outline_size = 12
+	left_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_lbl.position = Vector3(-7.2, 8.0, 0.95)
+	left_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	left_lbl.no_depth_test = false
+	left_lbl.render_priority = 2
+	gantry_root.add_child(left_lbl)
+
+	# Right Billboard: [ ENOSHIMA COAST // RIGHT ⤑ ]
+	var right_sign_bg := MeshInstance3D.new()
+	var bg_mesh_r := BoxMesh.new()
+	bg_mesh_r.size = Vector3(10.5, 2.8, 0.25)
+	right_sign_bg.mesh = bg_mesh_r
+	right_sign_bg.position = Vector3(7.2, 8.0, 0.8)
+	right_sign_bg.material_override = expansion_rubber_mat
+	right_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gantry_root.add_child(right_sign_bg)
+
+	var right_lbl := Label3D.new()
+	right_lbl.text = right_name + "\n// RIGHT LANE ⤑"
+	right_lbl.font_size = 46
+	right_lbl.modulate = Color("#FF2A55")
+	right_lbl.outline_modulate = Color("#440018")
+	right_lbl.outline_size = 12
+	right_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right_lbl.position = Vector3(7.2, 8.0, 0.95)
+	right_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	right_lbl.no_depth_test = false
+	right_lbl.render_priority = 2
+	gantry_root.add_child(right_lbl)
+
+	# 4. Overhead Spotlight Illuminating Signs
+	var g_spot := SpotLight3D.new()
+	g_spot.light_color = Color("#FFFFFF")
+	g_spot.light_energy = 4.0
+	g_spot.spot_range = 18.0
+	g_spot.spot_angle = 65.0
+	g_spot.position = Vector3(0.0, 9.5, 2.5)
+	g_spot.rotation_degrees = Vector3(-35.0, 0.0, 0.0)
+	g_spot.shadow_enabled = false
+	gantry_root.add_child(g_spot)
+
+	chunk.add_child(gantry_root)
+
+func _build_twin_tunnels(chunk: Node3D, start_z: float) -> void:
+	var tunnel_steps: Array[float] = [15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0, 95.0, 105.0]
+
+	var outer_pillar_mesh := BoxMesh.new()
+	outer_pillar_mesh.size = Vector3(0.9, 7.5, 1.4)
+
+	var center_divider_mesh := BoxMesh.new()
+	center_divider_mesh.size = Vector3(1.4, 7.5, 10.0)
+
+	var rib_mesh := BoxMesh.new()
+	rib_mesh.size = Vector3(13.5, 0.8, 1.2)
+
+	var slab_mesh := BoxMesh.new()
+	slab_mesh.size = Vector3(13.2, 0.45, 10.0)
+
+	var wall_mesh := BoxMesh.new()
+	wall_mesh.size = Vector3(0.6, 7.4, 10.0)
+
+	var fluor_mesh := BoxMesh.new()
+	fluor_mesh.size = Vector3(0.65, 0.18, 5.0)
+
+	for idx in range(tunnel_steps.size()):
+		var step: float = tunnel_steps[idx]
+		var local_z: float = -step
+		var global_z: float = start_z + local_z
+		var center_x: float = _sample_road_x(global_z)
+		var tan_vec: Vector3 = _sample_road_tangent(global_z)
+		var basis_look := Basis.looking_at(tan_vec, Vector3.UP)
+
+		var frame := Node3D.new()
+		frame.position = Vector3(center_x, 0.0, local_z)
+		frame.transform.basis = basis_look
+
+		# Left Outer Wall & Pillar
+		var left_pillar := MeshInstance3D.new()
+		left_pillar.mesh = outer_pillar_mesh
+		left_pillar.material_override = tunnel_concrete_mat
+		left_pillar.position = Vector3(-13.8, 3.75, 0.0)
+		left_pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.add_child(left_pillar)
+
+		# Right Outer Wall & Pillar
+		var right_pillar := MeshInstance3D.new()
+		right_pillar.mesh = outer_pillar_mesh
+		right_pillar.material_override = tunnel_concrete_mat
+		right_pillar.position = Vector3(13.8, 3.75, 0.0)
+		right_pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.add_child(right_pillar)
+
+		# Center Pier / Dividing Concrete Wall (separates left and right barrels)
+		var center_wall := MeshInstance3D.new()
+		center_wall.mesh = center_divider_mesh
+		center_wall.material_override = tunnel_concrete_mat
+		center_wall.position = Vector3(0.0, 3.75, -5.0)
+		center_wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.add_child(center_wall)
+
+		# Left Tunnel Overhead Rib
+		var rib_l := MeshInstance3D.new()
+		rib_l.mesh = rib_mesh
+		rib_l.material_override = tunnel_rib_mat
+		rib_l.position = Vector3(-6.8, 7.2, 0.0)
+		rib_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.add_child(rib_l)
+
+		# Right Tunnel Overhead Rib
+		var rib_r := MeshInstance3D.new()
+		rib_r.mesh = rib_mesh
+		rib_r.material_override = tunnel_rib_mat
+		rib_r.position = Vector3(6.8, 7.2, 0.0)
+		rib_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		frame.add_child(rib_r)
+
+		# Slabs and Outer Walls
+		if idx < tunnel_steps.size() - 1:
+			var slab_l := MeshInstance3D.new()
+			slab_l.mesh = slab_mesh
+			slab_l.material_override = tunnel_concrete_mat
+			slab_l.position = Vector3(-6.8, 7.5, -5.0)
+			slab_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			frame.add_child(slab_l)
+
+			var slab_r := MeshInstance3D.new()
+			slab_r.mesh = slab_mesh
+			slab_r.material_override = tunnel_concrete_mat
+			slab_r.position = Vector3(6.8, 7.5, -5.0)
+			slab_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			frame.add_child(slab_r)
+
+			var wall_l := MeshInstance3D.new()
+			wall_l.mesh = wall_mesh
+			wall_l.material_override = tunnel_concrete_mat
+			wall_l.position = Vector3(-13.8, 3.7, -5.0)
+			wall_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			frame.add_child(wall_l)
+
+			var wall_r := MeshInstance3D.new()
+			wall_r.mesh = wall_mesh
+			wall_r.material_override = tunnel_concrete_mat
+			wall_r.position = Vector3(13.8, 3.7, -5.0)
+			wall_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			frame.add_child(wall_r)
+
+		# Overhead Fluorescent strip lights in both barrels
+		for b_x in [-6.8, 6.8]:
+			var fl := MeshInstance3D.new()
+			fl.mesh = fluor_mesh
+			fl.material_override = tunnel_fluor_mat
+			fl.position = Vector3(b_x, 7.05, 0.0)
+			frame.add_child(fl)
+
+			var spot := SpotLight3D.new()
+			spot.light_color = Color("#E6F4FF")
+			spot.light_energy = 3.6
+			spot.spot_range = 14.0
+			spot.spot_angle = 50.0
+			spot.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+			spot.position = Vector3(b_x, 6.95, 0.0)
+			spot.shadow_enabled = false
+			frame.add_child(spot)
+
+		chunk.add_child(frame)
+
+func _add_3d_palm_tree(trunk_st: SurfaceTool, frond_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
+	var h_seg: int = 4
+	var total_h: float = 7.0 * scale_f
+	var lean_dir: Vector3 = Vector3(cos(seed_val * 6.28), 0.0, sin(seed_val * 6.28)).normalized() * (1.2 * scale_f)
+
+	for s in range(h_seg):
+		var t0: float = float(s) / float(h_seg)
+		var t1: float = float(s + 1) / float(h_seg)
+		var p0: Vector3 = ground_pos + Vector3(0.0, t0 * total_h, 0.0) + (lean_dir * t0 * t0)
+		var p1: Vector3 = ground_pos + Vector3(0.0, t1 * total_h, 0.0) + (lean_dir * t1 * t1)
+		var r0: float = lerp(0.38, 0.18, t0) * scale_f
+		var r1: float = lerp(0.38, 0.18, t1) * scale_f
+
+		trunk_st.add_vertex(p0 + Vector3(-r0, 0.0, 0.0))
+		trunk_st.add_vertex(p0 + Vector3(r0, 0.0, 0.0))
+		trunk_st.add_vertex(p1 + Vector3(r1, 0.0, 0.0))
+
+		trunk_st.add_vertex(p0 + Vector3(-r0, 0.0, 0.0))
+		trunk_st.add_vertex(p1 + Vector3(r1, 0.0, 0.0))
+		trunk_st.add_vertex(p1 + Vector3(-r1, 0.0, 0.0))
+
+	# Palm Fronds Crown radiating outwards
+	var apex: Vector3 = ground_pos + Vector3(0.0, total_h, 0.0) + lean_dir
+	var num_fronds: int = 7
+	for f in range(num_fronds):
+		var f_angle: float = float(f) * (TAU / float(num_fronds)) + (seed_val * 2.0)
+		var f_dir := Vector3(cos(f_angle), 0.0, sin(f_angle)).normalized()
+		var f_len: float = (3.2 + fposmod(seed_val * float(f + 1) * 3.1, 1.4)) * scale_f
+		var f_mid: Vector3 = apex + (f_dir * f_len * 0.55) + Vector3(0.0, 0.6 * scale_f, 0.0)
+		var f_tip: Vector3 = apex + (f_dir * f_len) - Vector3(0.0, 0.8 * scale_f, 0.0)
+		var f_w: float = 0.55 * scale_f
+
+		var f_side := f_dir.cross(Vector3.UP).normalized() * f_w
+		frond_st.add_vertex(apex)
+		frond_st.add_vertex(f_mid + f_side)
+		frond_st.add_vertex(f_mid - f_side)
+
+		frond_st.add_vertex(f_mid + f_side)
+		frond_st.add_vertex(f_tip)
+		frond_st.add_vertex(f_mid - f_side)
+
+func _add_3d_snow_pine(foliage_st: SurfaceTool, snow_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
+	var total_h: float = 8.5 * scale_f
+	var tiers: int = 4
+	for t in range(tiers):
+		var t_ratio: float = float(t) / float(tiers)
+		var y_base: float = ground_pos.y + (t_ratio * total_h * 0.75) + (1.2 * scale_f)
+		var y_top: float = y_base + (2.4 * scale_f)
+		var r_base: float = (2.8 - t_ratio * 1.8) * scale_f
+
+		for side in [-1.0, 1.0]:
+			foliage_st.add_vertex(Vector3(ground_pos.x - r_base, y_base, ground_pos.z))
+			foliage_st.add_vertex(Vector3(ground_pos.x + r_base, y_base, ground_pos.z))
+			foliage_st.add_vertex(Vector3(ground_pos.x, y_top, ground_pos.z))
+
+			foliage_st.add_vertex(Vector3(ground_pos.x, y_base, ground_pos.z - r_base))
+			foliage_st.add_vertex(Vector3(ground_pos.x, y_base, ground_pos.z + r_base))
+			foliage_st.add_vertex(Vector3(ground_pos.x, y_top, ground_pos.z))
+
+		var y_snow_base: float = y_base + (0.45 * scale_f)
+		var y_snow_top: float = y_top + (0.15 * scale_f)
+		var r_snow: float = r_base * 0.85
+		snow_st.add_vertex(Vector3(ground_pos.x - r_snow, y_snow_base, ground_pos.z))
+		snow_st.add_vertex(Vector3(ground_pos.x + r_snow, y_snow_base, ground_pos.z))
+		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_top, ground_pos.z))
+
+		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_base, ground_pos.z - r_snow))
+		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_base, ground_pos.z + r_snow))
+		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_top, ground_pos.z))
+
+func _add_shinjuku_building(bld_st: SurfaceTool, win_st: SurfaceTool, b_min: Vector3, b_max: Vector3, seed_val: float) -> void:
+	var p000 := Vector3(b_min.x, b_min.y, b_min.z)
+	var p100 := Vector3(b_max.x, b_min.y, b_min.z)
+	var p110 := Vector3(b_max.x, b_max.y, b_min.z)
+	var p010 := Vector3(b_min.x, b_max.y, b_min.z)
+	var p001 := Vector3(b_min.x, b_min.y, b_max.z)
+	var p101 := Vector3(b_max.x, b_min.y, b_max.z)
+	var p111 := Vector3(b_max.x, b_max.y, b_max.z)
+	var p011 := Vector3(b_min.x, b_max.y, b_max.z)
+
+	# Front face
+	bld_st.add_vertex(p000); bld_st.add_vertex(p100); bld_st.add_vertex(p110)
+	bld_st.add_vertex(p000); bld_st.add_vertex(p110); bld_st.add_vertex(p010)
+	# Street side face (facing the road)
+	if b_min.x > 0.0:
+		bld_st.add_vertex(p000); bld_st.add_vertex(p010); bld_st.add_vertex(p011)
+		bld_st.add_vertex(p000); bld_st.add_vertex(p011); bld_st.add_vertex(p001)
+	else:
+		bld_st.add_vertex(p100); bld_st.add_vertex(p101); bld_st.add_vertex(p111)
+		bld_st.add_vertex(p100); bld_st.add_vertex(p111); bld_st.add_vertex(p110)
+	# Roof
+	bld_st.add_vertex(p010); bld_st.add_vertex(p110); bld_st.add_vertex(p111)
+	bld_st.add_vertex(p010); bld_st.add_vertex(p111); bld_st.add_vertex(p011)
+
+	# Windows on the facade facing street
+	var face_x: float = b_min.x if b_min.x > 0.0 else b_max.x
+	var face_offset: float = -0.1 if b_min.x > 0.0 else 0.1
+	var z_len: float = abs(b_max.z - b_min.z)
+	var h_len: float = abs(b_max.y - b_min.y)
+	var num_floors: int = int(h_len / 4.2)
+	for fl in range(1, num_floors):
+		var y_win: float = b_min.y + float(fl) * 4.2
+		for wz in [0.25, 0.55, 0.85]:
+			var z_win: float = b_min.z + (z_len * wz)
+			var w_w: float = 1.6
+			var w_h: float = 1.4
+			var wp0 := Vector3(face_x + face_offset, y_win, z_win - w_w * 0.5)
+			var wp1 := Vector3(face_x + face_offset, y_win, z_win + w_w * 0.5)
+			var wp2 := Vector3(face_x + face_offset, y_win + w_h, z_win + w_w * 0.5)
+			var wp3 := Vector3(face_x + face_offset, y_win + w_h, z_win - w_w * 0.5)
+			win_st.add_vertex(wp0); win_st.add_vertex(wp1); win_st.add_vertex(wp2)
+			win_st.add_vertex(wp0); win_st.add_vertex(wp2); win_st.add_vertex(wp3)
+
+func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, seed_val: float) -> void:
+	var w: float = 1.2
+	var h: float = 2.0
+	var d: float = 0.85
+	var p00 := pos + Vector3(-w * 0.5, 0.0, -d * 0.5)
+	var p10 := pos + Vector3(w * 0.5, 0.0, -d * 0.5)
+	var p11 := pos + Vector3(w * 0.5, h, -d * 0.5)
+	var p01 := pos + Vector3(-w * 0.5, h, -d * 0.5)
+
+	v_body_st.add_vertex(p00); v_body_st.add_vertex(p10); v_body_st.add_vertex(p11)
+	v_body_st.add_vertex(p00); v_body_st.add_vertex(p11); v_body_st.add_vertex(p01)
+
+	var gw0 := pos + Vector3(-w * 0.42, 0.85, -d * 0.5 - 0.05)
+	var gw1 := pos + Vector3(w * 0.42, 0.85, -d * 0.5 - 0.05)
+	var gw2 := pos + Vector3(w * 0.42, h - 0.15, -d * 0.5 - 0.05)
+	var gw3 := pos + Vector3(-w * 0.42, h - 0.15, -d * 0.5 - 0.05)
+	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw1); v_glass_st.add_vertex(gw2)
+	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw2); v_glass_st.add_vertex(gw3)
+
+func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3, next_pos: Vector3) -> void:
+	var h: float = 8.5
+	var r: float = 0.18
+
+	pole_st.add_vertex(pos + Vector3(-r, 0.0, 0.0))
+	pole_st.add_vertex(pos + Vector3(r, 0.0, 0.0))
+	pole_st.add_vertex(pos + Vector3(r, h, 0.0))
+
+	pole_st.add_vertex(pos + Vector3(-r, 0.0, 0.0))
+	pole_st.add_vertex(pos + Vector3(r, h, 0.0))
+	pole_st.add_vertex(pos + Vector3(-r, h, 0.0))
+
+	var cw: float = 1.4
+	for cy in [7.0, 8.0]:
+		pole_st.add_vertex(pos + Vector3(-cw, cy - 0.08, 0.0))
+		pole_st.add_vertex(pos + Vector3(cw, cy - 0.08, 0.0))
+		pole_st.add_vertex(pos + Vector3(cw, cy + 0.08, 0.0))
+
+		pole_st.add_vertex(pos + Vector3(-cw, cy - 0.08, 0.0))
+		pole_st.add_vertex(pos + Vector3(cw, cy + 0.08, 0.0))
+		pole_st.add_vertex(pos + Vector3(-cw, cy + 0.08, 0.0))
+
+	if next_pos != Vector3.ZERO:
+		var pA := pos + Vector3(0.0, 7.8, 0.0)
+		var pB := next_pos + Vector3(0.0, 7.8, 0.0)
+		var pMid := (pA + pB) * 0.5 - Vector3(0.0, 0.6, 0.0)
+
+		line_st.add_vertex(pA + Vector3(0.0, -0.04, 0.0))
+		line_st.add_vertex(pA + Vector3(0.0, 0.04, 0.0))
+		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
+
+		line_st.add_vertex(pA + Vector3(0.0, -0.04, 0.0))
+		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
+		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
+
+		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
+		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
+		line_st.add_vertex(pB + Vector3(0.0, 0.04, 0.0))
+
+		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
+		line_st.add_vertex(pB + Vector3(0.0, 0.04, 0.0))
+		line_st.add_vertex(pB + Vector3(0.0, -0.04, 0.0))
+
+func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, color_idx: int) -> void:
+	var sign_node := Node3D.new()
+	sign_node.position = pos
+	sign_node.transform.basis = Basis.looking_at(tan_vec, Vector3.UP)
+
+	# Blade sign frame
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = Vector3(0.25, 4.4, 1.4)
+	var box_inst := MeshInstance3D.new()
+	box_inst.mesh = box_mesh
+	var sign_mat: StandardMaterial3D
+	match color_idx % 3:
+		0: sign_mat = neon_pink_mat
+		1: sign_mat = neon_cyan_mat
+		_: sign_mat = neon_yellow_mat
+	box_inst.material_override = sign_mat
+	box_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sign_node.add_child(box_inst)
+
+	# Twin neon labels on both faces
+	for sign_dir in [-1.0, 1.0]:
+		var lbl := Label3D.new()
+		lbl.text = text
+		lbl.font_size = 42
+		lbl.modulate = Color.WHITE
+		lbl.outline_modulate = Color.BLACK
+		lbl.outline_size = 10
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.position = Vector3(sign_dir * 0.14, 0.0, 0.0)
+		lbl.rotation_degrees = Vector3(0.0, 90.0 * sign_dir, 0.0)
+		lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		lbl.no_depth_test = false
+		lbl.render_priority = 2
+		sign_node.add_child(lbl)
+
+	chunk.add_child(sign_node)
 
 func _spawn_shattered_gate_booms(pos: Vector3, tan_dir: Vector3, right_dir: Vector3) -> void:
 	var half_arm_mesh := BoxMesh.new()
@@ -5649,6 +6565,153 @@ func _setup_hud() -> void:
 	hud_retry_btn.pressed.connect(func(): _reset_race())
 	book.add_child(hud_retry_btn)
 
+	# START SCREEN HUD OVERLAY WITH VIBE PILL
+	hud_start_screen = Control.new()
+	hud_start_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_start_screen.visible = (current_state == GameState.START)
+	control.add_child(hud_start_screen)
+
+	var start_bg_btn := Button.new()
+	start_bg_btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+	start_bg_btn.flat = true
+	start_bg_btn.focus_mode = Control.FOCUS_NONE
+	start_bg_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	start_bg_btn.pressed.connect(func(): _start_race())
+	hud_start_screen.add_child(start_bg_btn)
+
+	var title_lbl := Label.new()
+	title_lbl.text = "FLOWSTATE // 湾岸"
+	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_lbl.position = Vector2(0, 260)
+	title_lbl.size = Vector2(1080, 110)
+	title_lbl.add_theme_font_size_override("font_size", 68)
+	title_lbl.add_theme_color_override("font_color", Color("#FFFFFF"))
+	title_lbl.add_theme_color_override("font_shadow_color", Color("#080811"))
+	title_lbl.add_theme_constant_override("shadow_offset_x", 4)
+	title_lbl.add_theme_constant_override("shadow_offset_y", 6)
+	hud_start_screen.add_child(title_lbl)
+
+	var sub_lbl := Label.new()
+	sub_lbl.text = "— OUTRUN HIGHWAY ARCADE —"
+	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub_lbl.position = Vector2(0, 370)
+	sub_lbl.size = Vector2(1080, 50)
+	sub_lbl.add_theme_font_size_override("font_size", 26)
+	sub_lbl.add_theme_color_override("font_color", Color("#FFD000"))
+	sub_lbl.add_theme_color_override("font_shadow_color", Color("#080811"))
+	sub_lbl.add_theme_constant_override("shadow_offset_y", 3)
+	hud_start_screen.add_child(sub_lbl)
+
+	# Vibe Pill Container (Beside/Above "TAP TO DRIVE")
+	var pill_box := Control.new()
+	pill_box.position = Vector2(240, 1380)
+	pill_box.size = Vector2(600, 76)
+	pill_box.mouse_filter = Control.MOUSE_FILTER_STOP
+	hud_start_screen.add_child(pill_box)
+
+	var pill_bg := ColorRect.new()
+	pill_bg.size = Vector2(600, 76)
+	pill_bg.color = Color(0.06, 0.07, 0.12, 0.92)
+	pill_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill_box.add_child(pill_bg)
+
+	var pill_border := ReferenceRect.new()
+	pill_border.size = Vector2(600, 76)
+	pill_border.border_color = Color("#00E5FF")
+	pill_border.border_width = 3.0
+	pill_border.editor_only = false
+	pill_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill_box.add_child(pill_border)
+
+	var btn_prev := Button.new()
+	btn_prev.text = "◀"
+	btn_prev.position = Vector2(8, 8)
+	btn_prev.size = Vector2(60, 60)
+	btn_prev.focus_mode = Control.FOCUS_NONE
+	btn_prev.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn_prev.add_theme_font_size_override("font_size", 32)
+	btn_prev.pressed.connect(func(): _cycle_start_biome(-1))
+	pill_box.add_child(btn_prev)
+
+	hud_vibe_label = Label.new()
+	hud_vibe_label.text = BIOMES[current_biome_id]["name"]
+	hud_vibe_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_vibe_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hud_vibe_label.position = Vector2(75, 0)
+	hud_vibe_label.size = Vector2(450, 76)
+	hud_vibe_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_vibe_label.add_theme_font_size_override("font_size", 30)
+	hud_vibe_label.add_theme_color_override("font_color", Color("#00E5FF"))
+	hud_vibe_label.add_theme_color_override("font_shadow_color", Color("#000000"))
+	hud_vibe_label.add_theme_constant_override("shadow_offset_y", 3)
+	pill_box.add_child(hud_vibe_label)
+
+	var btn_next := Button.new()
+	btn_next.text = "▶"
+	btn_next.position = Vector2(532, 8)
+	btn_next.size = Vector2(60, 60)
+	btn_next.focus_mode = Control.FOCUS_NONE
+	btn_next.mouse_filter = Control.MOUSE_FILTER_STOP
+	btn_next.add_theme_font_size_override("font_size", 32)
+	btn_next.pressed.connect(func(): _cycle_start_biome(1))
+	pill_box.add_child(btn_next)
+
+	var start_tap_lbl := Label.new()
+	start_tap_lbl.text = "TAP TO DRIVE"
+	start_tap_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	start_tap_lbl.position = Vector2(0, 1490)
+	start_tap_lbl.size = Vector2(1080, 80)
+	start_tap_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	start_tap_lbl.add_theme_font_size_override("font_size", 42)
+	start_tap_lbl.add_theme_color_override("font_color", Color("#FFFFFF"))
+	start_tap_lbl.add_theme_color_override("font_shadow_color", Color("#000000"))
+	start_tap_lbl.add_theme_constant_override("shadow_offset_y", 4)
+	hud_start_screen.add_child(start_tap_lbl)
+
+	var tw_tap := create_tween().set_loops()
+	tw_tap.tween_property(start_tap_lbl, "modulate:a", 0.35, 0.7).set_trans(Tween.TRANS_SINE)
+	tw_tap.tween_property(start_tap_lbl, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE)
+
+	# Manga Stage Tier Upgrade Banner
+	hud_stage_banner = Control.new()
+	hud_stage_banner.set_anchors_preset(Control.PRESET_CENTER)
+	hud_stage_banner.position = Vector2(190, 480)
+	hud_stage_banner.size = Vector2(700, 160)
+	hud_stage_banner.visible = false
+	control.add_child(hud_stage_banner)
+
+	var stg_bg := ColorRect.new()
+	stg_bg.size = Vector2(700, 160)
+	stg_bg.color = Color(0.05, 0.07, 0.12, 0.94)
+	hud_stage_banner.add_child(stg_bg)
+
+	var stg_border := ReferenceRect.new()
+	stg_border.size = Vector2(700, 160)
+	stg_border.border_color = Color("#FFDF00")
+	stg_border.border_width = 4.0
+	stg_border.editor_only = false
+	hud_stage_banner.add_child(stg_border)
+
+	hud_stage_label = Label.new()
+	hud_stage_label.text = "STAGE 2 // +20 KM/H"
+	hud_stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_stage_label.position = Vector2(0, 20)
+	hud_stage_label.size = Vector2(700, 60)
+	hud_stage_label.add_theme_font_size_override("font_size", 42)
+	hud_stage_label.add_theme_color_override("font_color", Color("#FFDF00"))
+	hud_stage_label.add_theme_color_override("font_shadow_color", Color("#000000"))
+	hud_stage_label.add_theme_constant_override("shadow_offset_y", 3)
+	hud_stage_banner.add_child(hud_stage_label)
+
+	hud_stage_sub = Label.new()
+	hud_stage_sub.text = "BASE TOP SPEED: 185 KM/H (1.25x SCORE)"
+	hud_stage_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud_stage_sub.position = Vector2(0, 92)
+	hud_stage_sub.size = Vector2(700, 45)
+	hud_stage_sub.add_theme_font_size_override("font_size", 24)
+	hud_stage_sub.add_theme_color_override("font_color", Color("#FFFFFF"))
+	hud_stage_banner.add_child(hud_stage_sub)
+
 # ==============================================================================
 # 10. TOUCH DISPATCHER (DEADZONE & PROPORTIONAL STEERING)
 # ==============================================================================
@@ -5664,6 +6727,14 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_R:
 			set_weather_rain(not is_raining)
+		elif event.keycode == KEY_B:
+			for b in BIOMES.keys():
+				if not b in discovered_biomes:
+					discovered_biomes.append(b)
+			_cycle_start_biome(1)
+
+	if current_state == GameState.START:
+		return
 
 	if current_state == GameState.CRASHED:
 		if (event is InputEventScreenTouch and event.pressed) or (event is InputEventMouseButton and event.pressed):
@@ -5747,6 +6818,11 @@ func _physics_process(delta: float) -> void:
 	if radio_chatter_cooldown > 0.0:
 		radio_chatter_cooldown -= delta
 	_process_audio_mixing(delta)
+	if current_state == GameState.START:
+		_process_suspension_and_vibration(delta)
+		_update_camera(delta)
+		_update_hud(delta)
+		return
 	if current_state == GameState.CRASHED:
 		_process_crashed_state(delta)
 		_update_camera(delta)
@@ -5767,6 +6843,23 @@ func _physics_process(delta: float) -> void:
 			w.rotate_x(tr_spin)
 
 	_process_traffic_and_collisions(delta)
+
+	# Check Fork Midpoint & Exit Checkpoints
+	if fork_active:
+		if not fork_transition_done and player_z <= active_fork_mid_z:
+			var chosen_biome: String = fork_left_biome if player_lane_x < 0.0 else fork_right_biome
+			_apply_biome_transition(chosen_biome)
+			fork_transition_done = true
+		elif fork_transition_done and player_z <= active_fork_exit_z:
+			fork_active = false
+			stage_tier += 1
+			stage_start_z = player_z
+			_discover_biome(current_biome_id)
+			cam_fov_punch = 3.5
+			cam_fov_punch_timer = 0.35
+			_trigger_stage_badge(stage_tier, int(round(_get_stage_top_speed_kmh(stage_tier))))
+			_trigger_radio_chatter("TACHIBANA SPOTTER", "Tunnel exit clear! Entering " + BIOMES[current_biome_id]["name"] + "!", Color("#00FF88"))
+
 	_process_rival_ai(delta)
 	_process_road_recycler()
 	_process_highway_hazards(delta)
@@ -6095,13 +7188,15 @@ func _process_player_motion(delta: float) -> void:
 		score += 600
 	prev_drift_active = drift_active
 
-	# Target forward speed
+	# Target forward speed scaled per stage tier
+	var stage_cruise: float = _get_stage_cruise_speed()
+	var stage_boost: float = _get_stage_boost_speed()
 	if boost_active:
-		player_target_speed = BOOST_SPEED
+		player_target_speed = stage_boost
 	elif drift_active:
-		player_target_speed = CRUISE_SPEED * 0.92
+		player_target_speed = stage_cruise * 0.92
 	else:
-		player_target_speed = CRUISE_SPEED
+		player_target_speed = stage_cruise
 
 	# Graze forward velocity burst (+10% over 0.4s)
 	if graze_speed_kick_timer > 0.0:
@@ -6116,7 +7211,7 @@ func _process_player_motion(delta: float) -> void:
 			nitro_speed_mult = 1.0
 			_show_nitro_flames(false)
 		else:
-			player_target_speed = max(player_target_speed, BOOST_SPEED) * nitro_speed_mult
+			player_target_speed = max(player_target_speed, stage_boost) * nitro_speed_mult
 			player_speed = lerp(player_speed, player_target_speed, 8.0 * delta)
 
 	if not nitro_active:
@@ -6688,9 +7783,14 @@ func _process_traffic_and_collisions(delta: float) -> void:
 		else:
 			td.flinch_swerve_offset = lerp(td.flinch_swerve_offset, 0.0, 6.0 * delta)
 
-		# Recycle vehicles that fall > 35m behind player
+		# Recycle vehicles that fall > 35m behind player with Biome-Scaled Density
 		if td.current_z > player_z + 35.0:
-			var target_spawn_z: float = player_z - randf_range(180.0, 260.0)
+			var b_cfg: Dictionary = BIOMES.get(current_biome_id, BIOMES["shuto_dusk"])
+			var min_dist: float = b_cfg.get("traffic_min_dist", 180.0)
+			var max_dist: float = b_cfg.get("traffic_max_dist", 260.0)
+			var target_spawn_z: float = player_z - randf_range(min_dist, max_dist)
+			if fork_active and target_spawn_z <= active_fork_mid_z + 40.0 and target_spawn_z >= active_fork_exit_z - 40.0:
+				target_spawn_z -= 140.0
 			td.lane_offset = _find_clear_lane(target_spawn_z)
 			td.current_z = target_spawn_z
 			td.grazed = false
