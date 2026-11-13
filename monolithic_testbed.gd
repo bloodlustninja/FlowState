@@ -42,14 +42,33 @@ const COLOR_ANIME_SHADOW: Color = Color(0.196, 0.208, 0.290) # Cool slate violet
 enum GameState { RACING, CRASHED }
 var current_state: GameState = GameState.RACING
 
-# Skid Decals Data
+# Skid Decals Data & Object Pool
 class SkidDecal:
 	var node: MeshInstance3D
-	var time_left: float = 1.2
-	var mat: StandardMaterial3D
+	var time_left: float = 0.0
 
-var active_skid_decals: Array[SkidDecal] = []
+const SKID_POOL_SIZE: int = 64
+var skid_pool: Array[SkidDecal] = []
+var skid_pool_idx: int = 0
 var last_skid_drop_z: float = 999999.0
+var skid_quad_mesh: QuadMesh
+var skid_shared_mat: StandardMaterial3D
+
+# Spark & Spray Object Pools
+const DIFFUSER_SPARK_POOL_SIZE: int = 12
+var diffuser_spark_pool: Array[MeshInstance3D] = []
+var diffuser_spark_idx: int = 0
+
+const GUARDRAIL_SPARK_POOL_SIZE: int = 8
+var guardrail_spark_pool: Array[MeshInstance3D] = []
+var guardrail_spark_idx: int = 0
+
+const WATER_SPRAY_POOL_SIZE: int = 12
+var water_spray_pool: Array[MeshInstance3D] = []
+var water_spray_idx: int = 0
+
+# Sky Radiance Update Throttling
+var last_sky_update_progress: float = -999.0
 
 # Nodes & Rig Components
 var car_root: Node3D
@@ -475,6 +494,8 @@ func _ready() -> void:
 	_setup_environment()
 	_setup_background_layers()
 	_setup_road_system()
+	_setup_skid_pool()
+	_setup_spark_pools()
 	_setup_player_car()
 	_setup_weather_particles()
 	_setup_traffic_pool()
@@ -482,6 +503,74 @@ func _ready() -> void:
 	_setup_camera()
 	_setup_hud()
 	purge_outlines(self)
+
+func _setup_skid_pool() -> void:
+	skid_quad_mesh = QuadMesh.new()
+	skid_quad_mesh.size = Vector2(0.34, 1.35)
+	skid_quad_mesh.orientation = PlaneMesh.FACE_Y
+
+	skid_shared_mat = StandardMaterial3D.new()
+	skid_shared_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	skid_shared_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	skid_shared_mat.albedo_color = Color(0.102, 0.110, 0.141, 0.75)
+	skid_shared_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var skid_container := Node3D.new()
+	skid_container.name = "SkidMarksPool"
+	add_child(skid_container)
+
+	skid_pool.clear()
+	for i in range(SKID_POOL_SIZE):
+		var sm_inst := MeshInstance3D.new()
+		sm_inst.mesh = skid_quad_mesh
+		sm_inst.material_override = skid_shared_mat
+		sm_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sm_inst.visible = false
+		skid_container.add_child(sm_inst)
+
+		var item := SkidDecal.new()
+		item.node = sm_inst
+		item.time_left = 0.0
+		skid_pool.append(item)
+
+func _setup_spark_pools() -> void:
+	var spark_container := Node3D.new()
+	spark_container.name = "SparksAndSprayPool"
+	add_child(spark_container)
+
+	# 1. Diffuser Sparks Pool
+	diffuser_spark_pool.clear()
+	for i in range(DIFFUSER_SPARK_POOL_SIZE):
+		var spark := MeshInstance3D.new()
+		spark.mesh = diffuser_spark_mesh
+		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spark.visible = false
+		spark_container.add_child(spark)
+		diffuser_spark_pool.append(spark)
+
+	# 2. Guardrail Sparks Pool
+	var gr_mesh := QuadMesh.new()
+	gr_mesh.size = Vector2(0.32, 0.14)
+	guardrail_spark_pool.clear()
+	for i in range(GUARDRAIL_SPARK_POOL_SIZE):
+		var spark := MeshInstance3D.new()
+		spark.mesh = gr_mesh
+		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spark.visible = false
+		spark_container.add_child(spark)
+		guardrail_spark_pool.append(spark)
+
+	# 3. Water Spray Pool
+	var ws_mesh := QuadMesh.new()
+	ws_mesh.size = Vector2(0.85, 1.4)
+	water_spray_pool.clear()
+	for i in range(WATER_SPRAY_POOL_SIZE):
+		var spray := MeshInstance3D.new()
+		spray.mesh = ws_mesh
+		spray.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		spray.visible = false
+		spark_container.add_child(spray)
+		water_spray_pool.append(spray)
 
 # 1. PURGE INVERTED HULL PASS FROM ALL ENVIRONMENT PROPS & VEHICLES
 func purge_outlines(node: Node) -> void:
@@ -1752,19 +1841,33 @@ func _add_lowpoly_puff(st: SurfaceTool, center: Vector3, radius: Vector3, col: C
 			var theta0: float = TAU * float(lon_i) / float(lons)
 			var theta1: float = TAU * float(lon_i + 1) / float(lons)
 
-			var p00 := center + Vector3(cos(theta0) * r0 * radius.x, y0, sin(theta0) * r0 * radius.z)
-			var p10 := center + Vector3(cos(theta1) * r0 * radius.x, y0, sin(theta1) * r0 * radius.z)
-			var p11 := center + Vector3(cos(theta1) * r1 * radius.x, y1, sin(theta1) * r1 * radius.z)
-			var p01 := center + Vector3(cos(theta0) * r1 * radius.x, y1, sin(theta0) * r1 * radius.z)
+			var n00 := Vector3(cos(theta0) * r0, sin(phi0), sin(theta0) * r0).normalized()
+			var n10 := Vector3(cos(theta1) * r0, sin(phi0), sin(theta1) * r0).normalized()
+			var n11 := Vector3(cos(theta1) * r1, sin(phi1), sin(theta1) * r1).normalized()
+			var n01 := Vector3(cos(theta0) * r1, sin(phi1), sin(theta0) * r1).normalized()
+
+			var p00 := center + Vector3(n00.x * radius.x, y0, n00.z * radius.z)
+			var p10 := center + Vector3(n10.x * radius.x, y0, n10.z * radius.z)
+			var p11 := center + Vector3(n11.x * radius.x, y1, n11.z * radius.z)
+			var p01 := center + Vector3(n01.x * radius.x, y1, n01.z * radius.z)
 
 			st.set_color(col)
 			if lat_i == 0:
-				st.add_vertex(p00); st.add_vertex(p01); st.add_vertex(p11)
+				st.set_normal(n00); st.add_vertex(p00)
+				st.set_normal(n01); st.add_vertex(p01)
+				st.set_normal(n11); st.add_vertex(p11)
 			elif lat_i == lats - 1:
-				st.add_vertex(p00); st.add_vertex(p01); st.add_vertex(p10)
+				st.set_normal(n00); st.add_vertex(p00)
+				st.set_normal(n01); st.add_vertex(p01)
+				st.set_normal(n10); st.add_vertex(p10)
 			else:
-				st.add_vertex(p00); st.add_vertex(p01); st.add_vertex(p11)
-				st.add_vertex(p00); st.add_vertex(p11); st.add_vertex(p10)
+				st.set_normal(n00); st.add_vertex(p00)
+				st.set_normal(n01); st.add_vertex(p01)
+				st.set_normal(n11); st.add_vertex(p11)
+
+				st.set_normal(n00); st.add_vertex(p00)
+				st.set_normal(n11); st.add_vertex(p11)
+				st.set_normal(n10); st.add_vertex(p10)
 
 func _add_lowpoly_cone(st: SurfaceTool, base: Vector3, radius: float, height: float, col: Color, sides: int = 6) -> void:
 	var apex := base + Vector3(0.0, height, 0.0)
@@ -1774,9 +1877,15 @@ func _add_lowpoly_cone(st: SurfaceTool, base: Vector3, radius: float, height: fl
 		var p0 := base + Vector3(cos(a0) * radius, -height * 0.12, sin(a0) * radius)
 		var p1 := base + Vector3(cos(a1) * radius, -height * 0.12, sin(a1) * radius)
 
+		var fn: Vector3 = (p1 - p0).cross(apex - p0).normalized()
+		var radial_dir := Vector3(cos((a0 + a1) * 0.5), 0.2, sin((a0 + a1) * 0.5)).normalized()
+		if fn.dot(radial_dir) < 0.0:
+			fn = -fn
+
 		st.set_color(col)
-		# Counter-clockwise outward face normal winding (facing camera & sky)
-		st.add_vertex(p0); st.add_vertex(p1); st.add_vertex(apex)
+		st.set_normal(fn); st.add_vertex(p0)
+		st.set_normal(fn); st.add_vertex(p1)
+		st.set_normal(fn); st.add_vertex(apex)
 
 func _add_lowpoly_cylinder(st: SurfaceTool, bot: Vector3, top: Vector3, r_bot: float, r_top: float, col: Color, sides: int = 5) -> void:
 	for s in range(sides):
@@ -1787,9 +1896,19 @@ func _add_lowpoly_cylinder(st: SurfaceTool, bot: Vector3, top: Vector3, r_bot: f
 		var p0_top := top + Vector3(cos(a0) * r_top, 0.0, sin(a0) * r_top)
 		var p1_top := top + Vector3(cos(a1) * r_top, 0.0, sin(a1) * r_top)
 
+		var fn: Vector3 = (p0_top - p0_bot).cross(p1_bot - p0_bot).normalized()
+		var radial_dir := Vector3(cos((a0 + a1) * 0.5), 0.0, sin((a0 + a1) * 0.5))
+		if fn.dot(radial_dir) < 0.0:
+			fn = -fn
+
 		st.set_color(col)
-		st.add_vertex(p0_bot); st.add_vertex(p0_top); st.add_vertex(p1_top)
-		st.add_vertex(p0_bot); st.add_vertex(p1_top); st.add_vertex(p1_bot)
+		st.set_normal(fn); st.add_vertex(p0_bot)
+		st.set_normal(fn); st.add_vertex(p0_top)
+		st.set_normal(fn); st.add_vertex(p1_top)
+
+		st.set_normal(fn); st.add_vertex(p0_bot)
+		st.set_normal(fn); st.add_vertex(p1_top)
+		st.set_normal(fn); st.add_vertex(p1_bot)
 
 func _add_3d_puffy_tree(st: SurfaceTool, ground_pos: Vector3, scale_f: float, _seed_val: float) -> void:
 	var trunk_col := Color(0.12, 0.08, 0.05)
@@ -1867,14 +1986,24 @@ func _add_3d_boulder(st: SurfaceTool, ground_pos: Vector3, scale_f: float, _seed
 	var v2 := b_base + Vector3(0.85 * scale_f, 0.12 * scale_f, 0.88 * scale_f)
 	var v3 := b_base + Vector3(-0.80 * scale_f, 0.18 * scale_f, 0.75 * scale_f)
 
-	st.set_color(rock_moss)
-	st.add_vertex(v0); st.add_vertex(v1); st.add_vertex(apex)
-	st.set_color(rock_sun)
-	st.add_vertex(v1); st.add_vertex(v2); st.add_vertex(apex)
-	st.set_color(rock_shade)
-	st.add_vertex(v2); st.add_vertex(v3); st.add_vertex(apex)
-	st.set_color(rock_shade)
-	st.add_vertex(v3); st.add_vertex(v0); st.add_vertex(apex)
+	var faces: Array = [
+		{"v0": v0, "v1": v1, "v2": apex, "c": rock_moss},
+		{"v0": v1, "v1": v2, "v2": apex, "c": rock_sun},
+		{"v0": v2, "v1": v3, "v2": apex, "c": rock_shade},
+		{"v0": v3, "v1": v0, "v2": apex, "c": rock_shade}
+	]
+	for f in faces:
+		var va: Vector3 = f["v0"]
+		var vb: Vector3 = f["v1"]
+		var vc: Vector3 = f["v2"]
+		var fn: Vector3 = (vb - va).cross(vc - va).normalized()
+		var center_tri: Vector3 = (va + vb + vc) / 3.0
+		if fn.dot((center_tri - b_base).normalized()) < 0.0:
+			fn = -fn
+		st.set_color(f["c"])
+		st.set_normal(fn); st.add_vertex(va)
+		st.set_normal(fn); st.add_vertex(vb)
+		st.set_normal(fn); st.add_vertex(vc)
 
 func _add_3d_bush(st: SurfaceTool, ground_pos: Vector3, scale_f: float, _seed_val: float) -> void:
 	var bush_main := Color(0.06, 0.14, 0.07)
@@ -2148,113 +2277,94 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var seg_left := Vector3(seg_cx, 0.0, seg_local_z) - (seg_rv * half_w) + Vector3(0.0, sin(seg_ba) * half_w, 0.0)
 
 		# Zone 1: Shelf 1 Verge Terrace (lat 1.8m to 6.8m) - Lush Roadside Undergrowth, Boulders & Puffy Trees
-		var b_lat: float = 2.0 + seg_rnd * 3.5
-		var b_ground_y: float = _sample_hillside_height(seg_gz, b_lat)
-		var b_pos := seg_left - (seg_rv * b_lat) + Vector3(0.0, b_ground_y, 0.0)
-		_add_3d_bush(foliage_st, b_pos, 1.15 + seg_rnd * 0.45, seg_rnd)
+		if i % 2 == 0:
+			var b_lat: float = 2.0 + seg_rnd * 3.5
+			var b_ground_y: float = _sample_hillside_height(seg_gz, b_lat)
+			var b_pos := seg_left - (seg_rv * b_lat) + Vector3(0.0, b_ground_y, 0.0)
+			_add_3d_bush(foliage_st, b_pos, 1.15 + seg_rnd * 0.45, seg_rnd)
 
-		var b2_lat: float = 1.6 + fposmod(seg_rnd * 3.7 + float(i) * 0.19, 4.2)
-		var b2_ground_y: float = _sample_hillside_height(seg_gz, b2_lat)
-		var b2_pos := seg_left - (seg_rv * b2_lat) + Vector3(0.0, b2_ground_y, 0.0)
-		_add_3d_bush(foliage_st, b2_pos, 0.85 + fposmod(seg_rnd * 5.1, 0.5), seg_rnd)
+			var rk_lat: float = 2.4 + fposmod(seg_rnd * 2.3 + float(i) * 0.31, 3.8)
+			var rk_ground_y: float = _sample_hillside_height(seg_gz, rk_lat)
+			var rk_pos := seg_left - (seg_rv * rk_lat) + Vector3(0.0, rk_ground_y, 0.0)
+			_add_3d_boulder(rock_st, rk_pos, 1.1 + fposmod(seg_rnd * 4.9, 0.7), seg_rnd)
 
-		var rk_lat: float = 2.4 + fposmod(seg_rnd * 2.3 + float(i) * 0.31, 3.8)
-		var rk_ground_y: float = _sample_hillside_height(seg_gz, rk_lat)
-		var rk_pos := seg_left - (seg_rv * rk_lat) + Vector3(0.0, rk_ground_y, 0.0)
-		_add_3d_boulder(rock_st, rk_pos, 1.1 + fposmod(seg_rnd * 4.9, 0.7), seg_rnd)
-
-		if seg_rnd < 0.70:
-			var tr_lat: float = 3.6 + fposmod(seg_rnd * 6.7, 2.8)
-			var tr_ground_y: float = _sample_hillside_height(seg_gz, tr_lat)
-			var tr_pos := seg_left - (seg_rv * tr_lat) + Vector3(0.0, tr_ground_y, 0.0)
-			_add_3d_puffy_tree(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
-		elif seg_rnd < 0.88:
-			var pn_lat: float = 4.2 + fposmod(seg_rnd * 5.5, 2.4)
-			var pn_ground_y: float = _sample_hillside_height(seg_gz, pn_lat)
-			var pn_pos := seg_left - (seg_rv * pn_lat) + Vector3(0.0, pn_ground_y, 0.0)
-			_add_3d_pine_tree(foliage_st, pn_pos, 0.90 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
+			if seg_rnd < 0.70:
+				var tr_lat: float = 3.6 + fposmod(seg_rnd * 6.7, 2.8)
+				var tr_ground_y: float = _sample_hillside_height(seg_gz, tr_lat)
+				var tr_pos := seg_left - (seg_rv * tr_lat) + Vector3(0.0, tr_ground_y, 0.0)
+				_add_3d_puffy_tree(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
+			elif seg_rnd < 0.88:
+				var pn_lat: float = 4.2 + fposmod(seg_rnd * 5.5, 2.4)
+				var pn_ground_y: float = _sample_hillside_height(seg_gz, pn_lat)
+				var pn_pos := seg_left - (seg_rv * pn_lat) + Vector3(0.0, pn_ground_y, 0.0)
+				_add_3d_pine_tree(foliage_st, pn_pos, 0.90 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
+			else:
+				var bb_lat: float = 3.8 + fposmod(seg_rnd * 7.9, 2.5)
+				var bb_ground_y: float = _sample_hillside_height(seg_gz, bb_lat)
+				var bb_pos := seg_left - (seg_rv * bb_lat) + Vector3(0.0, bb_ground_y, 0.0)
+				_add_3d_bamboo_cluster(foliage_st, bb_pos, 4, 0.85, seg_rnd)
 		else:
-			var bb_lat: float = 3.8 + fposmod(seg_rnd * 7.9, 2.5)
-			var bb_ground_y: float = _sample_hillside_height(seg_gz, bb_lat)
-			var bb_pos := seg_left - (seg_rv * bb_lat) + Vector3(0.0, bb_ground_y, 0.0)
-			_add_3d_bamboo_cluster(foliage_st, bb_pos, 4, 0.85, seg_rnd)
+			var b2_lat: float = 1.6 + fposmod(seg_rnd * 3.7 + float(i) * 0.19, 4.2)
+			var b2_ground_y: float = _sample_hillside_height(seg_gz, b2_lat)
+			var b2_pos := seg_left - (seg_rv * b2_lat) + Vector3(0.0, b2_ground_y, 0.0)
+			_add_3d_bush(foliage_st, b2_pos, 0.85 + fposmod(seg_rnd * 5.1, 0.5), seg_rnd)
 
 		# Zone 2: Shelf 2 Middle Terrace (lat 9.5m to 19.5m) - Dense Studio Ghibli Canopies, Pines & Bamboo
-		var t2_seed: float = fposmod(seg_rnd * 3.17 + float(i) * 0.23, 1.0)
-		var tr2_lat: float = 10.2 + fposmod(t2_seed * 4.1, 7.8)
-		var tr2_ground_y: float = _sample_hillside_height(seg_gz, tr2_lat)
-		var tr2_pos := seg_left - (seg_rv * tr2_lat) + Vector3(0.0, tr2_ground_y, 0.0)
-		_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25 + fposmod(t2_seed * 5.3, 0.65), t2_seed)
+		if i % 3 == 0:
+			var t2_seed: float = fposmod(seg_rnd * 3.17 + float(i) * 0.23, 1.0)
+			var tr2_lat: float = 10.2 + fposmod(t2_seed * 4.1, 7.8)
+			var tr2_ground_y: float = _sample_hillside_height(seg_gz, tr2_lat)
+			var tr2_pos := seg_left - (seg_rv * tr2_lat) + Vector3(0.0, tr2_ground_y, 0.0)
+			_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25 + fposmod(t2_seed * 5.3, 0.65), t2_seed)
 
-		var pn2_lat: float = 11.5 + fposmod(t2_seed * 6.7, 6.8)
-		var pn2_ground_y: float = _sample_hillside_height(seg_gz, pn2_lat)
-		var pn2_pos := seg_left - (seg_rv * pn2_lat) + Vector3(0.0, pn2_ground_y, 0.0)
-		_add_3d_pine_tree(foliage_st, pn2_pos, 1.35 + fposmod(t2_seed * 7.1, 0.65), t2_seed)
+			var rk2_lat: float = 12.0 + fposmod(t2_seed * 5.9, 6.5)
+			var rk2_ground_y: float = _sample_hillside_height(seg_gz, rk2_lat)
+			var rk2_pos := seg_left - (seg_rv * rk2_lat) + Vector3(0.0, rk2_ground_y, 0.0)
+			_add_3d_boulder(rock_st, rk2_pos, 1.45 + fposmod(t2_seed * 6.1, 0.8), t2_seed)
+		elif i % 3 == 1:
+			var t2_seed: float = fposmod(seg_rnd * 3.17 + float(i) * 0.23, 1.0)
+			var pn2_lat: float = 11.5 + fposmod(t2_seed * 6.7, 6.8)
+			var pn2_ground_y: float = _sample_hillside_height(seg_gz, pn2_lat)
+			var pn2_pos := seg_left - (seg_rv * pn2_lat) + Vector3(0.0, pn2_ground_y, 0.0)
+			_add_3d_pine_tree(foliage_st, pn2_pos, 1.35 + fposmod(t2_seed * 7.1, 0.65), t2_seed)
 
-		if t2_seed < 0.65:
-			var tr2b_lat: float = 14.5 + fposmod(t2_seed * 8.3, 4.5)
-			var tr2b_ground_y: float = _sample_hillside_height(seg_gz, tr2b_lat)
-			var tr2b_pos := seg_left - (seg_rv * tr2b_lat) + Vector3(0.0, tr2b_ground_y, 0.0)
-			_add_3d_puffy_tree(foliage_st, tr2b_pos, 1.25 + fposmod(t2_seed * 3.9, 0.55), t2_seed)
-		elif t2_seed < 0.85:
-			var pn2b_lat: float = 15.0 + fposmod(t2_seed * 6.2, 4.0)
-			var pn2b_ground_y: float = _sample_hillside_height(seg_gz, pn2b_lat)
-			var pn2b_pos := seg_left - (seg_rv * pn2b_lat) + Vector3(0.0, pn2b_ground_y, 0.0)
-			_add_3d_pine_tree(foliage_st, pn2b_pos, 1.30 + fposmod(t2_seed * 4.4, 0.45), t2_seed)
-		else:
-			var bb2_lat: float = 13.8 + fposmod(t2_seed * 7.7, 5.0)
-			var bb2_ground_y: float = _sample_hillside_height(seg_gz, bb2_lat)
-			var bb2_pos := seg_left - (seg_rv * bb2_lat) + Vector3(0.0, bb2_ground_y, 0.0)
-			_add_3d_bamboo_cluster(foliage_st, bb2_pos, 4, 1.05, t2_seed)
-
-		var rk2_lat: float = 12.0 + fposmod(t2_seed * 5.9, 6.5)
-		var rk2_ground_y: float = _sample_hillside_height(seg_gz, rk2_lat)
-		var rk2_pos := seg_left - (seg_rv * rk2_lat) + Vector3(0.0, rk2_ground_y, 0.0)
-		_add_3d_boulder(rock_st, rk2_pos, 1.45 + fposmod(t2_seed * 6.1, 0.8), t2_seed)
-
-		var b_mid_lat: float = 10.5 + fposmod(t2_seed * 4.7, 7.5)
-		var b_mid_ground_y: float = _sample_hillside_height(seg_gz, b_mid_lat)
-		var b_mid_pos := seg_left - (seg_rv * b_mid_lat) + Vector3(0.0, b_mid_ground_y, 0.0)
-		_add_3d_bush(foliage_st, b_mid_pos, 1.35, t2_seed)
+			var b_mid_lat: float = 10.5 + fposmod(t2_seed * 4.7, 7.5)
+			var b_mid_ground_y: float = _sample_hillside_height(seg_gz, b_mid_lat)
+			var b_mid_pos := seg_left - (seg_rv * b_mid_lat) + Vector3(0.0, b_mid_ground_y, 0.0)
+			_add_3d_bush(foliage_st, b_mid_pos, 1.35, t2_seed)
 
 		# Zone 3: Shelf 3 Upper Terrace (lat 22.5m to 36.5m) - Towering Canopies & Mountain Pines
-		var t3_seed: float = fposmod(seg_rnd * 5.83 + float(i) * 0.37, 1.0)
-		var tr3_lat: float = 23.5 + fposmod(t3_seed * 4.9, 10.5)
-		var tr3_ground_y: float = _sample_hillside_height(seg_gz, tr3_lat)
-		var tr3_pos := seg_left - (seg_rv * tr3_lat) + Vector3(0.0, tr3_ground_y, 0.0)
-		_add_3d_puffy_tree(foliage_st, tr3_pos, 1.65 + fposmod(t3_seed * 6.3, 0.8), t3_seed)
+		if i % 3 == 2:
+			var t3_seed: float = fposmod(seg_rnd * 5.83 + float(i) * 0.37, 1.0)
+			var tr3_lat: float = 23.5 + fposmod(t3_seed * 4.9, 10.5)
+			var tr3_ground_y: float = _sample_hillside_height(seg_gz, tr3_lat)
+			var tr3_pos := seg_left - (seg_rv * tr3_lat) + Vector3(0.0, tr3_ground_y, 0.0)
+			_add_3d_puffy_tree(foliage_st, tr3_pos, 1.65 + fposmod(t3_seed * 6.3, 0.8), t3_seed)
 
-		var pn3_lat: float = 25.5 + fposmod(t3_seed * 7.5, 9.5)
-		var pn3_ground_y: float = _sample_hillside_height(seg_gz, pn3_lat)
-		var pn3_pos := seg_left - (seg_rv * pn3_lat) + Vector3(0.0, pn3_ground_y, 0.0)
-		_add_3d_pine_tree(foliage_st, pn3_pos, 1.80 + fposmod(t3_seed * 5.7, 0.8), t3_seed)
-
-		var pn3b_lat: float = 28.0 + fposmod(t3_seed * 9.1, 7.5)
-		var pn3b_ground_y: float = _sample_hillside_height(seg_gz, pn3b_lat)
-		var pn3b_pos := seg_left - (seg_rv * pn3b_lat) + Vector3(0.0, pn3b_ground_y, 0.0)
-		_add_3d_pine_tree(foliage_st, pn3b_pos, 1.60 + fposmod(t3_seed * 8.3, 0.6), t3_seed)
-
-		var b_hi_lat: float = 24.0 + fposmod(t3_seed * 4.1, 9.0)
-		var b_hi_ground_y: float = _sample_hillside_height(seg_gz, b_hi_lat)
-		var b_hi_pos := seg_left - (seg_rv * b_hi_lat) + Vector3(0.0, b_hi_ground_y, 0.0)
-		_add_3d_bush(foliage_st, b_hi_pos, 1.55, t3_seed)
+			var b_hi_lat: float = 24.0 + fposmod(t3_seed * 4.1, 9.0)
+			var b_hi_ground_y: float = _sample_hillside_height(seg_gz, b_hi_lat)
+			var b_hi_pos := seg_left - (seg_rv * b_hi_lat) + Vector3(0.0, b_hi_ground_y, 0.0)
+			_add_3d_bush(foliage_st, b_hi_pos, 1.55, t3_seed)
+		elif i % 3 == 0:
+			var t3_seed: float = fposmod(seg_rnd * 5.83 + float(i) * 0.37, 1.0)
+			var pn3_lat: float = 25.5 + fposmod(t3_seed * 7.5, 9.5)
+			var pn3_ground_y: float = _sample_hillside_height(seg_gz, pn3_lat)
+			var pn3_pos := seg_left - (seg_rv * pn3_lat) + Vector3(0.0, pn3_ground_y, 0.0)
+			_add_3d_pine_tree(foliage_st, pn3_pos, 1.80 + fposmod(t3_seed * 5.7, 0.8), t3_seed)
 
 		# Zone 4: Upper Mountain Ridge Crest (lat 42.0m to 85.0m) - Silhouetted Mountain Pines & Crags
-		var t4_seed: float = fposmod(seg_rnd * 9.19 + float(i) * 0.49, 1.0)
-		var pn4_lat: float = 43.0 + fposmod(t4_seed * 4.3, 38.0)
-		var pn4_ground_y: float = _sample_hillside_height(seg_gz, pn4_lat)
-		var pn4_pos := seg_left - (seg_rv * pn4_lat) + Vector3(0.0, pn4_ground_y, 0.0)
-		_add_3d_pine_tree(foliage_st, pn4_pos, 2.6 + fposmod(t4_seed * 5.1, 1.6), t4_seed)
-
-		var pn4b_lat: float = 46.0 + fposmod(t4_seed * 7.7, 34.0)
-		var pn4b_ground_y: float = _sample_hillside_height(seg_gz, pn4b_lat)
-		var pn4b_pos := seg_left - (seg_rv * pn4b_lat) + Vector3(0.0, pn4b_ground_y, 0.0)
-		_add_3d_pine_tree(foliage_st, pn4b_pos, 2.9 + fposmod(t4_seed * 6.3, 1.5), t4_seed)
-
-		var rk4_lat: float = 48.0 + fposmod(t4_seed * 8.9, 30.0)
-		var rk4_ground_y: float = _sample_hillside_height(seg_gz, rk4_lat)
-		var rk4_pos := seg_left - (seg_rv * rk4_lat) + Vector3(0.0, rk4_ground_y, 0.0)
-		_add_3d_boulder(rock_st, rk4_pos, 2.8 + fposmod(t4_seed * 4.5, 1.8), t4_seed)
+		if i % 4 == 0:
+			var t4_seed: float = fposmod(seg_rnd * 9.19 + float(i) * 0.49, 1.0)
+			var pn4_lat: float = 43.0 + fposmod(t4_seed * 4.3, 38.0)
+			var pn4_ground_y: float = _sample_hillside_height(seg_gz, pn4_lat)
+			var pn4_pos := seg_left - (seg_rv * pn4_lat) + Vector3(0.0, pn4_ground_y, 0.0)
+			_add_3d_pine_tree(foliage_st, pn4_pos, 2.6 + fposmod(t4_seed * 5.1, 1.6), t4_seed)
+		elif i % 4 == 2:
+			var t4_seed: float = fposmod(seg_rnd * 9.19 + float(i) * 0.49, 1.0)
+			var rk4_lat: float = 48.0 + fposmod(t4_seed * 8.9, 30.0)
+			var rk4_ground_y: float = _sample_hillside_height(seg_gz, rk4_lat)
+			var rk4_pos := seg_left - (seg_rv * rk4_lat) + Vector3(0.0, rk4_ground_y, 0.0)
+			_add_3d_boulder(rock_st, rk4_pos, 2.8 + fposmod(t4_seed * 4.5, 1.8), t4_seed)
 
 		var bi: int = i * 4
 		barrier_st.add_index(bi)
@@ -2278,7 +2388,6 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		barrier_st.add_index(bi + 7)
 		barrier_st.add_index(bi + 6)
 
-	road_st.generate_normals()
 	var road_inst := MeshInstance3D.new()
 	road_inst.mesh = road_st.commit()
 	road_inst.material_override = road_shader_mat
@@ -2292,37 +2401,33 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		hillside_inst.material_override = cliff_mat
 	else:
 		hillside_inst.material_override = hillside_layer2_mat
-	hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(hillside_inst)
 
-	foliage_st.generate_normals()
 	var fol_mesh := foliage_st.commit()
 	if fol_mesh.get_surface_count() > 0:
 		var fol_inst := MeshInstance3D.new()
 		fol_inst.name = "HillsideLayer1Foliage"
 		fol_inst.mesh = fol_mesh
 		fol_inst.material_override = hillside_foliage_mat
-		fol_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		fol_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		chunk_root.add_child(fol_inst)
 
-	rock_st.generate_normals()
 	var rock_mesh := rock_st.commit()
 	if rock_mesh.get_surface_count() > 0:
 		var rock_inst := MeshInstance3D.new()
 		rock_inst.name = "HillsideLayer1Rocks"
 		rock_inst.mesh = rock_mesh
 		rock_inst.material_override = hillside_rock_mat
-		rock_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		rock_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		chunk_root.add_child(rock_inst)
 
-	barrier_st.generate_normals()
 	var barrier_inst := MeshInstance3D.new()
 	barrier_inst.mesh = barrier_st.commit()
 	barrier_inst.material_override = barrier_material
 	barrier_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_inst)
 
-	barrier_cap_st.generate_normals()
 	var barrier_cap_inst := MeshInstance3D.new()
 	barrier_cap_inst.mesh = barrier_cap_st.commit()
 	barrier_cap_inst.material_override = barrier_cap_material
@@ -2613,7 +2718,7 @@ func _build_tunnel_module(chunk: Node3D, start_z: float) -> void:
 			pillar.mesh = pillar_mesh
 			pillar.material_override = tunnel_concrete_mat
 			pillar.position = Vector3(side * 10.6, 3.75, 0.0)
-			pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			pillar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			rib_node.add_child(pillar)
 
 			# Arched corner gusset
@@ -2622,7 +2727,7 @@ func _build_tunnel_module(chunk: Node3D, start_z: float) -> void:
 			gusset.material_override = tunnel_rib_mat
 			gusset.position = Vector3(side * 9.6, 6.4, 0.0)
 			gusset.rotation_degrees = Vector3(0.0, 0.0, 45.0 * side)
-			gusset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			gusset.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			rib_node.add_child(gusset)
 
 		# 2. Industrial Arched Overhead Rib
@@ -2630,7 +2735,7 @@ func _build_tunnel_module(chunk: Node3D, start_z: float) -> void:
 		rib.mesh = beam_mesh
 		rib.material_override = tunnel_rib_mat
 		rib.position = Vector3(0.0, 7.2, 0.0)
-		rib.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		rib.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		rib_node.add_child(rib)
 
 		# 3. Enclosed Concrete Roof & Outer Walls between ribs
@@ -2639,7 +2744,7 @@ func _build_tunnel_module(chunk: Node3D, start_z: float) -> void:
 			slab.mesh = slab_mesh
 			slab.material_override = tunnel_concrete_mat
 			slab.position = Vector3(0.0, 7.5, -3.0)
-			slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			slab.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			rib_node.add_child(slab)
 
 			for side in [-1.0, 1.0]:
@@ -2647,7 +2752,7 @@ func _build_tunnel_module(chunk: Node3D, start_z: float) -> void:
 				wall.mesh = wall_mesh
 				wall.material_override = tunnel_concrete_mat
 				wall.position = Vector3(side * 10.9, 3.7, -3.0)
-				wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+				wall.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				rib_node.add_child(wall)
 
 		# 4. Overhead Fluorescent Fixtures with downward SpotLight3D pools (spaced every 12m)
@@ -4166,10 +4271,10 @@ func _create_tire_smoke_emitter(offset: Vector3) -> CPUParticles3D:
 	return p
 
 func _reset_race() -> void:
-	for sd in active_skid_decals:
+	for sd in skid_pool:
+		sd.time_left = 0.0
 		if is_instance_valid(sd.node):
-			sd.node.queue_free()
-	active_skid_decals.clear()
+			sd.node.visible = false
 	last_skid_drop_z = 999999.0
 	active_tunnel_intervals.clear()
 	chunk_spawn_count = 0
@@ -4854,7 +4959,7 @@ func _setup_hud() -> void:
 
 	cutin_subviewport = SubViewport.new()
 	cutin_subviewport.size = Vector2i(360, 210)
-	cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
+	cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	cutin_subviewport.own_world_3d = false
 	cutin_subviewport.world_3d = get_world_3d()
 	cutin_svc.add_child(cutin_subviewport)
@@ -5701,8 +5806,9 @@ func _process_day_night_cycle(delta: float) -> void:
 		world_env_resource.volumetric_fog_albedo = Color(0, 0, 0, 0)
 		world_env_resource.volumetric_fog_emission = Color(0, 0, 0, 0)
 
-	# Update Sky Gradient
-	if is_instance_valid(procedural_sky_mat):
+	# Update Sky Gradient (throttled to avoid GPU radiance map cubemap re-baking every 16ms)
+	if is_instance_valid(procedural_sky_mat) and abs(day_cycle_progress - last_sky_update_progress) >= 0.005:
+		last_sky_update_progress = day_cycle_progress
 		procedural_sky_mat.sky_top_color = cur_sky_top
 		procedural_sky_mat.sky_horizon_color = cur_sky_hor
 		procedural_sky_mat.ground_horizon_color = cur_gnd_hor
@@ -6368,28 +6474,26 @@ func _bounce_combo_badge() -> void:
 	tw.tween_property(hud_combo_container, "scale", Vector2(1.0, 1.0), 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _process_skid_marks(delta: float) -> void:
-	# 1. Update and fade existing skid marks
-	var idx := 0
-	while idx < active_skid_decals.size():
-		var sd := active_skid_decals[idx]
-		sd.time_left -= delta
-		if sd.time_left <= 0.0 or not is_instance_valid(sd.node):
-			if is_instance_valid(sd.node):
-				sd.node.queue_free()
-			active_skid_decals.remove_at(idx)
-		else:
-			var alpha_factor: float = clamp(sd.time_left / 3.0, 0.0, 1.0)
-			sd.mat.albedo_color.a = alpha_factor * 0.75
-			idx += 1
+	# 1. Update active pooled skid marks
+	for sd in skid_pool:
+		if sd.time_left > 0.0:
+			sd.time_left -= delta
+			if sd.time_left <= 0.0:
+				if is_instance_valid(sd.node):
+					sd.node.visible = false
+			else:
+				var alpha_factor: float = clamp(sd.time_left / 3.0, 0.0, 1.0)
+				if is_instance_valid(sd.node):
+					sd.node.transparency = (1.0 - alpha_factor) * 0.75
 
 	# 2. Drop new discrete skid points only when drift_active == true
 	if drift_active and current_state == GameState.RACING:
-		if abs(player_z - last_skid_drop_z) >= 0.35:
+		if abs(player_z - last_skid_drop_z) >= 0.90:
 			last_skid_drop_z = player_z
 			_spawn_skid_pair()
 
 func _spawn_skid_pair() -> void:
-	if not is_instance_valid(car_root):
+	if not is_instance_valid(car_root) or skid_pool.is_empty():
 		return
 	var car_trans := car_root.global_transform
 	var right_dir := car_trans.basis.x.normalized()
@@ -6397,34 +6501,19 @@ func _spawn_skid_pair() -> void:
 	center_pos.y = 0.022
 
 	for side in [-0.76, 0.76]:
-		var sm_inst := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(0.32, 0.95)
-		qm.orientation = PlaneMesh.FACE_Y
-		sm_inst.mesh = qm
+		var sd := skid_pool[skid_pool_idx]
+		skid_pool_idx = (skid_pool_idx + 1) % SKID_POOL_SIZE
 
-		var sm_mat := StandardMaterial3D.new()
-		sm_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sm_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		sm_mat.albedo_color = Color(0.102, 0.110, 0.141, 0.75) # #1A1C24 at 0.75 opacity
-		sm_inst.material_override = sm_mat
-
-		add_child(sm_inst)
-		sm_inst.global_transform = Transform3D(car_trans.basis, center_pos + (right_dir * side))
-
-		var sd := SkidDecal.new()
-		sd.node = sm_inst
-		sd.mat = sm_mat
-		sd.time_left = 3.0 # Lifetime = 3.0s before fading
-		active_skid_decals.append(sd)
+		sd.node.global_transform = Transform3D(car_trans.basis, center_pos + (right_dir * side))
+		sd.node.transparency = 0.0
+		sd.node.visible = true
+		sd.time_left = 3.0
 
 # ==============================================================================
 # 12. STEPPED ANIME TIRE SMOKE & EXHAUST BACKFIRES & TRAFFIC FLINCH
 # ==============================================================================
 func _spawn_stepped_smoke_puffs() -> void:
-	if not is_instance_valid(car_root):
-		return
-	if not is_raining:
+	if not is_instance_valid(car_root) or not is_raining or water_spray_pool.is_empty():
 		return
 	var car_trans := car_root.global_transform
 	var right_dir := car_trans.basis.x.normalized()
@@ -6437,26 +6526,27 @@ func _spawn_stepped_smoke_puffs() -> void:
 		water_spray_mat.shader = water_spray_shader
 
 	for side in [-0.76, 0.76]:
-		var spray := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(0.85, 1.4)
-		spray.mesh = qm
+		var spray := water_spray_pool[water_spray_idx]
+		water_spray_idx = (water_spray_idx + 1) % WATER_SPRAY_POOL_SIZE
+
 		spray.material_override = water_spray_mat
 		spray.scale = Vector3(0.3, 0.3, 0.3)
-
 		var spawn_pos: Vector3 = center_pos + (right_dir * side) + Vector3(randf_range(-0.06, 0.06), 0.35, randf_range(-0.05, 0.05))
 		spray.position = spawn_pos
-		add_child(spray)
+		spray.visible = true
 
 		var tw := spray.create_tween()
 		var target_pos := spawn_pos + (car_trans.basis.z * randf_range(2.4, 3.8)) + Vector3.UP * randf_range(0.35, 0.7)
 		tw.set_parallel(true)
 		tw.tween_property(spray, "position", target_pos, 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw.tween_property(spray, "scale", Vector3(1.2, 1.6, 1.0), 0.24).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.chain().tween_callback(spray.queue_free)
+		tw.chain().tween_callback(func():
+			if is_instance_valid(spray):
+				spray.visible = false
+		)
 
 func _emit_guardrail_sparks(side: float, _delta: float) -> void:
-	if not is_instance_valid(car_root):
+	if not is_instance_valid(car_root) or guardrail_spark_pool.is_empty():
 		return
 	if not spark_shader:
 		spark_shader = load("res://shaders/guardrail_spark.gdshader")
@@ -6469,13 +6559,13 @@ func _emit_guardrail_sparks(side: float, _delta: float) -> void:
 	var contact_pos: Vector3 = car_trans.origin + (car_basis.x * (HERO_HALF_W * side)) + Vector3(0.0, 0.42 + randf_range(-0.08, 0.08), randf_range(-0.5, 0.8))
 
 	for _i in range(2):
-		var spark := MeshInstance3D.new()
-		var qm := QuadMesh.new()
-		qm.size = Vector2(0.32, 0.14)
-		spark.mesh = qm
+		var spark := guardrail_spark_pool[guardrail_spark_idx]
+		guardrail_spark_idx = (guardrail_spark_idx + 1) % GUARDRAIL_SPARK_POOL_SIZE
+
 		spark.material_override = spark_mat
 		spark.position = contact_pos
-		add_child(spark)
+		spark.scale = Vector3(1.0, 1.0, 1.0)
+		spark.visible = true
 
 		var spray_dir: Vector3 = (car_basis.z * randf_range(14.0, 26.0) + (car_basis.x * (-side * randf_range(2.0, 5.0))) + Vector3.UP * randf_range(1.0, 4.0))
 		var target_pos: Vector3 = contact_pos + (spray_dir * 0.14)
@@ -6484,30 +6574,33 @@ func _emit_guardrail_sparks(side: float, _delta: float) -> void:
 		tw.set_parallel(true)
 		tw.tween_property(spark, "position", target_pos, 0.14)
 		tw.tween_property(spark, "scale", Vector3(0.1, 0.1, 0.1), 0.14)
-		tw.chain().tween_callback(spark.queue_free)
+		tw.chain().tween_callback(func():
+			if is_instance_valid(spark):
+				spark.visible = false
+		)
 
 func _spawn_exhaust_shockwave() -> void:
 	# Purged: Exhaust shockwaves/donuts disabled per mandate
 	return
 
 func _spawn_diffuser_ground_sparks() -> void:
-	if not is_instance_valid(car_root):
+	if not is_instance_valid(car_root) or diffuser_spark_pool.is_empty():
 		return
 	var car_trans: Transform3D = car_root.global_transform
 	var car_basis: Basis = car_trans.basis
-	var spark_count: int = randi_range(2, 4)
+	var spark_count: int = randi_range(2, 3)
 	for _i in range(spark_count):
-		var spark := MeshInstance3D.new()
-		spark.mesh = diffuser_spark_mesh
+		var spark := diffuser_spark_pool[diffuser_spark_idx]
+		diffuser_spark_idx = (diffuser_spark_idx + 1) % DIFFUSER_SPARK_POOL_SIZE
+
 		spark.material_override = diffuser_spark_mat_white if randf() > 0.55 else diffuser_spark_mat_amber
-		spark.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 		# Position scraped beneath the rear diffuser at tarmac level (y = 0.035)
 		var spawn_pos: Vector3 = car_trans.origin + (car_basis.z * 1.95) + (car_basis.x * randf_range(-0.45, 0.45)) + Vector3(0.0, 0.035, 0.0)
 		spark.position = spawn_pos
 		spark.rotation = car_trans.basis.get_euler() + Vector3(0.0, randf_range(-0.35, 0.35), 0.0)
 		spark.scale = Vector3(1.0, 1.0, 1.0)
-		add_child(spark)
+		spark.visible = true
 
 		# 3-frame micro-burst (0.05 seconds at 60 FPS)
 		var spray_vec: Vector3 = (car_basis.z * randf_range(1.6, 2.8)) + (car_basis.x * randf_range(-0.35, 0.35))
@@ -6517,13 +6610,18 @@ func _spawn_diffuser_ground_sparks() -> void:
 		tw.set_parallel(true)
 		tw.tween_property(spark, "position", target_pos, 0.05)
 		tw.tween_property(spark, "scale", Vector3(0.15, 0.15, 0.15), 0.05)
-		tw.chain().tween_callback(spark.queue_free)
+		tw.chain().tween_callback(func():
+			if is_instance_valid(spark):
+				spark.visible = false
+		)
 
 func _trigger_manga_cutin(title_text: String) -> void:
 	if cutin_active or cutin_cooldown > 0.0 or current_state == GameState.CRASHED:
 		return
 	cutin_active = true
 	cutin_cooldown = 4.0
+	if is_instance_valid(cutin_subviewport):
+		cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	if is_instance_valid(cutin_title_label):
 		cutin_title_label.text = title_text
 	if is_instance_valid(cutin_container):
@@ -6538,6 +6636,8 @@ func _trigger_manga_cutin(title_text: String) -> void:
 		cutin_tween.tween_callback(func():
 			if is_instance_valid(cutin_container):
 				cutin_container.visible = false
+			if is_instance_valid(cutin_subviewport):
+				cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 			cutin_active = false
 		)
 
