@@ -317,6 +317,9 @@ var procedural_sky_mat: ProceduralSkyMaterial
 var hero_headlight_l: SpotLight3D
 var hero_headlight_r: SpotLight3D
 var hero_headlight_cone_mesh: MeshInstance3D
+static var anime_sky_mat: ShaderMaterial
+static var neon_back_pink: Material
+static var neon_back_cyan: Material
 var hero_headlight_cone_mat: StandardMaterial3D
 static var headlight_cone_mat: ShaderMaterial
 var hero_headlight_lens_mat: StandardMaterial3D
@@ -387,15 +390,15 @@ const BIOMES: Dictionary = {
 		"name": "NEO-SHINJUKU",
 		"kanji": "新宿 ALLEY",
 		"badge": "NEO-SHINJUKU // URBAN CANYON",
-		"sky_top": Color("#080816"),
-		"sky_horizon": Color("#4A1535"),
-		"ground_horizon": Color("#0A0A14"),
-		"sun_color": Color("#3A4A7A"),
-		"sun_energy": 0.65,
-		"ambient_color": Color("#181428"),
-		"ambient_energy": 0.35,
-		"fog_color": Color("#100C1C"),
-		"fog_density": 0.0018,
+		"sky_top": Color("#0A0813"),
+		"sky_horizon": Color("#8A2035"), # Glowing crimson twilight dusk (Ref Image 2)
+		"ground_horizon": Color("#0E0B18"),
+		"sun_color": Color("#4A5272"),
+		"sun_energy": 0.45,
+		"ambient_color": Color("#181426"),
+		"ambient_energy": 0.38,
+		"fog_color": Color("#25122C"),
+		"fog_density": 0.0006,
 		"weather": "rain",
 		"traffic_min_dist": 200.0,
 		"traffic_max_dist": 290.0,
@@ -404,15 +407,15 @@ const BIOMES: Dictionary = {
 		"name": "ENOSHIMA COAST",
 		"kanji": "江の島 COAST",
 		"badge": "ENOSHIMA COAST // OCEAN HIGHWAY",
-		"sky_top": Color("#1E5FA8"),
-		"sky_horizon": Color("#FFAA44"),
-		"ground_horizon": Color("#3D6075"),
-		"sun_color": Color("#FFE5B4"),
-		"sun_energy": 1.40,
-		"ambient_color": Color("#4A5568"),
-		"ambient_energy": 0.32,
-		"fog_color": Color("#F4D58D"),
-		"fog_density": 0.0007,
+		"sky_top": Color("#E85542"),     # Vibrant anime coral sunset (Ref Image 1)
+		"sky_horizon": Color("#FFF06A"), # Radiant golden lemon horizon (Ref Image 1)
+		"ground_horizon": Color("#284562"),
+		"sun_color": Color("#FFF2A0"),
+		"sun_energy": 1.55,
+		"ambient_color": Color("#624838"), # Warm golden-hour sunset ambient
+		"ambient_energy": 0.45,
+		"fog_color": Color("#FFA84A"),
+		"fog_density": 0.0002,
 		"weather": "sunny",
 		"traffic_min_dist": 280.0,
 		"traffic_max_dist": 390.0,
@@ -421,15 +424,15 @@ const BIOMES: Dictionary = {
 		"name": "HAKONE SNOW",
 		"kanji": "箱根 TOUGE",
 		"badge": "HAKONE SNOW // ALPINE PASS",
-		"sky_top": Color("#4A6B8A"),
-		"sky_horizon": Color("#B8D2E6"),
-		"ground_horizon": Color("#7A96B2"),
-		"sun_color": Color("#E6F2FF"),
-		"sun_energy": 1.10,
-		"ambient_color": Color("#859CB5"),
-		"ambient_energy": 0.30,
-		"fog_color": Color("#A4BED5"),
-		"fog_density": 0.0012,
+		"sky_top": Color("#5E88B0"),     # Crisp cold alpine azure (Ref Image 3)
+		"sky_horizon": Color("#F0F8FF"), # Icy white peak horizon (Ref Image 3)
+		"ground_horizon": Color("#88A6BF"),
+		"sun_color": Color("#F2F8FF"),
+		"sun_energy": 1.35,
+		"ambient_color": Color("#8FA6BE"),
+		"ambient_energy": 0.36,
+		"fog_color": Color("#C4DCED"),
+		"fog_density": 0.0004,
 		"weather": "snow",
 		"traffic_min_dist": 450.0,
 		"traffic_max_dist": 680.0,
@@ -458,27 +461,31 @@ var hud_stage_label: Label
 var hud_stage_sub: Label
 
 # Biome Prop Materials
-static var coastal_sand_mat: StandardMaterial3D
-static var ocean_water_mat: StandardMaterial3D
-static var ocean_foam_mat: StandardMaterial3D
-static var palm_trunk_mat: StandardMaterial3D
-static var palm_frond_mat: StandardMaterial3D
-static var coastal_cliff_mat: StandardMaterial3D
+static var coastal_sand_mat: Material
+static var ocean_water_mat: Material
+static var ocean_foam_mat: Material
+static var palm_trunk_mat: Material
+static var palm_frond_mat: Material
+static var coastal_cliff_mat: Material
 
-static var snow_rock_mat: StandardMaterial3D
-static var snow_foliage_mat: StandardMaterial3D
-static var snowbank_mat: StandardMaterial3D
+static var snow_rock_mat: Material
+static var snow_foliage_mat: Material
+static var snowbank_mat: Material
 
-static var shinjuku_building_mat: StandardMaterial3D
-static var shinjuku_window_mat: StandardMaterial3D
-static var neon_pink_mat: StandardMaterial3D
-static var neon_cyan_mat: StandardMaterial3D
-static var neon_yellow_mat: StandardMaterial3D
-static var vending_body_mat: StandardMaterial3D
-static var vending_glass_mat: StandardMaterial3D
-static var power_pole_mat: StandardMaterial3D
-static var power_line_mat: StandardMaterial3D
-static var attenuator_mat: StandardMaterial3D
+static var shinjuku_building_mat: Material
+static var shinjuku_window_mat: Material
+static var neon_pink_mat: Material
+static var neon_cyan_mat: Material
+static var neon_yellow_mat: Material
+static var vending_body_mat: Material
+static var vending_glass_mat: Material
+static var power_pole_mat: Material
+static var power_line_mat: Material
+static var awning_red_mat: Material
+static var awning_blue_mat: Material
+static var awning_green_mat: Material
+static var shutter_mat: Material
+static var attenuator_mat: Material
 
 # Player Motion State
 var player_z: float = 0.0
@@ -701,6 +708,14 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 	var b_data: Dictionary = BIOMES[new_biome_id]
 
 	# Sky & Atmosphere
+	if is_instance_valid(anime_sky_mat):
+		var s_mode: int = 0
+		match new_biome_id:
+			"neo_shinjuku": s_mode = 1
+			"enoshima_coast": s_mode = 2
+			"hakone_snow": s_mode = 3
+			_: s_mode = 0
+		anime_sky_mat.set_shader_parameter("biome_mode", s_mode)
 	if is_instance_valid(procedural_sky_mat):
 		procedural_sky_mat.sky_top_color = b_data["sky_top"]
 		procedural_sky_mat.sky_horizon_color = b_data["sky_horizon"]
@@ -720,9 +735,19 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 	if is_instance_valid(horizon_manager):
 		horizon_manager.set_biome_style(new_biome_id)
 
-	# Distant Tokyo Skyline (Show on Shuto Dusk and Neo-Shinjuku; hide in Hakone Snow and Enoshima Coast)
+	# Distant Tokyo Skyline (Show on Shuto Dusk; Neo-Shinjuku uses centered canyon towers in HorizonManager)
 	if is_instance_valid(background_rig):
-		background_rig.visible = (new_biome_id in ["shuto_dusk", "neo_shinjuku"])
+		background_rig.visible = (new_biome_id == "shuto_dusk")
+
+	# Road surface shader biome mode
+	if is_instance_valid(road_shader_mat):
+		var b_mode: int = 0
+		match new_biome_id:
+			"neo_shinjuku": b_mode = 1
+			"enoshima_coast": b_mode = 2
+			"hakone_snow": b_mode = 3
+			_: b_mode = 0
+		road_shader_mat.set_shader_parameter("biome_mode", b_mode)
 
 	# Weather state
 	match b_data["weather"]:
@@ -814,7 +839,10 @@ func _ready() -> void:
 
 func _run_biome_captures() -> void:
 	var artifact_dir := "C:/Users/jatin/.gemini/antigravity/brain/40ded32f-0a02-44db-8bea-5acffc621743"
-	for f in range(25):
+	DisplayServer.window_set_size(Vector2i(720, 1280))
+	get_viewport().size = Vector2i(720, 1280)
+
+	for f in range(30):
 		await get_tree().process_frame
 
 	var img_start := get_viewport().get_texture().get_image()
@@ -829,10 +857,43 @@ func _run_biome_captures() -> void:
 		current_biome_id = b_id
 		last_sky_update_progress = -999.0
 		_apply_biome_transition(b_id)
-		_rebuild_start_chunks()
+
+		# Force weather overlays to instant target values for capture
+		if is_instance_valid(hud_rain_overlay):
+			hud_rain_overlay.modulate.a = 1.0 if (b_id == "neo_shinjuku") else 0.0
+		if is_instance_valid(hud_snow_overlay):
+			hud_snow_overlay.modulate.a = 1.0 if (b_id == "hakone_snow") else 0.0
+		if is_instance_valid(snow_layer_near):
+			snow_layer_near.emitting = (b_id == "hakone_snow")
+			snow_layer_near.color.a = 0.90 if (b_id == "hakone_snow") else 0.0
+		if is_instance_valid(snow_layer_mid):
+			snow_layer_mid.emitting = (b_id == "hakone_snow")
+			snow_layer_mid.color.a = 0.80 if (b_id == "hakone_snow") else 0.0
+		if is_instance_valid(snow_layer_far):
+			snow_layer_far.emitting = (b_id == "hakone_snow")
+			snow_layer_far.color.a = 0.60 if (b_id == "hakone_snow") else 0.0
+
+		# Reset position to starting stretch of newly applied biome (driver vista view matching concept art)
+		if is_instance_valid(car_root):
+			car_root.position = Vector3(0.0, 0.0, 0.0)
+			car_root.rotation = Vector3.ZERO
+			car_root.visible = false
+		if is_instance_valid(follow_cam):
+			follow_cam.position = Vector3(0.0, 2.2, 0.0)
+			follow_cam.rotation = Vector3(-0.04, 0.0, 0.0)
 		player_speed = 46.0
-		for f in range(35):
+		stage_start_z = 0.0
+		_rebuild_start_chunks()
+
+		# Hide traffic cars during capture for clean environment shots
+		for tv in traffic_pool:
+			tv.current_z = 9999.0
+			if is_instance_valid(tv.instance):
+				tv.instance.visible = false
+
+		for f in range(60):
 			await get_tree().process_frame
+
 		var img := get_viewport().get_texture().get_image()
 		if img:
 			var out_file: String = artifact_dir + "/capture_" + b_id + ".png"
@@ -1175,98 +1236,158 @@ func _setup_materials() -> void:
 
 	# --- 4 BIOMES MATERIALS INITIALIZATION ---
 	if not coastal_sand_mat:
-		coastal_sand_mat = StandardMaterial3D.new()
-		coastal_sand_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		coastal_sand_mat.specular_mode = BaseMaterial3D.SPECULAR_TOON
-		coastal_sand_mat.albedo_color = Color("#F4D58D")
-		coastal_sand_mat.roughness = 0.95
+		var s_mat := StandardMaterial3D.new()
+		s_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		s_mat.albedo_color = Color("#E8BA64") # Warm golden manga sand (Ref Image 1)
+		coastal_sand_mat = s_mat
 
 	if not ocean_water_mat:
-		ocean_water_mat = StandardMaterial3D.new()
-		ocean_water_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		ocean_water_mat.albedo_color = Color("#1E6FA8")
+		var ocean_sh: Shader = load("res://shaders/coastal_ocean.gdshader")
+		var ow_mat := ShaderMaterial.new()
+		ow_mat.shader = ocean_sh
+		ocean_water_mat = ow_mat
 
 	if not ocean_foam_mat:
-		ocean_foam_mat = StandardMaterial3D.new()
-		ocean_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		ocean_foam_mat.albedo_color = Color("#FFFFFF")
+		var f_mat := StandardMaterial3D.new()
+		f_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		f_mat.albedo_color = Color("#FFFFFF") # Pure white stepped wave surf (Ref Image 1)
+		ocean_foam_mat = f_mat
 
 	if not palm_trunk_mat:
-		palm_trunk_mat = StandardMaterial3D.new()
-		palm_trunk_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		palm_trunk_mat.albedo_color = Color("#8B5A2B")
+		var pt_mat := StandardMaterial3D.new()
+		pt_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		pt_mat.albedo_color = Color("#5E381C") # Rich brown fibrous bark (Ref Image 1)
+		palm_trunk_mat = pt_mat
 
 	if not palm_frond_mat:
-		palm_frond_mat = StandardMaterial3D.new()
-		palm_frond_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		palm_frond_mat.albedo_color = Color("#2E8B57")
-		palm_frond_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var pf_mat := StandardMaterial3D.new()
+		pf_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		pf_mat.albedo_color = Color("#38841E") # Lush tropical green fronds (Ref Image 1)
+		pf_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		palm_frond_mat = pf_mat
 
 	if not coastal_cliff_mat:
-		coastal_cliff_mat = StandardMaterial3D.new()
-		coastal_cliff_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		coastal_cliff_mat.albedo_color = Color("#C49A5A")
+		var c_cliff_sh: Shader = load("res://shaders/coastal_cliff.gdshader")
+		var cc_mat := ShaderMaterial.new()
+		cc_mat.shader = c_cliff_sh
+		coastal_cliff_mat = cc_mat
 
 	if not snow_rock_mat:
-		snow_rock_mat = StandardMaterial3D.new()
-		snow_rock_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		snow_rock_mat.albedo_color = Color("#DCE8F2")
+		var s_cliff_sh: Shader = load("res://shaders/snow_cliff.gdshader")
+		var sr_mat := ShaderMaterial.new()
+		sr_mat.shader = s_cliff_sh
+		snow_rock_mat = sr_mat
 
 	if not snow_foliage_mat:
-		snow_foliage_mat = StandardMaterial3D.new()
-		snow_foliage_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		snow_foliage_mat.albedo_color = Color("#EBF2F7")
-		snow_foliage_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var sf_mat := StandardMaterial3D.new()
+		sf_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sf_mat.albedo_color = Color("#122A1A") # Deep evergreen pine needles (Ref Image 3)
+		sf_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		snow_foliage_mat = sf_mat
 
 	if not snowbank_mat:
-		snowbank_mat = StandardMaterial3D.new()
-		snowbank_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		snowbank_mat.albedo_color = Color("#F0F6FA")
+		var sb_mat := StandardMaterial3D.new()
+		sb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sb_mat.albedo_color = Color("#F4F9FD") # Pure white puffy snow blanket (Ref Image 3)
+		snowbank_mat = sb_mat
 
 	if not shinjuku_building_mat:
-		shinjuku_building_mat = StandardMaterial3D.new()
-		shinjuku_building_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		shinjuku_building_mat.albedo_color = Color("#282A33")
+		var b_mat := StandardMaterial3D.new()
+		b_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		b_mat.albedo_color = Color("#262D3D") # Cool slate Japanese alley concrete (Ref Image 2)
+		b_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		shinjuku_building_mat = b_mat
 
 	if not shinjuku_window_mat:
-		shinjuku_window_mat = StandardMaterial3D.new()
-		shinjuku_window_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		shinjuku_window_mat.albedo_color = Color("#FFD27F")
+		var w_mat := StandardMaterial3D.new()
+		w_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		w_mat.albedo_color = Color("#FFB438") # Warm amber glowing window (Ref Image 2)
+		w_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		shinjuku_window_mat = w_mat
 
 	if not neon_pink_mat:
-		neon_pink_mat = StandardMaterial3D.new()
-		neon_pink_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		neon_pink_mat.albedo_color = Color("#FF2A55")
+		var np_mat := StandardMaterial3D.new()
+		np_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		np_mat.albedo_color = Color("#FF1866") # Electric magenta neon glow (Ref Image 2)
+		neon_pink_mat = np_mat
 
 	if not neon_cyan_mat:
-		neon_cyan_mat = StandardMaterial3D.new()
-		neon_cyan_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		neon_cyan_mat.albedo_color = Color("#00E5FF")
+		var nc_mat := StandardMaterial3D.new()
+		nc_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		nc_mat.albedo_color = Color("#00E5FF") # Electric cyan neon glow (Ref Image 2)
+		neon_cyan_mat = nc_mat
 
 	if not neon_yellow_mat:
-		neon_yellow_mat = StandardMaterial3D.new()
-		neon_yellow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		neon_yellow_mat.albedo_color = Color("#FFD000")
+		var ny_mat := StandardMaterial3D.new()
+		ny_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ny_mat.albedo_color = Color("#FFB800")
+		neon_yellow_mat = ny_mat
+
+	if not neon_back_pink:
+		var nbp := StandardMaterial3D.new()
+		nbp.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		nbp.albedo_color = Color("#140612") # Dark plum backboard
+		nbp.cull_mode = BaseMaterial3D.CULL_DISABLED
+		neon_back_pink = nbp
+
+	if not neon_back_cyan:
+		var nbc := StandardMaterial3D.new()
+		nbc.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		nbc.albedo_color = Color("#06121C") # Dark teal backboard
+		nbc.cull_mode = BaseMaterial3D.CULL_DISABLED
+		neon_back_cyan = nbc
 
 	if not vending_body_mat:
-		vending_body_mat = StandardMaterial3D.new()
-		vending_body_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		vending_body_mat.albedo_color = Color("#D92027")
+		var vb_mat := StandardMaterial3D.new()
+		vb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		vb_mat.albedo_color = Color("#D92027")
+		vending_body_mat = vb_mat
 
 	if not vending_glass_mat:
-		vending_glass_mat = StandardMaterial3D.new()
-		vending_glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		vending_glass_mat.albedo_color = Color("#00E5FF")
+		var vg_mat := StandardMaterial3D.new()
+		vg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		vg_mat.albedo_color = Color("#FFFFFF") # Bright drink display illumination (Ref Image 2)
+		vending_glass_mat = vg_mat
 
 	if not power_pole_mat:
-		power_pole_mat = StandardMaterial3D.new()
-		power_pole_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		power_pole_mat.albedo_color = Color("#4A4D54")
+		var pp_mat := StandardMaterial3D.new()
+		pp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		pp_mat.albedo_color = Color("#3A4250") # Concrete utility pole (Ref Image 2)
+		power_pole_mat = pp_mat
 
 	if not power_line_mat:
-		power_line_mat = StandardMaterial3D.new()
-		power_line_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		power_line_mat.albedo_color = Color("#111115")
+		var pl_mat := StandardMaterial3D.new()
+		pl_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		pl_mat.albedo_color = Color("#08080C") # Crisp black overhead wire web (Ref Image 2)
+		power_line_mat = pl_mat
+
+	if not awning_red_mat:
+		var ar_mat := StandardMaterial3D.new()
+		ar_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ar_mat.albedo_color = Color("#C42032")
+		ar_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		awning_red_mat = ar_mat
+
+	if not awning_blue_mat:
+		var ab_mat := StandardMaterial3D.new()
+		ab_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ab_mat.albedo_color = Color("#1A4684")
+		ab_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		awning_blue_mat = ab_mat
+
+	if not awning_green_mat:
+		var ag_mat := StandardMaterial3D.new()
+		ag_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		ag_mat.albedo_color = Color("#226836")
+		ag_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		awning_green_mat = ag_mat
+
+	if not shutter_mat:
+		var st_mat := StandardMaterial3D.new()
+		st_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		st_mat.albedo_color = Color("#444D5E")
+		st_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		shutter_mat = st_mat
 
 	if not attenuator_mat:
 		attenuator_mat = StandardMaterial3D.new()
@@ -1442,8 +1563,12 @@ func _setup_environment() -> void:
 	sky_mat.use_debanding = true
 	procedural_sky_mat = sky_mat
 
+	var anime_sky := ShaderMaterial.new()
+	anime_sky.shader = load("res://shaders/anime_biome_sky.gdshader")
+	anime_sky_mat = anime_sky
+
 	var sky := Sky.new()
-	sky.sky_material = sky_mat
+	sky.sky_material = anime_sky
 	env.sky = sky
 
 	# 2. FAKE "RAY-TRACED" BOUNCE LIGHT (Hemispheric Ambient Fill)
@@ -2570,7 +2695,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	var dist_from_stage: float = abs(start_z - stage_start_z)
 	var is_fork_approach: bool = (dist_from_stage >= 2380.0 and dist_from_stage < 2500.0)
 	var is_twin_tunnel: bool = (dist_from_stage >= 2500.0 and dist_from_stage < 2620.0)
-	var is_tunnel: bool = is_twin_tunnel or (not is_fork_approach and (chunk_spawn_count % 14 == 3))
+	var is_tunnel: bool = is_twin_tunnel or (current_biome_id == "shuto_dusk" and not is_fork_approach and (chunk_spawn_count % 14 == 3))
 
 	var chunk_root := Node3D.new()
 	chunk_root.position.z = start_z
@@ -2596,20 +2721,30 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	# Biome-specific surface tools for batched draw calls
 	var sand_st := SurfaceTool.new()
 	var water_st := SurfaceTool.new()
+	var foam_st := SurfaceTool.new()
 	var trunk_st := SurfaceTool.new()
 	var snow_st := SurfaceTool.new()
+	var pine_foliage_st := SurfaceTool.new()
+	var pine_snow_st := SurfaceTool.new()
+	var bld_st := SurfaceTool.new()
 	var win_st := SurfaceTool.new()
+	var vending_st := SurfaceTool.new()
 	var pole_st := SurfaceTool.new()
 	var line_st := SurfaceTool.new()
 
 	if current_biome_id == "enoshima_coast":
 		sand_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		water_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		foam_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		trunk_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	elif current_biome_id == "hakone_snow":
 		snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		pine_foliage_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		pine_snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	elif current_biome_id == "neo_shinjuku":
+		bld_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		win_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		vending_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		pole_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		line_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
@@ -2635,6 +2770,13 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var right_vec: Vector3 = _sample_road_right(global_z)
 
 		var half_w: float = ROAD_WIDTH * 0.5
+		if current_biome_id == "neo_shinjuku":
+			half_w = 8.4
+		elif current_biome_id == "enoshima_coast":
+			half_w = 8.5
+		elif current_biome_id == "hakone_snow":
+			half_w = 8.5
+
 		if is_fork_approach:
 			var widen_t: float = float(i) / float(CHUNK_SEGMENTS)
 			half_w = lerp(ROAD_WIDTH * 0.5, 14.5, widen_t)
@@ -2700,47 +2842,143 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_vertex(b["p1"])
 
 		elif current_biome_id == "enoshima_coast":
-			# LEFT: Coastal cliff rising up with rocky faces
-			var cliff_top := left_pt - (right_vec * 34.0) + Vector3(0.0, 28.0, 0.0)
-			hillside_st.add_vertex(left_pt)
-			hillside_st.add_vertex(cliff_top)
+			# LEFT: Stepped Manga Rock Cliff with natural shelves & faceted faces (Ref Image 1)
+			var c_n1: float = sin(global_z * 0.018) * 3.8 + cos(global_z * 0.042) * 2.2
+			var c_n2: float = sin(global_z * 0.085) * 1.4 + cos(global_z * 0.18) * 0.7
 
-			# RIGHT: Sandy beach shoulder sloping down into ocean water plane
-			var sand_end := right_pt + (right_vec * 16.0) - Vector3(0.0, 1.4, 0.0)
-			var ocean_end := right_pt + (right_vec * 240.0) - Vector3(0.0, 3.2, 0.0)
-			sand_st.add_vertex(right_pt)
-			sand_st.add_vertex(sand_end)
-			water_st.add_vertex(sand_end)
-			water_st.add_vertex(ocean_end)
+			var pt0 := left_pt
+			var pt1 := left_pt - (right_vec * 0.4) + Vector3(0.0, 0.6, 0.0) # Rock curb
+			var pt2 := left_pt - (right_vec * (3.8 + c_n2 * 0.4)) + Vector3(0.0, 2.2 + c_n2 * 0.3, 0.0) # Lower terrace shelf
+			var pt3 := left_pt - (right_vec * (4.6 + c_n2 * 0.4)) + Vector3(0.0, 6.2 + c_n1 * 0.6, 0.0) # Sheer rock step 1
+			var pt4 := left_pt - (right_vec * (12.0 + c_n1 * 0.8)) + Vector3(0.0, 8.8 + c_n1 * 0.8, 0.0) # Mid terrace shelf
+			var pt5 := left_pt - (right_vec * (13.2 + c_n1 * 0.8)) + Vector3(0.0, 20.0 + c_n1 * 1.6, 0.0) # Sheer rock step 2
+			var pt6 := left_pt - (right_vec * (26.0 + c_n1 * 1.5)) + Vector3(0.0, 30.0 + c_n1 * 2.2, 0.0) # High terrace shelf
+			var pt7 := left_pt - (right_vec * (48.0 + c_n1 * 2.8)) + Vector3(0.0, 46.0 + c_n1 * 3.4, 0.0) # Upper cliff bluff
+			var pt8 := left_pt - (right_vec * (110.0 + c_n1 * 4.5)) + Vector3(0.0, 68.0 + c_n1 * 5.2, 0.0) # Mountain crest
+
+			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
+			var bands: Array = [
+				{"p0": pt0, "p1": pt1, "v0": 0.0,  "v1": 0.08, "norm": right_vec},
+				{"p0": pt1, "p1": pt2, "v0": 0.08, "v1": 0.22, "norm": Vector3.UP},
+				{"p0": pt2, "p1": pt3, "v0": 0.22, "v1": 0.30, "norm": right_vec},
+				{"p0": pt3, "p1": pt4, "v0": 0.30, "v1": 0.44, "norm": Vector3.UP},
+				{"p0": pt4, "p1": pt5, "v0": 0.44, "v1": 0.52, "norm": right_vec},
+				{"p0": pt5, "p1": pt6, "v0": 0.52, "v1": 0.62, "norm": Vector3.UP},
+				{"p0": pt6, "p1": pt7, "v0": 0.62, "v1": 0.82, "norm": (right_vec * 0.7 + Vector3.UP * 0.3).normalized()},
+				{"p0": pt7, "p1": pt8, "v0": 0.82, "v1": 1.0,  "norm": (right_vec * 0.4 + Vector3.UP * 0.6).normalized()}
+			]
+			for b in bands:
+				hillside_st.set_normal(b["norm"])
+				hillside_st.set_uv(Vector2(hs_u, b["v0"]))
+				hillside_st.add_vertex(b["p0"])
+				hillside_st.set_normal(b["norm"])
+				hillside_st.set_uv(Vector2(hs_u, b["v1"]))
+				hillside_st.add_vertex(b["p1"])
+
+			# RIGHT: Stepped golden beach shoulder + white comic wave foam line + ocean plane (Ref Image 1)
+			var wave_noise: float = sin(global_z * 0.16) * 1.4 + cos(global_z * 0.42) * 0.7
+			var sand_end := right_pt + (right_vec * 4.5) - Vector3(0.0, 0.35, 0.0)
+			var wet_sand_end := right_pt + (right_vec * (6.5 + wave_noise * 0.3)) - Vector3(0.0, 0.55, 0.0)
+			var wave_foam_end := right_pt + (right_vec * (8.5 + wave_noise * 0.6)) - Vector3(0.0, 0.60, 0.0)
+			var ocean_near := right_pt + (right_vec * 45.0) - Vector3(0.0, 0.65, 0.0)
+			var ocean_far := right_pt + (right_vec * 480.0) - Vector3(0.0, 0.70, 0.0)
+
+			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.0, float(i))); sand_st.add_vertex(right_pt)
+			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.5, float(i))); sand_st.add_vertex(sand_end)
+			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.5, float(i))); sand_st.add_vertex(sand_end)
+			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(1.0, float(i))); sand_st.add_vertex(wet_sand_end)
+
+			foam_st.set_normal(Vector3.UP); foam_st.set_uv(Vector2(0.0, float(i))); foam_st.add_vertex(wet_sand_end)
+			foam_st.set_normal(Vector3.UP); foam_st.set_uv(Vector2(1.0, float(i))); foam_st.add_vertex(wave_foam_end)
+
+			water_st.set_normal(Vector3.UP); water_st.set_uv(Vector2(0.0, float(i))); water_st.add_vertex(wave_foam_end)
+			water_st.set_normal(Vector3.UP); water_st.set_uv(Vector2(0.3, float(i))); water_st.add_vertex(ocean_near)
+			water_st.set_normal(Vector3.UP); water_st.set_uv(Vector2(0.3, float(i))); water_st.add_vertex(ocean_near)
+			water_st.set_normal(Vector3.UP); water_st.set_uv(Vector2(1.0, float(i))); water_st.add_vertex(ocean_far)
 
 		elif current_biome_id == "hakone_snow":
-			var snow_l := left_pt - (right_vec * 2.8) + Vector3(0.0, 0.8, 0.0)
-			var cliff_l := left_pt - (right_vec * 45.0) + Vector3(0.0, 38.0, 0.0)
-			snow_st.add_vertex(left_pt); snow_st.add_vertex(snow_l)
-			hillside_st.add_vertex(snow_l); hillside_st.add_vertex(cliff_l)
+			var h_n1: float = sin(global_z * 0.022) * 3.5 + cos(global_z * 0.055) * 2.0
+			var h_n2: float = sin(global_z * 0.11) * 1.2 + cos(global_z * 0.24) * 0.6
 
-			var snow_r := right_pt + (right_vec * 2.8) + Vector3(0.0, 0.8, 0.0)
-			var cliff_r := right_pt + (right_vec * 45.0) + Vector3(0.0, 38.0, 0.0)
-			snow_st.add_vertex(right_pt); snow_st.add_vertex(snow_r)
-			hillside_st.add_vertex(snow_r); hillside_st.add_vertex(cliff_r)
+			# RIGHT: Sheer craggy granite rock cliff with snow ledges (Ref Image 3)
+			var r_pt0 := right_pt
+			var r_pt1 := right_pt + (right_vec * 0.4) + Vector3(0.0, 0.5, 0.0)
+			var r_pt2 := right_pt + (right_vec * (3.5 + h_n2 * 0.3)) + Vector3(0.0, 1.8 + h_n2 * 0.2, 0.0)
+			var r_pt3 := right_pt + (right_vec * (4.2 + h_n2 * 0.3)) + Vector3(0.0, 6.8 + h_n1 * 0.6, 0.0)
+			var r_pt4 := right_pt + (right_vec * (9.5 + h_n1 * 0.8)) + Vector3(0.0, 8.5 + h_n1 * 0.8, 0.0)
+			var r_pt5 := right_pt + (right_vec * (11.0 + h_n1 * 0.8)) + Vector3(0.0, 22.0 + h_n1 * 1.8, 0.0)
+			var r_pt6 := right_pt + (right_vec * (22.0 + h_n1 * 1.5)) + Vector3(0.0, 24.5 + h_n1 * 1.8, 0.0)
+			var r_pt7 := right_pt + (right_vec * (45.0 + h_n1 * 2.5)) + Vector3(0.0, 42.0 + h_n1 * 3.2, 0.0)
+			var r_pt8 := right_pt + (right_vec * (95.0 + h_n1 * 4.0)) + Vector3(0.0, 65.0 + h_n1 * 4.8, 0.0)
+
+			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
+			var bands: Array = [
+				{"p0": r_pt0, "p1": r_pt1, "v0": 0.0,  "v1": 0.08, "norm": -right_vec},
+				{"p0": r_pt1, "p1": r_pt2, "v0": 0.08, "v1": 0.22, "norm": Vector3.UP},
+				{"p0": r_pt2, "p1": r_pt3, "v0": 0.22, "v1": 0.30, "norm": -right_vec},
+				{"p0": r_pt3, "p1": r_pt4, "v0": 0.30, "v1": 0.44, "norm": Vector3.UP},
+				{"p0": r_pt4, "p1": r_pt5, "v0": 0.44, "v1": 0.52, "norm": -right_vec},
+				{"p0": r_pt5, "p1": r_pt6, "v0": 0.52, "v1": 0.62, "norm": Vector3.UP},
+				{"p0": r_pt6, "p1": r_pt7, "v0": 0.62, "v1": 0.82, "norm": (-right_vec * 0.7 + Vector3.UP * 0.3).normalized()},
+				{"p0": r_pt7, "p1": r_pt8, "v0": 0.82, "v1": 1.0,  "norm": (-right_vec * 0.4 + Vector3.UP * 0.6).normalized()}
+			]
+			for b in bands:
+				hillside_st.set_normal(b["norm"])
+				hillside_st.set_uv(Vector2(hs_u, b["v0"]))
+				hillside_st.add_vertex(b["p0"])
+				hillside_st.set_normal(b["norm"])
+				hillside_st.set_uv(Vector2(hs_u, b["v1"]))
+				hillside_st.add_vertex(b["p1"])
+
+			# LEFT: Rolling snow-covered pine forest hillside (Ref Image 3)
+			var s_pt0 := left_pt
+			var s_pt1 := left_pt - (right_vec * 0.4) + Vector3(0.0, 0.5, 0.0)
+			var s_pt2 := left_pt - (right_vec * (5.0 + h_n2 * 0.4)) + Vector3(0.0, 2.2 + h_n2 * 0.2, 0.0)
+			var s_pt3 := left_pt - (right_vec * (16.0 + h_n1 * 0.8)) + Vector3(0.0, 8.0 + h_n1 * 0.6, 0.0)
+			var s_pt4 := left_pt - (right_vec * (70.0 + h_n1 * 2.5)) + Vector3(0.0, 36.0 + h_n1 * 2.2, 0.0)
+
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.0, float(i))); snow_st.add_vertex(s_pt0)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.2, float(i))); snow_st.add_vertex(s_pt1)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.2, float(i))); snow_st.add_vertex(s_pt1)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.5, float(i))); snow_st.add_vertex(s_pt2)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.5, float(i))); snow_st.add_vertex(s_pt2)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.8, float(i))); snow_st.add_vertex(s_pt3)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.8, float(i))); snow_st.add_vertex(s_pt3)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(1.0, float(i))); snow_st.add_vertex(s_pt4)
 
 		elif current_biome_id == "neo_shinjuku":
-			var sw_l := left_pt - (right_vec * 3.8) + Vector3(0.0, 0.22, 0.0)
-			var sw_r := right_pt + (right_vec * 3.8) + Vector3(0.0, 0.22, 0.0)
-			hillside_st.add_vertex(left_pt); hillside_st.add_vertex(sw_l)
-			hillside_st.add_vertex(right_pt); hillside_st.add_vertex(sw_r)
+			# Sidewalk curbs on both sides (Ref Image 2)
+			var sw_l0 := left_pt
+			var sw_l1 := left_pt - (right_vec * 2.4) + Vector3(0.0, 0.22, 0.0)
+			var sw_r0 := right_pt
+			var sw_r1 := right_pt + (right_vec * 2.4) + Vector3(0.0, 0.22, 0.0)
+			hillside_st.add_vertex(sw_l0); hillside_st.add_vertex(sw_l1)
+			hillside_st.add_vertex(sw_r0); hillside_st.add_vertex(sw_r1)
 
-		# 3. Guardrails (Right side)
-		var bar_inner_top := right_pt + Vector3(0.0, 1.2, 0.0)
-		var bar_outer_top := right_pt + (right_vec * 0.55) + Vector3(0.0, 1.2, 0.0)
-		var bar_outer_bottom := right_pt + (right_vec * 0.55) - Vector3(0.0, 8.0, 0.0)
+		# 3. Guardrails (Enoshima: Left side along cliff; Shuto/Hakone: Right side; Shinjuku: Curbs only)
+		if current_biome_id in ["shuto_dusk", "hakone_snow"]:
+			var bar_inner_top := right_pt + Vector3(0.0, 1.15, 0.0)
+			var bar_outer_top := right_pt + (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
+			var bar_outer_bottom := right_pt + (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
 
-		barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(right_pt)
-		barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
-		barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
-		barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
-		barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
-		barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(right_pt)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
+
+		elif current_biome_id == "enoshima_coast":
+			var bar_inner_top := left_pt + Vector3(0.0, 1.15, 0.0)
+			var bar_outer_top := left_pt - (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
+			var bar_outer_bottom := left_pt - (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
+
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(left_pt)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
 
 	for i in range(CHUNK_SEGMENTS):
 		var i2: int = i * 2
@@ -2751,7 +2989,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		road_st.add_index(i2 + 3)
 		road_st.add_index(i2 + 2)
 
-		if current_biome_id == "shuto_dusk" or is_fork_approach or is_twin_tunnel:
+		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"] or is_fork_approach or is_twin_tunnel:
 			for b in range(8):
 				var idx_curr_bot: int = (i * 8 + b) * 2
 				var idx_curr_top: int = idx_curr_bot + 1
@@ -2763,29 +3001,39 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_index(idx_curr_top)
 				hillside_st.add_index(idx_next_bot)
 				hillside_st.add_index(idx_next_top)
-		elif current_biome_id == "enoshima_coast":
-			sand_st.add_index(i2); sand_st.add_index(i2 + 2); sand_st.add_index(i2 + 1)
-			sand_st.add_index(i2 + 1); sand_st.add_index(i2 + 2); sand_st.add_index(i2 + 3)
-			water_st.add_index(i2); water_st.add_index(i2 + 2); water_st.add_index(i2 + 1)
-			water_st.add_index(i2 + 1); water_st.add_index(i2 + 2); water_st.add_index(i2 + 3)
-			hillside_st.add_index(i2); hillside_st.add_index(i2 + 1); hillside_st.add_index(i2 + 2)
-			hillside_st.add_index(i2 + 1); hillside_st.add_index(i2 + 3); hillside_st.add_index(i2 + 2)
-		elif current_biome_id == "hakone_snow":
-			var si: int = i * 4
-			snow_st.add_index(si); snow_st.add_index(si + 1); snow_st.add_index(si + 4)
-			snow_st.add_index(si + 1); snow_st.add_index(si + 5); snow_st.add_index(si + 4)
-			snow_st.add_index(si + 2); snow_st.add_index(si + 3); snow_st.add_index(si + 6)
-			snow_st.add_index(si + 3); snow_st.add_index(si + 7); snow_st.add_index(si + 6)
-			hillside_st.add_index(si); hillside_st.add_index(si + 1); hillside_st.add_index(si + 4)
-			hillside_st.add_index(si + 1); hillside_st.add_index(si + 5); hillside_st.add_index(si + 4)
-			hillside_st.add_index(si + 2); hillside_st.add_index(si + 3); hillside_st.add_index(si + 6)
-			hillside_st.add_index(si + 3); hillside_st.add_index(si + 7); hillside_st.add_index(si + 6)
 		elif current_biome_id == "neo_shinjuku":
 			var ni: int = i * 4
-			hillside_st.add_index(ni); hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 4)
-			hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 5); hillside_st.add_index(ni + 4)
-			hillside_st.add_index(ni + 2); hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 6)
-			hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 7); hillside_st.add_index(ni + 6)
+			hillside_st.add_index(ni); hillside_st.add_index(ni + 4); hillside_st.add_index(ni + 1)
+			hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 4); hillside_st.add_index(ni + 5)
+			hillside_st.add_index(ni + 2); hillside_st.add_index(ni + 6); hillside_st.add_index(ni + 3)
+			hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 6); hillside_st.add_index(ni + 7)
+
+		if current_biome_id == "enoshima_coast":
+			var s_i: int = i * 4
+			sand_st.add_index(s_i); sand_st.add_index(s_i + 4); sand_st.add_index(s_i + 1)
+			sand_st.add_index(s_i + 1); sand_st.add_index(s_i + 4); sand_st.add_index(s_i + 5)
+			sand_st.add_index(s_i + 2); sand_st.add_index(s_i + 6); sand_st.add_index(s_i + 3)
+			sand_st.add_index(s_i + 3); sand_st.add_index(s_i + 6); sand_st.add_index(s_i + 7)
+
+			var f_i: int = i * 2
+			foam_st.add_index(f_i); foam_st.add_index(f_i + 2); foam_st.add_index(f_i + 1)
+			foam_st.add_index(f_i + 1); foam_st.add_index(f_i + 2); foam_st.add_index(f_i + 3)
+
+			var w_i: int = i * 4
+			water_st.add_index(w_i); water_st.add_index(w_i + 4); water_st.add_index(w_i + 1)
+			water_st.add_index(w_i + 1); water_st.add_index(w_i + 4); water_st.add_index(w_i + 5)
+			water_st.add_index(w_i + 2); water_st.add_index(w_i + 6); water_st.add_index(w_i + 3)
+			water_st.add_index(w_i + 3); water_st.add_index(w_i + 6); water_st.add_index(w_i + 7)
+
+		elif current_biome_id == "hakone_snow":
+			var sn_i: int = i * 8
+			for sb in range(4):
+				var b0: int = sn_i + sb * 2
+				var b1: int = b0 + 1
+				var nb0: int = b0 + 8
+				var nb1: int = nb0 + 1
+				snow_st.add_index(b0); snow_st.add_index(nb0); snow_st.add_index(b1)
+				snow_st.add_index(b1); snow_st.add_index(nb0); snow_st.add_index(nb1)
 
 		# Prop generation per segment
 		var seg_local_z: float = -float(i) * step_z
@@ -2822,66 +3070,80 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25, seg_rnd)
 
 		elif current_biome_id == "enoshima_coast" and not is_fork_approach and not is_twin_tunnel:
-			# Coastal palm trees along left cliff verge & right sandy beach
+			# Coastal palm trees along left cliff verge & right sandy beach (Ref Image 1)
 			if i % 3 == 0:
-				var cliff_palm := seg_left - (seg_rv * (3.5 + seg_rnd * 4.0)) + Vector3(0.0, 1.2, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 0.95 + seg_rnd * 0.35, seg_rnd)
-			elif i % 5 == 2:
-				var beach_palm := seg_right + (seg_rv * (5.0 + seg_rnd * 3.5)) - Vector3(0.0, 0.8, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 0.85 + seg_rnd * 0.25, seg_rnd)
+				var cliff_palm := seg_left - (seg_rv * (3.8 + seg_rnd * 2.5)) + Vector3(0.0, 2.2, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 1.05 + seg_rnd * 0.35, seg_rnd)
+			elif i % 4 == 1:
+				var beach_palm := seg_right + (seg_rv * (3.2 + seg_rnd * 1.8)) - Vector3(0.0, 0.35, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 0.95 + seg_rnd * 0.25, seg_rnd + 1.0)
 
 		elif current_biome_id == "hakone_snow" and not is_fork_approach and not is_twin_tunnel:
-			# Snow-capped alpine pines along left and right
+			# Dense multi-tiered snow pines on rolling left slope & right cliff ledges (Ref Image 3)
 			if i % 2 == 0:
-				var sp_l := seg_left - (seg_rv * (4.2 + seg_rnd * 6.0)) + Vector3(0.0, 1.2, 0.0)
-				_add_3d_snow_pine(foliage_st, snow_st, sp_l, 0.95 + seg_rnd * 0.45, seg_rnd)
+				var sp_l := seg_left - (seg_rv * (5.5 + seg_rnd * 4.5)) + Vector3(0.0, 2.2, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l, 1.15 + seg_rnd * 0.35, seg_rnd)
 			if i % 3 == 1:
-				var sp_r := seg_right + (seg_rv * (4.5 + seg_rnd * 6.0)) + Vector3(0.0, 1.2, 0.0)
-				_add_3d_snow_pine(foliage_st, snow_st, sp_r, 0.95 + seg_rnd * 0.45, seg_rnd)
+				var sp_l_high := seg_left - (seg_rv * (18.0 + seg_rnd * 6.0)) + Vector3(0.0, 8.5, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l_high, 1.35 + seg_rnd * 0.35, seg_rnd + 2.0)
+			if i % 3 == 2:
+				var sp_r := seg_right + (seg_rv * (9.5 + seg_rnd * 4.0)) + Vector3(0.0, 8.5, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_r, 0.95 + seg_rnd * 0.35, seg_rnd + 1.0)
 
 		elif current_biome_id == "neo_shinjuku" and not is_fork_approach and not is_twin_tunnel:
-			# Stacked Japanese buildings on both sides
-			if i % 5 == 0:
-				var bld_pos_l := seg_left - (seg_rv * 16.0)
-				var bld_size_l := Vector3(12.0, 18.0 + seg_rnd * 16.0, 14.0)
-				_add_shinjuku_building(hillside_st, win_st, bld_pos_l - bld_size_l * 0.5, bld_pos_l + bld_size_l * 0.5, seg_rnd)
+			# Continuous wall-to-wall Japanese urban apartment / storefront canyon (Ref Image 2)
+			if i % 4 == 0:
+				var bld_z_len: float = step_z * 4.0
+				var bld_pos_l := seg_left - (seg_rv * 1.8)
+				var bld_h_l: float = 24.0 + seg_rnd * 18.0
+				_add_shinjuku_building(chunk_root, bld_st, win_st, bld_pos_l, -seg_rv, 14.0, bld_z_len, bld_h_l, seg_rnd, i)
 
-				var bld_pos_r := seg_right + (seg_rv * 16.0)
-				var bld_size_r := Vector3(12.0, 18.0 + fposmod(seg_rnd * 3.7, 1.0) * 16.0, 14.0)
-				_add_shinjuku_building(hillside_st, win_st, bld_pos_r - bld_size_r * 0.5, bld_pos_r + bld_size_r * 0.5, seg_rnd)
+				var bld_pos_r := seg_right + (seg_rv * 1.8)
+				var bld_h_r: float = 24.0 + fposmod(seg_rnd * 3.7, 1.0) * 18.0
+				_add_shinjuku_building(chunk_root, bld_st, win_st, bld_pos_r, seg_rv, 14.0, bld_z_len, bld_h_r, seg_rnd + 1.0, i + 1)
 
-				# Vending machines on sidewalks
-				_add_3d_vending_machine(foliage_st, win_st, seg_left - (seg_rv * 2.2), 0.0, seg_rnd)
-				_add_3d_vending_machine(foliage_st, win_st, seg_right + (seg_rv * 2.2), PI, seg_rnd)
+			# Glowing 3D Japanese Vending Machines on sidewalks
+			if i % 8 == 2:
+				_add_3d_vending_machine(vending_st, win_st, seg_left - (seg_rv * 1.2), 0.0, seg_rnd, true)
+				_add_3d_vending_machine(vending_st, win_st, seg_right + (seg_rv * 1.2), PI, seg_rnd, false)
 
-				# Vertical neon blade signs projecting from buildings (Ref Image 2)
-				var neon_texts: Array[String] = ["東岸大寿司", "#0E5FF", "新宿 24H", "湾岸 LINE", "RAMEN 麺"]
-				var text_l: String = neon_texts[(i + int(seg_rnd * 10.0)) % neon_texts.size()]
-				var text_r: String = neon_texts[(i + 2 + int(seg_rnd * 10.0)) % neon_texts.size()]
-				var neon_pos_l := seg_left - (seg_rv * 9.8) + Vector3(0.0, 6.8, 0.0)
-				var neon_pos_r := seg_right + (seg_rv * 9.8) + Vector3(0.0, 6.8, 0.0)
+			# Iconic Vertical Neon Blade Signs jutting out from facades (Ref Image 2)
+			if i % 8 == 0:
 				var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
-				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, text_l, i)
-				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, text_r, i + 1)
+				var neon_pos_l := seg_left - (seg_rv * 0.8) + Vector3(0.0, 8.5, 0.0)
+				var neon_pos_r := seg_right + (seg_rv * 0.8) + Vector3(0.0, 8.5, 0.0)
+				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, "東\n岸\n大\n寿\n司", 0) # Magenta Sushi Kanji
+				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, "#\nO\nE\nS\nF\nF", 1)   # Electric Cyan #0ESFF
+			elif i % 8 == 4:
+				var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
+				var neon_pos_l := seg_left - (seg_rv * 0.8) + Vector3(0.0, 8.0, 0.0)
+				var neon_pos_r := seg_right + (seg_rv * 0.8) + Vector3(0.0, 8.0, 0.0)
+				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, "新\n宿\n24H", 0)
+				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, "ラ\nｌ\nメ\nン", 2)
 
-				# Utility poles with power lines
-				var next_pole_pos := seg_left - (seg_rv * 2.8) - Vector3(0.0, 0.0, step_z * 5.0)
-				_add_3d_power_pole(pole_st, line_st, seg_left - (seg_rv * 2.8), next_pole_pos)
+			# Concrete Utility Poles (Denchuu) with transformers & overhead cable webs
+			if i % 6 == 0:
+				var pole_pos := seg_left - (seg_rv * 0.25)
+				var next_pole_pos := seg_left - (seg_rv * 0.25) - Vector3(0.0, 0.0, step_z * 6.0)
+				var cross_pos := seg_right + (seg_rv * 0.25)
+				_add_3d_power_pole(pole_st, line_st, pole_pos, next_pole_pos, cross_pos)
 
-		var bi: int = i * 4
-		barrier_st.add_index(bi); barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 4)
-		barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 4)
-		barrier_cap_st.add_index(i2); barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 2)
-		barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 3); barrier_cap_st.add_index(i2 + 2)
-		barrier_st.add_index(bi + 2); barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 6)
-		barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 6)
+		if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
+			var bi: int = i * 4
+			barrier_st.add_index(bi); barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 4)
+			barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 4)
+			barrier_cap_st.add_index(i2); barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 2)
+			barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 3); barrier_cap_st.add_index(i2 + 2)
+			barrier_st.add_index(bi + 2); barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 6)
+			barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 6)
 
 	var road_inst := MeshInstance3D.new()
 	road_inst.mesh = road_st.commit()
 	road_inst.material_override = road_shader_mat
 	chunk_root.add_child(road_inst)
 
-	hillside_st.generate_normals()
+	if current_biome_id == "shuto_dusk" or is_fork_approach or is_twin_tunnel:
+		hillside_st.generate_normals()
 	var hillside_mesh := hillside_st.commit()
 	if is_instance_valid(hillside_mesh) and hillside_mesh.get_surface_count() > 0:
 		var hillside_inst := MeshInstance3D.new()
@@ -2892,7 +3154,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "hakone_snow":
 			hillside_inst.material_override = snow_rock_mat
 		elif current_biome_id == "neo_shinjuku":
-			hillside_inst.material_override = shinjuku_building_mat
+			hillside_inst.material_override = barrier_material # Concrete sidewalk
 		else:
 			hillside_inst.material_override = cliff_mat if is_instance_valid(cliff_mat) else hillside_layer2_mat
 		hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -2900,6 +3162,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	# Biome meshes
 	if current_biome_id == "enoshima_coast":
+		sand_st.generate_normals()
 		var sand_mesh := sand_st.commit()
 		if is_instance_valid(sand_mesh) and sand_mesh.get_surface_count() > 0:
 			var s_inst := MeshInstance3D.new()
@@ -2907,6 +3170,15 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			s_inst.material_override = coastal_sand_mat
 			s_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(s_inst)
+		foam_st.generate_normals()
+		var f_mesh := foam_st.commit()
+		if is_instance_valid(f_mesh) and f_mesh.get_surface_count() > 0:
+			var f_inst := MeshInstance3D.new()
+			f_inst.mesh = f_mesh
+			f_inst.material_override = ocean_foam_mat
+			f_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(f_inst)
+		water_st.generate_normals()
 		var w_mesh := water_st.commit()
 		if is_instance_valid(w_mesh) and w_mesh.get_surface_count() > 0:
 			var w_inst := MeshInstance3D.new()
@@ -2922,6 +3194,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			tr_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(tr_inst)
 	elif current_biome_id == "hakone_snow":
+		snow_st.generate_normals()
 		var snow_mesh := snow_st.commit()
 		if is_instance_valid(snow_mesh) and snow_mesh.get_surface_count() > 0:
 			var sn_inst := MeshInstance3D.new()
@@ -2929,7 +3202,28 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			sn_inst.material_override = snowbank_mat
 			sn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(sn_inst)
+		var pf_mesh := pine_foliage_st.commit()
+		if is_instance_valid(pf_mesh) and pf_mesh.get_surface_count() > 0:
+			var pf_inst := MeshInstance3D.new()
+			pf_inst.mesh = pf_mesh
+			pf_inst.material_override = snow_foliage_mat
+			pf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(pf_inst)
+		var ps_mesh := pine_snow_st.commit()
+		if is_instance_valid(ps_mesh) and ps_mesh.get_surface_count() > 0:
+			var ps_inst := MeshInstance3D.new()
+			ps_inst.mesh = ps_mesh
+			ps_inst.material_override = snowbank_mat
+			ps_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(ps_inst)
 	elif current_biome_id == "neo_shinjuku":
+		var b_mesh := bld_st.commit()
+		if is_instance_valid(b_mesh) and b_mesh.get_surface_count() > 0:
+			var b_inst := MeshInstance3D.new()
+			b_inst.mesh = b_mesh
+			b_inst.material_override = shinjuku_building_mat
+			b_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(b_inst)
 		var win_mesh := win_st.commit()
 		if is_instance_valid(win_mesh) and win_mesh.get_surface_count() > 0:
 			var wn_inst := MeshInstance3D.new()
@@ -2937,6 +3231,13 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			wn_inst.material_override = shinjuku_window_mat
 			wn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(wn_inst)
+		var v_mesh := vending_st.commit()
+		if is_instance_valid(v_mesh) and v_mesh.get_surface_count() > 0:
+			var v_inst := MeshInstance3D.new()
+			v_inst.mesh = v_mesh
+			v_inst.material_override = vending_body_mat
+			v_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(v_inst)
 		var p_mesh := pole_st.commit()
 		if is_instance_valid(p_mesh) and p_mesh.get_surface_count() > 0:
 			var p_inst := MeshInstance3D.new()
@@ -2952,30 +3253,28 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			l_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(l_inst)
 
-	var fol_mesh := foliage_st.commit()
-	if is_instance_valid(fol_mesh) and fol_mesh.get_surface_count() > 0:
-		var fol_inst := MeshInstance3D.new()
-		fol_inst.name = "HillsideLayer1Foliage"
-		fol_inst.mesh = fol_mesh
-		if current_biome_id == "enoshima_coast":
-			fol_inst.material_override = palm_frond_mat
-		elif current_biome_id == "hakone_snow":
-			fol_inst.material_override = snow_foliage_mat
-		elif current_biome_id == "neo_shinjuku":
-			fol_inst.material_override = vending_body_mat
-		else:
-			fol_inst.material_override = hillside_foliage_mat
-		fol_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		chunk_root.add_child(fol_inst)
+	if current_biome_id in ["shuto_dusk", "enoshima_coast"]:
+		var fol_mesh := foliage_st.commit()
+		if is_instance_valid(fol_mesh) and fol_mesh.get_surface_count() > 0:
+			var fol_inst := MeshInstance3D.new()
+			fol_inst.name = "HillsideLayer1Foliage"
+			fol_inst.mesh = fol_mesh
+			if current_biome_id == "enoshima_coast":
+				fol_inst.material_override = palm_frond_mat
+			else:
+				fol_inst.material_override = hillside_foliage_mat
+			fol_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(fol_inst)
 
-	var rock_mesh := rock_st.commit()
-	if rock_mesh.get_surface_count() > 0:
-		var rock_inst := MeshInstance3D.new()
-		rock_inst.name = "HillsideLayer1Rocks"
-		rock_inst.mesh = rock_mesh
-		rock_inst.material_override = hillside_rock_mat
-		rock_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		chunk_root.add_child(rock_inst)
+	if current_biome_id == "shuto_dusk":
+		var rock_mesh := rock_st.commit()
+		if rock_mesh.get_surface_count() > 0:
+			var rock_inst := MeshInstance3D.new()
+			rock_inst.name = "HillsideLayer1Rocks"
+			rock_inst.mesh = rock_mesh
+			rock_inst.material_override = hillside_rock_mat
+			rock_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(rock_inst)
 
 	var barrier_inst := MeshInstance3D.new()
 	barrier_inst.mesh = barrier_st.commit()
@@ -2985,7 +3284,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	var barrier_cap_inst := MeshInstance3D.new()
 	barrier_cap_inst.mesh = barrier_cap_st.commit()
-	barrier_cap_inst.material_override = barrier_cap_material
+	barrier_cap_inst.material_override = snowbank_mat if current_biome_id == "hakone_snow" else barrier_cap_material
 	barrier_cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_cap_inst)
 
@@ -3034,10 +3333,11 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		_build_tunnel_module(chunk_root, start_z)
 		active_tunnel_intervals.append(Vector2(start_z - 30.0, start_z - 90.0))
 	else:
-		if chunk_spawn_count % 8 == 5:
-			_build_toll_plaza(chunk_root, start_z)
-		elif chunk_spawn_count % 5 == 2:
-			_build_construction_squeeze(chunk_root, start_z)
+		if current_biome_id == "shuto_dusk":
+			if chunk_spawn_count % 8 == 5:
+				_build_toll_plaza(chunk_root, start_z)
+			elif chunk_spawn_count % 5 == 2:
+				_build_construction_squeeze(chunk_root, start_z)
 
 	if is_raining:
 		_spawn_chunk_puddles(chunk_root, start_z)
@@ -3046,6 +3346,8 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	return chunk_root
 
 func _spawn_chunk_speed_props(chunk: Node3D, start_z: float, is_tunnel: bool = false) -> void:
+	if current_biome_id in ["neo_shinjuku", "enoshima_coast", "hakone_snow"]:
+		return # Non-Shuto biomes use their own dedicated scenic vegetation, street furniture, and cliffs
 	for prop_step in [20.0, 50.0, 80.0, 110.0]:
 		if is_tunnel and prop_step >= 30.0 and prop_step <= 90.0:
 			continue
@@ -3152,8 +3454,8 @@ func _spawn_chunk_speed_props(chunk: Node3D, start_z: float, is_tunnel: bool = f
 		reflector.position = Vector3(center_x, 1.35, prop_z) + (right_vec * 9.8)
 		chunk.add_child(reflector)
 
-	# Japanese Expressway Overhead Gantry Signs on alternating chunks
-	if not is_tunnel and int(abs(start_z) / 120.0) % 2 == 1:
+	# Japanese Expressway Overhead Gantry Signs on alternating chunks (Only on Shuto Dusk)
+	if not is_tunnel and current_biome_id == "shuto_dusk" and int(abs(start_z) / 120.0) % 2 == 1:
 		var gantry_z: float = -60.0
 		var gz: float = start_z + gantry_z
 		var g_center_x: float = _sample_road_x(gz)
@@ -3765,215 +4067,421 @@ func _build_twin_tunnels(chunk: Node3D, start_z: float) -> void:
 		chunk.add_child(frame)
 
 func _add_3d_palm_tree(trunk_st: SurfaceTool, frond_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
-	var h_seg: int = 4
-	var total_h: float = 7.0 * scale_f
-	var lean_dir: Vector3 = Vector3(cos(seed_val * 6.28), 0.0, sin(seed_val * 6.28)).normalized() * (1.2 * scale_f)
+	var h_seg: int = 7
+	var total_h: float = 9.5 * scale_f
+	var lean_angle: float = seed_val * TAU
+	var lean_dir := Vector3(cos(lean_angle), 0.0, sin(lean_angle)).normalized() * (2.2 * scale_f)
 
+	# 1. Segmented Curved Trunk with Bulging Bark Rings (Ref Image 1)
 	for s in range(h_seg):
 		var t0: float = float(s) / float(h_seg)
 		var t1: float = float(s + 1) / float(h_seg)
 		var p0: Vector3 = ground_pos + Vector3(0.0, t0 * total_h, 0.0) + (lean_dir * t0 * t0)
 		var p1: Vector3 = ground_pos + Vector3(0.0, t1 * total_h, 0.0) + (lean_dir * t1 * t1)
-		var r0: float = lerp(0.38, 0.18, t0) * scale_f
-		var r1: float = lerp(0.38, 0.18, t1) * scale_f
+		var r0: float = lerp(0.55, 0.28, t0) * scale_f
+		var r1: float = lerp(0.55, 0.28, t1) * scale_f
+		var ring_bulge: float = sin(t0 * PI * float(h_seg)) * 0.06 * scale_f
+		r0 += ring_bulge
 
-		trunk_st.add_vertex(p0 + Vector3(-r0, 0.0, 0.0))
-		trunk_st.add_vertex(p0 + Vector3(r0, 0.0, 0.0))
-		trunk_st.add_vertex(p1 + Vector3(r1, 0.0, 0.0))
+		for f in range(6):
+			var a0: float = float(f) * TAU / 6.0
+			var a1: float = float(f + 1) * TAU / 6.0
+			var v00 := p0 + Vector3(cos(a0) * r0, 0.0, sin(a0) * r0)
+			var v10 := p0 + Vector3(cos(a1) * r0, 0.0, sin(a1) * r0)
+			var v11 := p1 + Vector3(cos(a1) * r1, 0.0, sin(a1) * r1)
+			var v01 := p1 + Vector3(cos(a0) * r1, 0.0, sin(a0) * r1)
 
-		trunk_st.add_vertex(p0 + Vector3(-r0, 0.0, 0.0))
-		trunk_st.add_vertex(p1 + Vector3(r1, 0.0, 0.0))
-		trunk_st.add_vertex(p1 + Vector3(-r1, 0.0, 0.0))
+			trunk_st.add_vertex(v00); trunk_st.add_vertex(v10); trunk_st.add_vertex(v11)
+			trunk_st.add_vertex(v00); trunk_st.add_vertex(v11); trunk_st.add_vertex(v01)
 
-	# Palm Fronds Crown radiating outwards
+	# 2. Lush Triple-Tier Drooping Tropical Fan Frond Crown (Ref Image 1, Double-sided)
 	var apex: Vector3 = ground_pos + Vector3(0.0, total_h, 0.0) + lean_dir
-	var num_fronds: int = 7
-	for f in range(num_fronds):
-		var f_angle: float = float(f) * (TAU / float(num_fronds)) + (seed_val * 2.0)
+
+	# Tier 1: 8 Lower Fronds (drooping steeply at 50-65 deg)
+	for f in range(8):
+		var f_angle: float = float(f) * (TAU / 8.0) + (seed_val * 1.5)
 		var f_dir := Vector3(cos(f_angle), 0.0, sin(f_angle)).normalized()
-		var f_len: float = (3.2 + fposmod(seed_val * float(f + 1) * 3.1, 1.4)) * scale_f
-		var f_mid: Vector3 = apex + (f_dir * f_len * 0.55) + Vector3(0.0, 0.6 * scale_f, 0.0)
+		var f_len: float = (5.8 + fposmod(seed_val * float(f + 1) * 2.7, 1.4)) * scale_f
+		var f_mid: Vector3 = apex + (f_dir * f_len * 0.45) + Vector3(0.0, 0.4 * scale_f, 0.0)
+		var f_tip: Vector3 = apex + (f_dir * f_len) - Vector3(0.0, 1.8 * scale_f, 0.0)
+		var f_side := f_dir.cross(Vector3.UP).normalized() * (1.35 * scale_f)
+
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_tip); frond_st.add_vertex(f_mid - f_side)
+		# Double-sided reverse winding
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_mid + f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_tip)
+
+	# Tier 2: 7 Mid Fronds (arching gently at 30-40 deg)
+	for f in range(7):
+		var f_angle: float = float(f) * (TAU / 7.0) + (seed_val * 1.5 + 0.45)
+		var f_dir := Vector3(cos(f_angle), 0.0, sin(f_angle)).normalized()
+		var f_len: float = (5.0 + fposmod(seed_val * float(f + 2) * 3.1, 1.2)) * scale_f
+		var f_mid: Vector3 = apex + (f_dir * f_len * 0.50) + Vector3(0.0, 0.9 * scale_f, 0.0)
 		var f_tip: Vector3 = apex + (f_dir * f_len) - Vector3(0.0, 0.8 * scale_f, 0.0)
-		var f_w: float = 0.55 * scale_f
+		var f_side := f_dir.cross(Vector3.UP).normalized() * (1.20 * scale_f)
 
-		var f_side := f_dir.cross(Vector3.UP).normalized() * f_w
-		frond_st.add_vertex(apex)
-		frond_st.add_vertex(f_mid + f_side)
-		frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_tip); frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_mid + f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_tip)
 
-		frond_st.add_vertex(f_mid + f_side)
-		frond_st.add_vertex(f_tip)
-		frond_st.add_vertex(f_mid - f_side)
+	# Tier 3: 5 Upper Fronds (arching at 15-25 deg)
+	for f in range(5):
+		var f_angle: float = float(f) * (TAU / 5.0) + (seed_val * 2.1 + 0.8)
+		var f_dir := Vector3(cos(f_angle), 0.0, sin(f_angle)).normalized()
+		var f_len: float = (4.0 + fposmod(seed_val * float(f + 3) * 2.3, 0.9)) * scale_f
+		var f_mid: Vector3 = apex + (f_dir * f_len * 0.50) + Vector3(0.0, 1.2 * scale_f, 0.0)
+		var f_tip: Vector3 = apex + (f_dir * f_len) + Vector3(0.0, 0.2 * scale_f, 0.0)
+		var f_side := f_dir.cross(Vector3.UP).normalized() * (0.95 * scale_f)
+
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_tip); frond_st.add_vertex(f_mid - f_side)
+		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_mid + f_side)
+		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_tip)
 
 func _add_3d_snow_pine(foliage_st: SurfaceTool, snow_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
-	var total_h: float = 8.5 * scale_f
-	var tiers: int = 4
+	var total_h: float = 12.0 * scale_f
+	var tiers: int = 5
 	for t in range(tiers):
 		var t_ratio: float = float(t) / float(tiers)
-		var y_base: float = ground_pos.y + (t_ratio * total_h * 0.75) + (1.2 * scale_f)
-		var y_top: float = y_base + (2.4 * scale_f)
-		var r_base: float = (2.8 - t_ratio * 1.8) * scale_f
+		var y_base: float = ground_pos.y + (t_ratio * total_h * 0.72) + (1.2 * scale_f)
+		var y_top: float = y_base + (3.0 * scale_f)
+		var r_base: float = (5.2 - t_ratio * 3.4) * scale_f
 
-		for side in [-1.0, 1.0]:
-			foliage_st.add_vertex(Vector3(ground_pos.x - r_base, y_base, ground_pos.z))
-			foliage_st.add_vertex(Vector3(ground_pos.x + r_base, y_base, ground_pos.z))
-			foliage_st.add_vertex(Vector3(ground_pos.x, y_top, ground_pos.z))
+		# 6-sided 3D conical evergreen foliage tier (Double-sided)
+		for s in range(6):
+			var a0: float = float(s) * TAU / 6.0
+			var a1: float = float(s + 1) * TAU / 6.0
+			var v0 := Vector3(ground_pos.x + cos(a0) * r_base, y_base, ground_pos.z + sin(a0) * r_base)
+			var v1 := Vector3(ground_pos.x + cos(a1) * r_base, y_base, ground_pos.z + sin(a1) * r_base)
+			var vt := Vector3(ground_pos.x, y_top, ground_pos.z)
+			foliage_st.add_vertex(v0); foliage_st.add_vertex(v1); foliage_st.add_vertex(vt)
+			foliage_st.add_vertex(v0); foliage_st.add_vertex(vt); foliage_st.add_vertex(v1)
 
-			foliage_st.add_vertex(Vector3(ground_pos.x, y_base, ground_pos.z - r_base))
-			foliage_st.add_vertex(Vector3(ground_pos.x, y_base, ground_pos.z + r_base))
-			foliage_st.add_vertex(Vector3(ground_pos.x, y_top, ground_pos.z))
+		# Puffy rounded snow cap on UPPER 65% of the tier, leaving dark green foliage skirts exposed! (Ref Image 3)
+		var y_snow_base: float = y_base + (1.05 * scale_f)
+		var y_snow_top: float = y_top + (0.35 * scale_f)
+		var r_snow: float = r_base * 0.82
+		for s in range(6):
+			var a0: float = float(s) * TAU / 6.0
+			var a1: float = float(s + 1) * TAU / 6.0
+			var sv0 := Vector3(ground_pos.x + cos(a0) * r_snow, y_snow_base, ground_pos.z + sin(a0) * r_snow)
+			var sv1 := Vector3(ground_pos.x + cos(a1) * r_snow, y_snow_base, ground_pos.z + sin(a1) * r_snow)
+			var svt := Vector3(ground_pos.x, y_snow_top, ground_pos.z)
+			snow_st.add_vertex(sv0); snow_st.add_vertex(sv1); snow_st.add_vertex(svt)
+			snow_st.add_vertex(sv0); snow_st.add_vertex(svt); snow_st.add_vertex(sv1)
 
-		var y_snow_base: float = y_base + (0.45 * scale_f)
-		var y_snow_top: float = y_top + (0.15 * scale_f)
-		var r_snow: float = r_base * 0.85
-		snow_st.add_vertex(Vector3(ground_pos.x - r_snow, y_snow_base, ground_pos.z))
-		snow_st.add_vertex(Vector3(ground_pos.x + r_snow, y_snow_base, ground_pos.z))
-		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_top, ground_pos.z))
+func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, origin: Vector3, face_dir: Vector3, depth: float, z_len: float, height: float, seed_val: float, _b_idx: int) -> void:
+	var p00 := origin
+	var p10 := origin + Vector3(0.0, 0.0, -z_len)
+	var p11 := p10 + Vector3(0.0, height, 0.0)
+	var p01 := p00 + Vector3(0.0, height, 0.0)
 
-		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_base, ground_pos.z - r_snow))
-		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_base, ground_pos.z + r_snow))
-		snow_st.add_vertex(Vector3(ground_pos.x, y_snow_top, ground_pos.z))
+	# Main facade wall (Double-sided for robust visibility on both left and right sides)
+	bld_st.add_vertex(p00); bld_st.add_vertex(p10); bld_st.add_vertex(p11)
+	bld_st.add_vertex(p00); bld_st.add_vertex(p11); bld_st.add_vertex(p01)
+	bld_st.add_vertex(p00); bld_st.add_vertex(p11); bld_st.add_vertex(p10)
+	bld_st.add_vertex(p00); bld_st.add_vertex(p01); bld_st.add_vertex(p11)
 
-func _add_shinjuku_building(bld_st: SurfaceTool, win_st: SurfaceTool, b_min: Vector3, b_max: Vector3, seed_val: float) -> void:
-	var p000 := Vector3(b_min.x, b_min.y, b_min.z)
-	var p100 := Vector3(b_max.x, b_min.y, b_min.z)
-	var p110 := Vector3(b_max.x, b_max.y, b_min.z)
-	var p010 := Vector3(b_min.x, b_max.y, b_min.z)
-	var p001 := Vector3(b_min.x, b_min.y, b_max.z)
-	var p101 := Vector3(b_max.x, b_min.y, b_max.z)
-	var p111 := Vector3(b_max.x, b_max.y, b_max.z)
-	var p011 := Vector3(b_min.x, b_max.y, b_max.z)
+	# Roof slab extending back into depth
+	var r0 := p01 + (face_dir * depth)
+	var r1 := p11 + (face_dir * depth)
+	bld_st.add_vertex(p01); bld_st.add_vertex(p11); bld_st.add_vertex(r1)
+	bld_st.add_vertex(p01); bld_st.add_vertex(r1); bld_st.add_vertex(r0)
 
-	# Front face
-	bld_st.add_vertex(p000); bld_st.add_vertex(p100); bld_st.add_vertex(p110)
-	bld_st.add_vertex(p000); bld_st.add_vertex(p110); bld_st.add_vertex(p010)
-	# Street side face (facing the road)
-	if b_min.x > 0.0:
-		bld_st.add_vertex(p000); bld_st.add_vertex(p010); bld_st.add_vertex(p011)
-		bld_st.add_vertex(p000); bld_st.add_vertex(p011); bld_st.add_vertex(p001)
-	else:
-		bld_st.add_vertex(p100); bld_st.add_vertex(p101); bld_st.add_vertex(p111)
-		bld_st.add_vertex(p100); bld_st.add_vertex(p111); bld_st.add_vertex(p110)
-	# Roof
-	bld_st.add_vertex(p010); bld_st.add_vertex(p110); bld_st.add_vertex(p111)
-	bld_st.add_vertex(p010); bld_st.add_vertex(p111); bld_st.add_vertex(p011)
+	# Ground Floor: Roll-up shop security shutter (Ref Image 2)
+	var shutter_mesh := BoxMesh.new()
+	shutter_mesh.size = Vector3(0.12, 3.2, z_len * 0.95)
+	var shutter_inst := MeshInstance3D.new()
+	shutter_inst.mesh = shutter_mesh
+	shutter_inst.material_override = shutter_mat
+	shutter_inst.position = (p00 + p10) * 0.5 + Vector3(0.0, 1.6, 0.0) + (face_dir * -0.06)
+	shutter_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chunk.add_child(shutter_inst)
 
-	# Windows on the facade facing street
-	var face_x: float = b_min.x if b_min.x > 0.0 else b_max.x
-	var face_offset: float = -0.1 if b_min.x > 0.0 else 0.1
-	var z_len: float = abs(b_max.z - b_min.z)
-	var h_len: float = abs(b_max.y - b_min.y)
-	var num_floors: int = int(h_len / 4.2)
-	for fl in range(1, num_floors):
-		var y_win: float = b_min.y + float(fl) * 4.2
-		for wz in [0.25, 0.55, 0.85]:
-			var z_win: float = b_min.z + (z_len * wz)
-			var w_w: float = 1.6
-			var w_h: float = 1.4
-			var wp0 := Vector3(face_x + face_offset, y_win, z_win - w_w * 0.5)
-			var wp1 := Vector3(face_x + face_offset, y_win, z_win + w_w * 0.5)
-			var wp2 := Vector3(face_x + face_offset, y_win + w_h, z_win + w_w * 0.5)
-			var wp3 := Vector3(face_x + face_offset, y_win + w_h, z_win - w_w * 0.5)
-			win_st.add_vertex(wp0); win_st.add_vertex(wp1); win_st.add_vertex(wp2)
-			win_st.add_vertex(wp0); win_st.add_vertex(wp2); win_st.add_vertex(wp3)
+	# Colorful fabric shopfront awning extending over sidewalk at height 3.25m (Ref Image 2)
+	var awn_mat: Material = awning_red_mat if int(seed_val * 7.0) % 3 == 0 else (awning_blue_mat if int(seed_val * 7.0) % 3 == 1 else awning_green_mat)
+	var awn_mesh := BoxMesh.new()
+	awn_mesh.size = Vector3(1.4, 0.35, z_len * 0.96)
+	var awn_inst := MeshInstance3D.new()
+	awn_inst.mesh = awn_mesh
+	awn_inst.material_override = awn_mat
+	awn_inst.position = (p00 + p10) * 0.5 + Vector3(0.0, 3.25, 0.0) + (face_dir * -0.70)
+	awn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chunk.add_child(awn_inst)
 
-func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, seed_val: float) -> void:
-	var w: float = 1.2
-	var h: float = 2.0
+	# Upper floors: Windows, balconies, and AC units (Ref Image 2)
+	var num_floors: int = int((height - 4.5) / 3.8)
+	for fl in range(1, num_floors + 1):
+		var fl_y: float = 4.0 + float(fl - 1) * 3.8
+		for wz in [0.22, 0.50, 0.78]:
+			var w_center := p00 + Vector3(0.0, fl_y + 1.2, -z_len * wz)
+			var w_w: float = 1.8
+			var w_h: float = 1.5
+			var face_n := -face_dir * 0.04
+
+			var wp0 := w_center - Vector3(0.0, 0.0, -w_w * 0.5) + face_n
+			var wp1 := w_center - Vector3(0.0, 0.0, w_w * 0.5) + face_n
+			var wp2 := wp1 + Vector3(0.0, w_h, 0.0)
+			var wp3 := wp0 + Vector3(0.0, w_h, 0.0)
+
+			# 45% warm amber lit windows, 55% unlit windows
+			var is_lit: bool = fposmod(seed_val * 17.3 + float(fl) * 5.1 + wz * 13.0, 1.0) < 0.45
+			if is_lit:
+				win_st.add_vertex(wp0); win_st.add_vertex(wp1); win_st.add_vertex(wp2)
+				win_st.add_vertex(wp0); win_st.add_vertex(wp2); win_st.add_vertex(wp3)
+
+			# Balconies with steel railings on floors 2 and 3
+			if fl in [1, 2] and wz in [0.22, 0.78]:
+				var balc_w: float = 2.4
+				var balc_d: float = 0.85
+				var balc_h: float = 0.95
+				var b_base := w_center - Vector3(0.0, 1.2, 0.0)
+				var b_fwd := -face_dir * balc_d
+				var bp0 := b_base - Vector3(0.0, 0.0, -balc_w * 0.5)
+				var bp1 := b_base - Vector3(0.0, 0.0, balc_w * 0.5)
+				var bp0_out := bp0 + b_fwd
+				var bp1_out := bp1 + b_fwd
+				bld_st.add_vertex(bp0); bld_st.add_vertex(bp1); bld_st.add_vertex(bp1_out)
+				bld_st.add_vertex(bp0); bld_st.add_vertex(bp1_out); bld_st.add_vertex(bp0_out)
+				bld_st.add_vertex(bp0_out); bld_st.add_vertex(bp1_out); bld_st.add_vertex(bp1_out + Vector3(0.0, balc_h, 0.0))
+				bld_st.add_vertex(bp0_out); bld_st.add_vertex(bp1_out + Vector3(0.0, balc_h, 0.0)); bld_st.add_vertex(bp0_out + Vector3(0.0, balc_h, 0.0))
+
+			# Wall-mounted AC condenser units under window 0.50
+			if fl >= 1 and wz == 0.50:
+				var ac_pos := w_center - Vector3(0.0, 0.85, 0.0) - (face_dir * 0.35)
+				var ac_w: float = 0.9
+				var ac_h: float = 0.6
+				var ac_d: float = 0.4
+				var ac_fwd := -face_dir * ac_d
+				var ap0 := ac_pos - Vector3(0.0, 0.0, -ac_w * 0.5)
+				var ap1 := ac_pos - Vector3(0.0, 0.0, ac_w * 0.5)
+				var ap0_o := ap0 + ac_fwd
+				var ap1_o := ap1 + ac_fwd
+				bld_st.add_vertex(ap0_o); bld_st.add_vertex(ap1_o); bld_st.add_vertex(ap1_o + Vector3(0.0, ac_h, 0.0))
+				bld_st.add_vertex(ap0_o); bld_st.add_vertex(ap1_o + Vector3(0.0, ac_h, 0.0)); bld_st.add_vertex(ap0_o + Vector3(0.0, ac_h, 0.0))
+
+func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, _seed_val: float, _is_cyan: bool = false) -> void:
+	var w: float = 1.35
+	var h: float = 2.15
 	var d: float = 0.85
-	var p00 := pos + Vector3(-w * 0.5, 0.0, -d * 0.5)
-	var p10 := pos + Vector3(w * 0.5, 0.0, -d * 0.5)
-	var p11 := pos + Vector3(w * 0.5, h, -d * 0.5)
-	var p01 := pos + Vector3(-w * 0.5, h, -d * 0.5)
+	var fwd := Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, rot_y)
+	var right := Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, rot_y)
 
-	v_body_st.add_vertex(p00); v_body_st.add_vertex(p10); v_body_st.add_vertex(p11)
-	v_body_st.add_vertex(p00); v_body_st.add_vertex(p11); v_body_st.add_vertex(p01)
+	var p0 := pos - (right * w * 0.5)
+	var p1 := pos + (right * w * 0.5)
+	var p2 := p1 + Vector3(0.0, h, 0.0)
+	var p3 := p0 + Vector3(0.0, h, 0.0)
 
-	var gw0 := pos + Vector3(-w * 0.42, 0.85, -d * 0.5 - 0.05)
-	var gw1 := pos + Vector3(w * 0.42, 0.85, -d * 0.5 - 0.05)
-	var gw2 := pos + Vector3(w * 0.42, h - 0.15, -d * 0.5 - 0.05)
-	var gw3 := pos + Vector3(-w * 0.42, h - 0.15, -d * 0.5 - 0.05)
+	var b0 := p0 - (fwd * d)
+	var b1 := p1 - (fwd * d)
+	var b2 := p2 - (fwd * d)
+	var b3 := p3 - (fwd * d)
+
+	# Main body cabinet (Full 3D box)
+	v_body_st.add_vertex(p0); v_body_st.add_vertex(p1); v_body_st.add_vertex(p2)
+	v_body_st.add_vertex(p0); v_body_st.add_vertex(p2); v_body_st.add_vertex(p3)
+	v_body_st.add_vertex(b0); v_body_st.add_vertex(p0); v_body_st.add_vertex(p3)
+	v_body_st.add_vertex(b0); v_body_st.add_vertex(p3); v_body_st.add_vertex(b3)
+	v_body_st.add_vertex(p1); v_body_st.add_vertex(b1); v_body_st.add_vertex(b2)
+	v_body_st.add_vertex(p1); v_body_st.add_vertex(b2); v_body_st.add_vertex(p2)
+	v_body_st.add_vertex(p3); v_body_st.add_vertex(p2); v_body_st.add_vertex(b2)
+	v_body_st.add_vertex(p3); v_body_st.add_vertex(b2); v_body_st.add_vertex(b3)
+
+	# Illuminated drink display glass panel (Ref Image 2, Double-sided)
+	var gw_y0: float = 0.85
+	var gw_y1: float = h - 0.20
+	var gw0 := pos - (right * w * 0.42) + Vector3(0.0, gw_y0, 0.0) + (fwd * 0.04)
+	var gw1 := pos + (right * w * 0.42) + Vector3(0.0, gw_y0, 0.0) + (fwd * 0.04)
+	var gw2 := gw1 + Vector3(0.0, gw_y1 - gw_y0, 0.0)
+	var gw3 := gw0 + Vector3(0.0, gw_y1 - gw_y0, 0.0)
 	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw1); v_glass_st.add_vertex(gw2)
 	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw2); v_glass_st.add_vertex(gw3)
+	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw2); v_glass_st.add_vertex(gw1)
+	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw3); v_glass_st.add_vertex(gw2)
 
-func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3, next_pos: Vector3) -> void:
-	var h: float = 8.5
-	var r: float = 0.18
+func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3, next_pos: Vector3, street_cross_pos: Vector3 = Vector3.ZERO) -> void:
+	var h: float = 9.5
+	var r: float = 0.22
 
-	pole_st.add_vertex(pos + Vector3(-r, 0.0, 0.0))
-	pole_st.add_vertex(pos + Vector3(r, 0.0, 0.0))
-	pole_st.add_vertex(pos + Vector3(r, h, 0.0))
+	# 1. Concrete Pole Shaft
+	for f in range(6):
+		var a0: float = float(f) * TAU / 6.0
+		var a1: float = float(f + 1) * TAU / 6.0
+		var v00 := pos + Vector3(cos(a0) * r, 0.0, sin(a0) * r)
+		var v10 := pos + Vector3(cos(a1) * r, 0.0, sin(a1) * r)
+		var v11 := pos + Vector3(cos(a1) * (r * 0.7), h, sin(a1) * (r * 0.7))
+		var v01 := pos + Vector3(cos(a0) * (r * 0.7), h, sin(a0) * (r * 0.7))
+		pole_st.add_vertex(v00); pole_st.add_vertex(v10); pole_st.add_vertex(v11)
+		pole_st.add_vertex(v00); pole_st.add_vertex(v11); pole_st.add_vertex(v01)
 
-	pole_st.add_vertex(pos + Vector3(-r, 0.0, 0.0))
-	pole_st.add_vertex(pos + Vector3(r, h, 0.0))
-	pole_st.add_vertex(pos + Vector3(-r, h, 0.0))
+	# 2. Steel Cross-Arms at Y = 7.8m and Y = 8.6m
+	var cw: float = 1.6
+	for cy in [7.8, 8.6]:
+		var cp0 := pos + Vector3(-cw, cy - 0.08, 0.0)
+		var cp1 := pos + Vector3(cw, cy - 0.08, 0.0)
+		var cp2 := pos + Vector3(cw, cy + 0.08, 0.0)
+		var cp3 := pos + Vector3(-cw, cy + 0.08, 0.0)
+		pole_st.add_vertex(cp0); pole_st.add_vertex(cp1); pole_st.add_vertex(cp2)
+		pole_st.add_vertex(cp0); pole_st.add_vertex(cp2); pole_st.add_vertex(cp3)
 
-	var cw: float = 1.4
-	for cy in [7.0, 8.0]:
-		pole_st.add_vertex(pos + Vector3(-cw, cy - 0.08, 0.0))
-		pole_st.add_vertex(pos + Vector3(cw, cy - 0.08, 0.0))
-		pole_st.add_vertex(pos + Vector3(cw, cy + 0.08, 0.0))
+	# 3. Cylindrical Step-Down Transformer
+	var ty: float = 7.0
+	var tr: float = 0.35
+	var th: float = 1.1
+	for f in range(6):
+		var a0: float = float(f) * TAU / 6.0
+		var a1: float = float(f + 1) * TAU / 6.0
+		var tv0 := pos + Vector3(0.35 + cos(a0) * tr, ty, sin(a0) * tr)
+		var tv1 := pos + Vector3(0.35 + cos(a1) * tr, ty, sin(a1) * tr)
+		var tv2 := pos + Vector3(0.35 + cos(a1) * tr, ty + th, sin(a1) * tr)
+		var tv3 := pos + Vector3(0.35 + cos(a0) * tr, ty + th, sin(a0) * tr)
+		pole_st.add_vertex(tv0); pole_st.add_vertex(tv1); pole_st.add_vertex(tv2)
+		pole_st.add_vertex(tv0); pole_st.add_vertex(tv2); pole_st.add_vertex(tv3)
 
-		pole_st.add_vertex(pos + Vector3(-cw, cy - 0.08, 0.0))
-		pole_st.add_vertex(pos + Vector3(cw, cy + 0.08, 0.0))
-		pole_st.add_vertex(pos + Vector3(-cw, cy + 0.08, 0.0))
-
+	# 4. Longitudinal Power Cables along the street
 	if next_pos != Vector3.ZERO:
-		var pA := pos + Vector3(0.0, 7.8, 0.0)
-		var pB := next_pos + Vector3(0.0, 7.8, 0.0)
-		var pMid := (pA + pB) * 0.5 - Vector3(0.0, 0.6, 0.0)
+		for y_off in [7.8, 8.6]:
+			var pA := pos + Vector3(0.0, y_off, 0.0)
+			var pB := next_pos + Vector3(0.0, y_off, 0.0)
+			var pMid := (pA + pB) * 0.5 - Vector3(0.0, 0.65, 0.0)
+			_add_cable_strip(line_st, pA, pMid)
+			_add_cable_strip(line_st, pMid, pB)
 
-		line_st.add_vertex(pA + Vector3(0.0, -0.04, 0.0))
-		line_st.add_vertex(pA + Vector3(0.0, 0.04, 0.0))
-		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
+	# 5. Overhead Street-Crossing Cables (Ref Image 2 - Dense Tokyo wire tangle)
+	if street_cross_pos != Vector3.ZERO:
+		for y_off in [8.0, 8.8]:
+			var cA := pos + Vector3(0.0, y_off, 0.0)
+			var cB := street_cross_pos + Vector3(0.0, y_off + 0.5, 0.0)
+			var cMid := (cA + cB) * 0.5 - Vector3(0.0, 0.95, 0.0)
+			_add_cable_strip(line_st, cA, cMid)
+			_add_cable_strip(line_st, cMid, cB)
 
-		line_st.add_vertex(pA + Vector3(0.0, -0.04, 0.0))
-		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
-		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
+func _add_cable_strip(line_st: SurfaceTool, p0: Vector3, p1: Vector3) -> void:
+	var w := Vector3(0.0, 0.065, 0.0)
+	var wx := Vector3(0.050, 0.0, 0.0)
+	line_st.add_vertex(p0 - w); line_st.add_vertex(p0 + w); line_st.add_vertex(p1 + w)
+	line_st.add_vertex(p0 - w); line_st.add_vertex(p1 + w); line_st.add_vertex(p1 - w)
+	line_st.add_vertex(p0 - wx); line_st.add_vertex(p0 + wx); line_st.add_vertex(p1 + wx)
+	line_st.add_vertex(p0 - wx); line_st.add_vertex(p1 + wx); line_st.add_vertex(p1 - wx)
 
-		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
-		line_st.add_vertex(pMid + Vector3(0.0, 0.04, 0.0))
-		line_st.add_vertex(pB + Vector3(0.0, 0.04, 0.0))
+static var cjk_font_file: FontFile = null
 
-		line_st.add_vertex(pMid + Vector3(0.0, -0.04, 0.0))
-		line_st.add_vertex(pB + Vector3(0.0, 0.04, 0.0))
-		line_st.add_vertex(pB + Vector3(0.0, -0.04, 0.0))
+static func _get_cjk_font() -> Font:
+	if cjk_font_file != null:
+		return cjk_font_file
+	var f := FontFile.new()
+	var err := f.load_dynamic_font("res://assets/fonts/japanese_manga.ttc")
+	if err == OK:
+		cjk_font_file = f
+		return cjk_font_file
+	return null
 
 func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, color_idx: int) -> void:
 	var sign_node := Node3D.new()
 	sign_node.position = pos
 	sign_node.transform.basis = Basis.looking_at(tan_vec, Vector3.UP)
 
-	# Blade sign frame
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(0.25, 4.4, 1.4)
-	var box_inst := MeshInstance3D.new()
-	box_inst.mesh = box_mesh
-	var sign_mat: StandardMaterial3D
-	match color_idx % 3:
-		0: sign_mat = neon_pink_mat
-		1: sign_mat = neon_cyan_mat
-		_: sign_mat = neon_yellow_mat
-	box_inst.material_override = sign_mat
-	box_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	sign_node.add_child(box_inst)
+	# 1. Dark Metal Outer Frame (1.9m wide across X, 8.4m tall, 0.40m thick along Z)
+	var frame_mesh := BoxMesh.new()
+	frame_mesh.size = Vector3(1.9, 8.4, 0.40)
+	var frame_inst := MeshInstance3D.new()
+	frame_inst.mesh = frame_mesh
+	frame_inst.material_override = barrier_material
+	frame_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sign_node.add_child(frame_inst)
 
-	# Twin neon labels on both faces
-	for sign_dir in [-1.0, 1.0]:
-		var lbl := Label3D.new()
-		lbl.text = text
-		lbl.font_size = 42
-		lbl.modulate = Color.WHITE
-		lbl.outline_modulate = Color.BLACK
-		lbl.outline_size = 10
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.position = Vector3(sign_dir * 0.14, 0.0, 0.0)
-		lbl.rotation_degrees = Vector3(0.0, 90.0 * sign_dir, 0.0)
-		lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		lbl.no_depth_test = false
-		lbl.render_priority = 2
-		sign_node.add_child(lbl)
+	# 2. Glowing Neon Blade Panel (Ref Image 2)
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(1.75, 8.2, 0.35)
+	var panel_inst := MeshInstance3D.new()
+	panel_inst.mesh = panel_mesh
+	var sign_mat: Material
+	var border_mat: Material
+	var light_col: Color
+	match color_idx % 3:
+		0:
+			sign_mat = neon_back_pink if is_instance_valid(neon_back_pink) else barrier_material
+			border_mat = neon_pink_mat
+			light_col = Color("#FF1866")
+		1:
+			sign_mat = neon_back_cyan if is_instance_valid(neon_back_cyan) else barrier_material
+			border_mat = neon_cyan_mat
+			light_col = Color("#00E5FF")
+		_:
+			sign_mat = barrier_material
+			border_mat = neon_yellow_mat
+			light_col = Color("#FFB800")
+	panel_inst.material_override = sign_mat
+	panel_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sign_node.add_child(panel_inst)
+
+	# Thin Outer Neon Border Tube outlining the dark panel
+	var tube_mesh := BoxMesh.new()
+	tube_mesh.size = Vector3(1.82, 8.28, 0.38)
+	var tube_inst := MeshInstance3D.new()
+	tube_inst.mesh = tube_mesh
+	tube_inst.material_override = border_mat
+	tube_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sign_node.add_child(tube_inst)
+
+	# 3. Horizontal Iron Wall Mount Brackets pointing towards respective building wall
+	var bracket_dir: float = -1.0 if (pos.x < 0.0) else 1.0
+	for by in [-2.8, 2.8]:
+		var br_mesh := BoxMesh.new()
+		br_mesh.size = Vector3(1.6, 0.16, 0.16)
+		var br_inst := MeshInstance3D.new()
+		br_inst.mesh = br_mesh
+		br_inst.material_override = barrier_material
+		br_inst.position = Vector3(1.05 * bracket_dir, by, 0.0)
+		sign_node.add_child(br_inst)
+
+	# 4. Bold White Vertical Japanese / English Text (Facing oncoming traffic)
+	var cjk_font: Font = _get_cjk_font()
+
+	var lbl_front := Label3D.new()
+	if cjk_font:
+		lbl_front.font = cjk_font
+	lbl_front.text = text
+	lbl_front.font_size = 64
+	lbl_front.pixel_size = 0.0105
+	lbl_front.modulate = Color.WHITE
+	lbl_front.outline_modulate = light_col
+	lbl_front.outline_size = 32
+	lbl_front.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_front.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_front.position = Vector3(0.0, 0.0, 0.22)
+	lbl_front.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	lbl_front.no_depth_test = false
+	lbl_front.render_priority = 20
+	sign_node.add_child(lbl_front)
+
+	var lbl_back := Label3D.new()
+	if cjk_font:
+		lbl_back.font = cjk_font
+	lbl_back.text = text
+	lbl_back.font_size = 64
+	lbl_back.pixel_size = 0.0105
+	lbl_back.modulate = Color.WHITE
+	lbl_back.outline_modulate = light_col
+	lbl_back.outline_size = 32
+	lbl_back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl_back.position = Vector3(0.0, 0.0, -0.22)
+	lbl_back.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+	lbl_back.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	lbl_back.no_depth_test = false
+	lbl_back.render_priority = 20
+	sign_node.add_child(lbl_back)
+
+	# 5. Local Neon Glow Light casting onto street & facade
+	var n_light := OmniLight3D.new()
+	n_light.light_color = light_col
+	n_light.light_energy = 9.0
+	n_light.omni_range = 22.0
+	n_light.shadow_enabled = false
+	sign_node.add_child(n_light)
 
 	chunk.add_child(sign_node)
 
@@ -7096,6 +7604,10 @@ func _process_day_night_cycle(delta: float) -> void:
 		world_env_resource.volumetric_fog_emission = Color(0, 0, 0, 0)
 
 	# Update Sky Gradient (throttled to avoid GPU radiance map cubemap re-baking every 16ms)
+	if is_instance_valid(anime_sky_mat) and current_biome_id == "shuto_dusk":
+		anime_sky_mat.set_shader_parameter("biome_mode", 0)
+		anime_sky_mat.set_shader_parameter("shuto_top", cur_sky_top)
+		anime_sky_mat.set_shader_parameter("shuto_hor", cur_sky_hor)
 	if is_instance_valid(procedural_sky_mat) and abs(day_cycle_progress - last_sky_update_progress) >= 0.005:
 		last_sky_update_progress = day_cycle_progress
 		procedural_sky_mat.sky_top_color = cur_sky_top
