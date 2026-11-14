@@ -15,20 +15,20 @@ uniform vec4 shuto_top : source_color = vec4(0.055, 0.157, 0.392, 1.0);     // #
 uniform vec4 shuto_mid : source_color = vec4(0.478, 0.486, 0.659, 1.0);     // #7A7CA8
 uniform vec4 shuto_hor : source_color = vec4(0.910, 0.510, 0.478, 1.0);     // #E8827A
 
-// Neo-Shinjuku Alley
-uniform vec4 shinjuku_top : source_color = vec4(0.040, 0.030, 0.075, 1.0);  // #0A0813
-uniform vec4 shinjuku_mid : source_color = vec4(0.145, 0.070, 0.173, 1.0);  // #25122C
-uniform vec4 shinjuku_hor : source_color = vec4(0.620, 0.125, 0.220, 1.0);  // #9E2038 (Glowing Crimson Dusk)
+// Neo-Shinjuku Alley (Ref Image 2: Deep Midnight Indigo -> Dark Plum -> Glowing Crimson Horizon)
+uniform vec4 shinjuku_top : source_color = vec4(0.035, 0.025, 0.065, 1.0);  // #090610
+uniform vec4 shinjuku_mid : source_color = vec4(0.125, 0.055, 0.160, 1.0);  // #200E29
+uniform vec4 shinjuku_hor : source_color = vec4(0.550, 0.090, 0.180, 1.0);  // #8C172E (Glowing Crimson Twilight)
 
-// Enoshima Coast
-uniform vec4 enoshima_top : source_color = vec4(0.910, 0.333, 0.259, 1.0);  // #E85542 (Vibrant Coral Sunset)
-uniform vec4 enoshima_mid : source_color = vec4(1.000, 0.659, 0.290, 1.0);  // #FFA84A (Luminous Golden Peach)
-uniform vec4 enoshima_hor : source_color = vec4(1.000, 0.941, 0.416, 1.0);  // #FFF06A (Radiant Lemon Horizon)
+// Enoshima Coast (Ref Image 1: Deep Crimson Rose -> Vibrant Coral Salmon -> Radiant Golden Lemon)
+uniform vec4 enoshima_top : source_color = vec4(0.560, 0.135, 0.285, 1.0);  // #8F2249 (Deep Anime Rose)
+uniform vec4 enoshima_mid : source_color = vec4(0.940, 0.420, 0.300, 1.0);  // #F06B4D (Warm Coral Sunset)
+uniform vec4 enoshima_hor : source_color = vec4(1.000, 0.820, 0.320, 1.0);  // #FFD152 (Radiant Golden Horizon)
 
-// Hakone Snow
-uniform vec4 hakone_top : source_color = vec4(0.369, 0.533, 0.690, 1.0);    // #5E88B0 (Cold Alpine Azure)
-uniform vec4 hakone_mid : source_color = vec4(0.714, 0.863, 0.949, 1.0);    // #B6DCF2 (Frosted Cyan)
-uniform vec4 hakone_hor : source_color = vec4(0.941, 0.973, 1.000, 1.0);    // #F0F8FF (Icy White Peak Mist)
+// Hakone Snow (Ref Image 3: Cold Alpine Azure -> Frosted Cyan Mist -> Icy Pure Mountain Horizon)
+uniform vec4 hakone_top : source_color = vec4(0.280, 0.460, 0.640, 1.0);    // #4775A3 (Cold Alpine Azure)
+uniform vec4 hakone_mid : source_color = vec4(0.620, 0.790, 0.890, 1.0);    // #9EC9E3 (Frosted Cyan)
+uniform vec4 hakone_hor : source_color = vec4(0.910, 0.960, 0.990, 1.0);    // #E8F5FC (Icy Mountain Mist)
 
 void sky() {
 	// EYEDIR.y ranges from -1.0 (looking down) to +1.0 (looking straight up).

@@ -257,13 +257,23 @@ func _construct_hakone_horizon() -> void:
 	# Majestic Jagged Alpine Snow Peaks (Ref Image 3 - Northern Alps Winter Touge)
 	alpine_snow_mat = StandardMaterial3D.new()
 	alpine_snow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	alpine_snow_mat.albedo_color = Color("#F6FBFF") # Pristine sunlit alpine snow
+	alpine_snow_mat.albedo_color = Color("#FAFDFF") # Pristine sunlit alpine snow #FAFDFF
 	alpine_snow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	alpine_shadow_mat = StandardMaterial3D.new()
 	alpine_shadow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	alpine_shadow_mat.albedo_color = Color("#62809E") # Cool alpine shadow rock slate
+	alpine_shadow_mat.albedo_color = Color("#7696B8") # Cool alpine shadow rock slate #7696B8
 	alpine_shadow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var alpine_mid_mat := StandardMaterial3D.new()
+	alpine_mid_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	alpine_mid_mat.albedo_color = Color("#9CB8D4") # Intermediate snow facet #9CB8D4
+	alpine_mid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var forest_ridge_mat := StandardMaterial3D.new()
+	forest_ridge_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	forest_ridge_mat.albedo_color = Color("#1A3026") # Deep evergreen alpine foothills #1A3026
+	forest_ridge_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	hakone_alpine_peaks = Node3D.new()
 	hakone_alpine_peaks.name = "HakoneAlpinePeaks"
@@ -271,40 +281,86 @@ func _construct_hakone_horizon() -> void:
 	var snow_st := SurfaceTool.new()
 	snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
+	var mid_st := SurfaceTool.new()
+	mid_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
 	var shd_st := SurfaceTool.new()
 	shd_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-	var z_dist: float = -mountain_distance - 10.0
+	var for_st := SurfaceTool.new()
+	for_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var z_dist: float = -mountain_distance - 20.0
 	var base_y: float = -30.0
 
-	# Main Towering Alpine Peak (centered directly above the touge curve, Ref Image 3)
-	var peak_apex := Vector3(-15.0, 245.0, z_dist)
-	var ridge_left := Vector3(-95.0, 155.0, z_dist)
-	var ridge_right := Vector3(55.0, 140.0, z_dist)
-	var base_l := Vector3(-180.0, base_y, z_dist)
-	var base_mid := Vector3(-15.0, base_y, z_dist)
-	var base_r := Vector3(140.0, base_y, z_dist)
+	# 1. Main Central Alpine Peak (Ref Image 3: Towering apex rising behind the touge road)
+	# Peak apex at (-18.0, 185.0)
+	var p_apex := Vector3(-18.0, 185.0, z_dist)
+	var p_ridge_r := Vector3(25.0, 135.0, z_dist + 5.0)
+	var p_sub_apex_r := Vector3(55.0, 120.0, z_dist + 10.0)
+	var p_ridge_l := Vector3(-65.0, 140.0, z_dist + 5.0)
+	var p_shoulder_l := Vector3(-115.0, 110.0, z_dist + 10.0)
+	var p_chute := Vector3(-12.0, 75.0, z_dist + 8.0)
+	var p_base_mid := Vector3(-15.0, base_y, z_dist)
+	var p_base_l := Vector3(-160.0, base_y, z_dist)
+	var p_base_r := Vector3(130.0, base_y, z_dist)
 
-	# Sunlit Right Facet
-	snow_st.add_vertex(peak_apex); snow_st.add_vertex(base_mid); snow_st.add_vertex(ridge_right)
-	snow_st.add_vertex(ridge_right); snow_st.add_vertex(base_mid); snow_st.add_vertex(base_r)
+	# Main Peak - Sunlit Right Facets (Crisp anime white snow)
+	snow_st.add_vertex(p_apex); snow_st.add_vertex(p_chute); snow_st.add_vertex(p_ridge_r)
+	snow_st.add_vertex(p_ridge_r); snow_st.add_vertex(p_chute); snow_st.add_vertex(p_sub_apex_r)
+	snow_st.add_vertex(p_sub_apex_r); snow_st.add_vertex(p_chute); snow_st.add_vertex(p_base_r)
 
-	# Shadowed Left Facet
-	shd_st.add_vertex(peak_apex); snow_st.add_vertex(ridge_left); snow_st.add_vertex(base_mid)
-	shd_st.add_vertex(ridge_left); snow_st.add_vertex(base_l); snow_st.add_vertex(base_mid)
+	# Main Peak - Intermediate Couloir Facet
+	mid_st.add_vertex(p_chute); mid_st.add_vertex(p_base_mid); mid_st.add_vertex(p_base_r)
 
-	# Secondary Background Alpine Peaks flanking left and right
-	var peak2_apex := Vector3(-140.0, 195.0, z_dist - 20.0)
-	var peak2_r := Vector3(-95.0, 130.0, z_dist - 20.0)
-	var peak2_l := Vector3(-240.0, base_y, z_dist - 20.0)
-	snow_st.add_vertex(peak2_apex); snow_st.add_vertex(peak2_r); snow_st.add_vertex(base_l)
-	shd_st.add_vertex(peak2_apex); shd_st.add_vertex(base_l); shd_st.add_vertex(peak2_l)
+	# Main Peak - Shadowed Left Facets (Cool icy blue slate)
+	shd_st.add_vertex(p_apex); shd_st.add_vertex(p_ridge_l); shd_st.add_vertex(p_chute)
+	shd_st.add_vertex(p_ridge_l); shd_st.add_vertex(p_shoulder_l); shd_st.add_vertex(p_chute)
+	shd_st.add_vertex(p_shoulder_l); shd_st.add_vertex(p_base_l); shd_st.add_vertex(p_chute)
+	shd_st.add_vertex(p_chute); shd_st.add_vertex(p_base_l); shd_st.add_vertex(p_base_mid)
 
-	var peak3_apex := Vector3(95.0, 185.0, z_dist - 20.0)
-	var peak3_l := Vector3(55.0, 125.0, z_dist - 20.0)
-	var peak3_r := Vector3(220.0, base_y, z_dist - 20.0)
-	snow_st.add_vertex(peak3_apex); snow_st.add_vertex(base_r); snow_st.add_vertex(peak3_r)
-	shd_st.add_vertex(peak3_apex); shd_st.add_vertex(peak3_l); shd_st.add_vertex(base_r)
+	# 2. Far Left Mountain Massif (Ref Image 3: Layered alpine ridges descending into valley)
+	var z_far: float = z_dist - 35.0
+	var l_apex := Vector3(-190.0, 160.0, z_far)
+	var l_r := Vector3(-130.0, 115.0, z_far)
+	var l_l := Vector3(-280.0, base_y, z_far)
+	var l_mid := Vector3(-190.0, base_y, z_far)
+	var l_bot_r := Vector3(-120.0, base_y, z_far)
+
+	snow_st.add_vertex(l_apex); snow_st.add_vertex(l_mid); snow_st.add_vertex(l_r)
+	snow_st.add_vertex(l_r); snow_st.add_vertex(l_mid); snow_st.add_vertex(l_bot_r)
+	shd_st.add_vertex(l_apex); shd_st.add_vertex(l_l); shd_st.add_vertex(l_mid)
+
+	# 3. Far Right Mountain Massif
+	var r_apex := Vector3(150.0, 155.0, z_far)
+	var r_l := Vector3(100.0, 110.0, z_far)
+	var r_r := Vector3(260.0, base_y, z_far)
+	var r_mid := Vector3(150.0, base_y, z_far)
+	var r_bot_l := Vector3(90.0, base_y, z_far)
+
+	snow_st.add_vertex(r_apex); snow_st.add_vertex(r_mid); snow_st.add_vertex(r_r)
+	shd_st.add_vertex(r_apex); shd_st.add_vertex(r_l); shd_st.add_vertex(r_mid)
+	shd_st.add_vertex(r_l); shd_st.add_vertex(r_bot_l); shd_st.add_vertex(r_mid)
+
+	# 4. Dense Alpine Evergreen Foothills Band across base of mountains (Ref Image 3)
+	var foot_pts: Array = [
+		Vector3(-320.0, base_y, z_dist + 20.0),
+		Vector3(-240.0, 42.0,   z_dist + 20.0),
+		Vector3(-160.0, 35.0,   z_dist + 20.0),
+		Vector3(-90.0,  55.0,   z_dist + 20.0),
+		Vector3(-20.0,  48.0,   z_dist + 20.0),
+		Vector3(45.0,   60.0,   z_dist + 20.0),
+		Vector3(120.0,  45.0,   z_dist + 20.0),
+		Vector3(200.0,  38.0,   z_dist + 20.0),
+		Vector3(280.0,  base_y, z_dist + 20.0)
+	]
+	for idx in range(foot_pts.size() - 1):
+		var pA: Vector3 = foot_pts[idx]
+		var pB: Vector3 = foot_pts[idx + 1]
+		var bA := Vector3(pA.x, base_y, pA.z)
+		var bB := Vector3(pB.x, base_y, pB.z)
+		for_st.add_vertex(bA); for_st.add_vertex(pA); for_st.add_vertex(pB)
+		for_st.add_vertex(bA); for_st.add_vertex(pB); for_st.add_vertex(bB)
 
 	var snow_m := snow_st.commit()
 	var snow_i := MeshInstance3D.new()
@@ -313,12 +369,28 @@ func _construct_hakone_horizon() -> void:
 	snow_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	hakone_alpine_peaks.add_child(snow_i)
 
+	var mid_m := mid_st.commit()
+	if is_instance_valid(mid_m) and mid_m.get_surface_count() > 0:
+		var mid_i := MeshInstance3D.new()
+		mid_i.mesh = mid_m
+		mid_i.material_override = alpine_mid_mat
+		mid_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hakone_alpine_peaks.add_child(mid_i)
+
 	var shd_m := shd_st.commit()
 	var shd_i := MeshInstance3D.new()
 	shd_i.mesh = shd_m
 	shd_i.material_override = alpine_shadow_mat
 	shd_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	hakone_alpine_peaks.add_child(shd_i)
+
+	var for_m := for_st.commit()
+	if is_instance_valid(for_m) and for_m.get_surface_count() > 0:
+		var for_i := MeshInstance3D.new()
+		for_i.mesh = for_m
+		for_i.material_override = forest_ridge_mat
+		for_i.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hakone_alpine_peaks.add_child(for_i)
 
 	hakone_alpine_peaks.visible = false
 	add_child(hakone_alpine_peaks)

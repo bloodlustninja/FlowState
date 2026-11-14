@@ -361,6 +361,7 @@ static var smoke_cel_mat: ShaderMaterial
 static var smoke_outline_mat: ShaderMaterial
 static var barrier_material: StandardMaterial3D
 static var barrier_cap_material: StandardMaterial3D
+static var steel_guardrail_mat: StandardMaterial3D
 static var comic_hero_shader: Shader
 static var comic_ink_shader: Shader
 static var comic_outline_mat: ShaderMaterial
@@ -390,15 +391,15 @@ const BIOMES: Dictionary = {
 		"name": "NEO-SHINJUKU",
 		"kanji": "新宿 ALLEY",
 		"badge": "NEO-SHINJUKU // URBAN CANYON",
-		"sky_top": Color("#0A0813"),
-		"sky_horizon": Color("#8A2035"), # Glowing crimson twilight dusk (Ref Image 2)
+		"sky_top": Color("#090610"),
+		"sky_horizon": Color("#8C172E"), # Glowing crimson twilight dusk (Ref Image 2)
 		"ground_horizon": Color("#0E0B18"),
-		"sun_color": Color("#4A5272"),
-		"sun_energy": 0.45,
-		"ambient_color": Color("#181426"),
-		"ambient_energy": 0.38,
-		"fog_color": Color("#25122C"),
-		"fog_density": 0.0006,
+		"sun_color": Color("#30243C"),
+		"sun_energy": 0.35,
+		"ambient_color": Color("#1C1628"),
+		"ambient_energy": 0.45,
+		"fog_color": Color("#200E29"),
+		"fog_density": 0.0004,
 		"weather": "rain",
 		"traffic_min_dist": 200.0,
 		"traffic_max_dist": 290.0,
@@ -407,15 +408,15 @@ const BIOMES: Dictionary = {
 		"name": "ENOSHIMA COAST",
 		"kanji": "江の島 COAST",
 		"badge": "ENOSHIMA COAST // OCEAN HIGHWAY",
-		"sky_top": Color("#E85542"),     # Vibrant anime coral sunset (Ref Image 1)
-		"sky_horizon": Color("#FFF06A"), # Radiant golden lemon horizon (Ref Image 1)
-		"ground_horizon": Color("#284562"),
-		"sun_color": Color("#FFF2A0"),
-		"sun_energy": 1.55,
-		"ambient_color": Color("#624838"), # Warm golden-hour sunset ambient
-		"ambient_energy": 0.45,
-		"fog_color": Color("#FFA84A"),
-		"fog_density": 0.0002,
+		"sky_top": Color("#8F2249"),     # Vibrant deep anime rose sunset (Ref Image 1)
+		"sky_horizon": Color("#FFD152"), # Radiant golden lemon horizon (Ref Image 1)
+		"ground_horizon": Color("#1D3850"),
+		"sun_color": Color("#FFE080"),
+		"sun_energy": 1.85,
+		"ambient_color": Color("#804838"), # Warm golden-hour sunset ambient
+		"ambient_energy": 0.52,
+		"fog_color": Color("#F06B4D"),
+		"fog_density": 0.00012,
 		"weather": "sunny",
 		"traffic_min_dist": 280.0,
 		"traffic_max_dist": 390.0,
@@ -424,20 +425,33 @@ const BIOMES: Dictionary = {
 		"name": "HAKONE SNOW",
 		"kanji": "箱根 TOUGE",
 		"badge": "HAKONE SNOW // ALPINE PASS",
-		"sky_top": Color("#5E88B0"),     # Crisp cold alpine azure (Ref Image 3)
-		"sky_horizon": Color("#F0F8FF"), # Icy white peak horizon (Ref Image 3)
-		"ground_horizon": Color("#88A6BF"),
-		"sun_color": Color("#F2F8FF"),
-		"sun_energy": 1.35,
-		"ambient_color": Color("#8FA6BE"),
-		"ambient_energy": 0.36,
-		"fog_color": Color("#C4DCED"),
-		"fog_density": 0.0004,
+		"sky_top": Color("#4775A3"),     # Crisp cold alpine azure (Ref Image 3)
+		"sky_horizon": Color("#E8F5FC"), # Icy white peak horizon (Ref Image 3)
+		"ground_horizon": Color("#7898B4"),
+		"sun_color": Color("#EDF6FF"),
+		"sun_energy": 1.45,
+		"ambient_color": Color("#9AB6D2"),
+		"ambient_energy": 0.42,
+		"fog_color": Color("#CFE3F4"),
+		"fog_density": 0.0002,
 		"weather": "snow",
 		"traffic_min_dist": 450.0,
 		"traffic_max_dist": 680.0,
 	}
 }
+
+const SHINJUKU_SIGNS: Array = [
+	{"text": "東\n岸\n大\n寿\n司", "light": Color("#FF1866"), "back": Color("#180612"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 0: Magenta Sushi (Ref Image 2)
+	{"text": "#\nO\nE\nS\nF\nF",   "light": Color("#00E5FF"), "back": Color("#06141C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 1: Electric Cyan (Ref Image 2)
+	{"text": "カ\nラ\nオ\nケ",   "light": Color("#B537F2"), "back": Color("#14061A"), "h": 6.8, "w": 1.6, "bracket": 1.5}, # 2: Karaoke Purple
+	{"text": "２\n４\nｈ\n薬",   "light": Color("#FF2255"), "back": Color("#18060A"), "h": 6.2, "w": 1.5, "bracket": 1.4}, # 3: 24h Pharmacy Red
+	{"text": "パ\nチ\nン\nコ",   "light": Color("#00FF88"), "back": Color("#04180E"), "h": 7.5, "w": 1.6, "bracket": 1.6}, # 4: Pachinko Green
+	{"text": "B\nA\nR\n宵",     "light": Color("#FFAA00"), "back": Color("#181004"), "h": 5.2, "w": 1.4, "bracket": 1.3}, # 5: Bar Yoi Amber
+	{"text": "新\n宿\n横\n丁",   "light": Color("#FFD700"), "back": Color("#181404"), "h": 6.5, "w": 1.5, "bracket": 1.5}, # 6: Shinjuku Yokocho Gold
+	{"text": "ラ\nｌ\nメ\nン",   "light": Color("#FF5500"), "back": Color("#1A0A02"), "h": 5.8, "w": 1.5, "bracket": 1.4}, # 7: Ramen Flame
+	{"text": "居\n酒\n屋",       "light": Color("#FF3333"), "back": Color("#1A0606"), "h": 6.0, "w": 1.5, "bracket": 1.4}, # 8: Izakaya Red
+	{"text": "麻\n雀\n荘",       "light": Color("#00F0D0"), "back": Color("#041618"), "h": 6.4, "w": 1.5, "bracket": 1.5}, # 9: Mahjong Turquoise
+]
 
 const STAGE_INTERVAL_METERS: float = 2500.0
 var stage_tier: int = 1
@@ -879,7 +893,7 @@ func _run_biome_captures() -> void:
 			car_root.rotation = Vector3.ZERO
 			car_root.visible = false
 		if is_instance_valid(follow_cam):
-			follow_cam.position = Vector3(0.0, 2.2, 0.0)
+			follow_cam.position = Vector3(0.0, 2.2, -8.0)
 			follow_cam.rotation = Vector3(-0.04, 0.0, 0.0)
 		player_speed = 46.0
 		stage_start_z = 0.0
@@ -1057,6 +1071,13 @@ func _setup_materials() -> void:
 		barrier_cap_material.albedo_color = COLOR_BARRIER_CAP
 		barrier_cap_material.cull_mode = BaseMaterial3D.CULL_BACK
 		barrier_cap_material.roughness = 0.35
+
+	if not steel_guardrail_mat:
+		var sg_mat := StandardMaterial3D.new()
+		sg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sg_mat.albedo_color = Color("#D4E2EE") # Cold galvanized steel Touge guardrail (Ref Image 3)
+		sg_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		steel_guardrail_mat = sg_mat
 
 	if not speedlines_mat:
 		var sl_sh: Shader = load("res://manga_speedlines.gdshader")
@@ -1301,7 +1322,8 @@ func _setup_materials() -> void:
 	if not shinjuku_window_mat:
 		var w_mat := StandardMaterial3D.new()
 		w_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		w_mat.albedo_color = Color("#FFB438") # Warm amber glowing window (Ref Image 2)
+		w_mat.vertex_color_use_as_albedo = true
+		w_mat.albedo_color = Color.WHITE
 		w_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		shinjuku_window_mat = w_mat
 
@@ -2771,11 +2793,11 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 		var half_w: float = ROAD_WIDTH * 0.5
 		if current_biome_id == "neo_shinjuku":
-			half_w = 8.4
+			half_w = 5.2
 		elif current_biome_id == "enoshima_coast":
-			half_w = 8.5
+			half_w = 7.0
 		elif current_biome_id == "hakone_snow":
-			half_w = 8.5
+			half_w = 6.8
 
 		if is_fork_approach:
 			var widen_t: float = float(i) / float(CHUNK_SEGMENTS)
@@ -2842,28 +2864,28 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_vertex(b["p1"])
 
 		elif current_biome_id == "enoshima_coast":
-			# LEFT: Stepped Manga Rock Cliff with natural shelves & faceted faces (Ref Image 1)
+			# LEFT: Stepped Sandstone Rock Cliff with dramatic vertical bluffs & palm shelves (Ref Image 1)
 			var c_n1: float = sin(global_z * 0.018) * 3.8 + cos(global_z * 0.042) * 2.2
 			var c_n2: float = sin(global_z * 0.085) * 1.4 + cos(global_z * 0.18) * 0.7
 
 			var pt0 := left_pt
-			var pt1 := left_pt - (right_vec * 0.4) + Vector3(0.0, 0.6, 0.0) # Rock curb
-			var pt2 := left_pt - (right_vec * (3.8 + c_n2 * 0.4)) + Vector3(0.0, 2.2 + c_n2 * 0.3, 0.0) # Lower terrace shelf
-			var pt3 := left_pt - (right_vec * (4.6 + c_n2 * 0.4)) + Vector3(0.0, 6.2 + c_n1 * 0.6, 0.0) # Sheer rock step 1
-			var pt4 := left_pt - (right_vec * (12.0 + c_n1 * 0.8)) + Vector3(0.0, 8.8 + c_n1 * 0.8, 0.0) # Mid terrace shelf
-			var pt5 := left_pt - (right_vec * (13.2 + c_n1 * 0.8)) + Vector3(0.0, 20.0 + c_n1 * 1.6, 0.0) # Sheer rock step 2
-			var pt6 := left_pt - (right_vec * (26.0 + c_n1 * 1.5)) + Vector3(0.0, 30.0 + c_n1 * 2.2, 0.0) # High terrace shelf
-			var pt7 := left_pt - (right_vec * (48.0 + c_n1 * 2.8)) + Vector3(0.0, 46.0 + c_n1 * 3.4, 0.0) # Upper cliff bluff
-			var pt8 := left_pt - (right_vec * (110.0 + c_n1 * 4.5)) + Vector3(0.0, 68.0 + c_n1 * 5.2, 0.0) # Mountain crest
+			var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, 0.5, 0.0)
+			var pt2 := left_pt - (right_vec * (0.8 + c_n2 * 0.2)) + Vector3(0.0, 8.5 + c_n1 * 0.8, 0.0) # Vertical rock wall 1
+			var pt3 := left_pt - (right_vec * (5.5 + c_n1 * 0.5)) + Vector3(0.0, 10.5 + c_n1 * 0.8, 0.0) # Lower terrace shelf
+			var pt4 := left_pt - (right_vec * (7.2 + c_n1 * 0.6)) + Vector3(0.0, 24.0 + c_n1 * 1.5, 0.0) # Vertical rock wall 2
+			var pt5 := left_pt - (right_vec * (16.0 + c_n1 * 1.0)) + Vector3(0.0, 27.5 + c_n1 * 1.5, 0.0) # Mid terrace shelf
+			var pt6 := left_pt - (right_vec * (20.0 + c_n1 * 1.2)) + Vector3(0.0, 48.0 + c_n1 * 2.8, 0.0) # Towering upper bluff
+			var pt7 := left_pt - (right_vec * (45.0 + c_n1 * 2.0)) + Vector3(0.0, 56.0 + c_n1 * 3.0, 0.0) # High cliff plateau
+			var pt8 := left_pt - (right_vec * (120.0 + c_n1 * 3.5)) + Vector3(0.0, 78.0 + c_n1 * 4.0, 0.0) # Mountain ridge crest
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
 			var bands: Array = [
 				{"p0": pt0, "p1": pt1, "v0": 0.0,  "v1": 0.08, "norm": right_vec},
-				{"p0": pt1, "p1": pt2, "v0": 0.08, "v1": 0.22, "norm": Vector3.UP},
-				{"p0": pt2, "p1": pt3, "v0": 0.22, "v1": 0.30, "norm": right_vec},
-				{"p0": pt3, "p1": pt4, "v0": 0.30, "v1": 0.44, "norm": Vector3.UP},
-				{"p0": pt4, "p1": pt5, "v0": 0.44, "v1": 0.52, "norm": right_vec},
-				{"p0": pt5, "p1": pt6, "v0": 0.52, "v1": 0.62, "norm": Vector3.UP},
+				{"p0": pt1, "p1": pt2, "v0": 0.08, "v1": 0.22, "norm": right_vec},
+				{"p0": pt2, "p1": pt3, "v0": 0.22, "v1": 0.30, "norm": Vector3.UP},
+				{"p0": pt3, "p1": pt4, "v0": 0.30, "v1": 0.44, "norm": right_vec},
+				{"p0": pt4, "p1": pt5, "v0": 0.44, "v1": 0.52, "norm": Vector3.UP},
+				{"p0": pt5, "p1": pt6, "v0": 0.52, "v1": 0.62, "norm": right_vec},
 				{"p0": pt6, "p1": pt7, "v0": 0.62, "v1": 0.82, "norm": (right_vec * 0.7 + Vector3.UP * 0.3).normalized()},
 				{"p0": pt7, "p1": pt8, "v0": 0.82, "v1": 1.0,  "norm": (right_vec * 0.4 + Vector3.UP * 0.6).normalized()}
 			]
@@ -2875,13 +2897,13 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.set_uv(Vector2(hs_u, b["v1"]))
 				hillside_st.add_vertex(b["p1"])
 
-			# RIGHT: Stepped golden beach shoulder + white comic wave foam line + ocean plane (Ref Image 1)
-			var wave_noise: float = sin(global_z * 0.16) * 1.4 + cos(global_z * 0.42) * 0.7
-			var sand_end := right_pt + (right_vec * 4.5) - Vector3(0.0, 0.35, 0.0)
-			var wet_sand_end := right_pt + (right_vec * (6.5 + wave_noise * 0.3)) - Vector3(0.0, 0.55, 0.0)
-			var wave_foam_end := right_pt + (right_vec * (8.5 + wave_noise * 0.6)) - Vector3(0.0, 0.60, 0.0)
-			var ocean_near := right_pt + (right_vec * 45.0) - Vector3(0.0, 0.65, 0.0)
-			var ocean_far := right_pt + (right_vec * 480.0) - Vector3(0.0, 0.70, 0.0)
+			# RIGHT: Broad golden sandy beach + stepped white comic wave surf lines (Ref Image 1)
+			var wave_noise: float = sin(global_z * 0.16) * 1.8 + cos(global_z * 0.42) * 0.9
+			var sand_end := right_pt + (right_vec * (10.0 + wave_noise * 0.6)) - Vector3(0.0, 0.35, 0.0)
+			var wet_sand_end := right_pt + (right_vec * (18.0 + wave_noise * 0.9)) - Vector3(0.0, 0.60, 0.0)
+			var wave_foam_end := right_pt + (right_vec * (25.0 + wave_noise * 1.2)) - Vector3(0.0, 0.70, 0.0)
+			var ocean_near := right_pt + (right_vec * 85.0) - Vector3(0.0, 0.75, 0.0)
+			var ocean_far := right_pt + (right_vec * 650.0) - Vector3(0.0, 0.80, 0.0)
 
 			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.0, float(i))); sand_st.add_vertex(right_pt)
 			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.5, float(i))); sand_st.add_vertex(sand_end)
@@ -2902,23 +2924,23 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 			# RIGHT: Sheer craggy granite rock cliff with snow ledges (Ref Image 3)
 			var r_pt0 := right_pt
-			var r_pt1 := right_pt + (right_vec * 0.4) + Vector3(0.0, 0.5, 0.0)
-			var r_pt2 := right_pt + (right_vec * (3.5 + h_n2 * 0.3)) + Vector3(0.0, 1.8 + h_n2 * 0.2, 0.0)
-			var r_pt3 := right_pt + (right_vec * (4.2 + h_n2 * 0.3)) + Vector3(0.0, 6.8 + h_n1 * 0.6, 0.0)
-			var r_pt4 := right_pt + (right_vec * (9.5 + h_n1 * 0.8)) + Vector3(0.0, 8.5 + h_n1 * 0.8, 0.0)
-			var r_pt5 := right_pt + (right_vec * (11.0 + h_n1 * 0.8)) + Vector3(0.0, 22.0 + h_n1 * 1.8, 0.0)
-			var r_pt6 := right_pt + (right_vec * (22.0 + h_n1 * 1.5)) + Vector3(0.0, 24.5 + h_n1 * 1.8, 0.0)
-			var r_pt7 := right_pt + (right_vec * (45.0 + h_n1 * 2.5)) + Vector3(0.0, 42.0 + h_n1 * 3.2, 0.0)
-			var r_pt8 := right_pt + (right_vec * (95.0 + h_n1 * 4.0)) + Vector3(0.0, 65.0 + h_n1 * 4.8, 0.0)
+			var r_pt1 := right_pt + (right_vec * 0.35) + Vector3(0.0, 0.5, 0.0)
+			var r_pt2 := right_pt + (right_vec * (1.2 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
+			var r_pt3 := right_pt + (right_vec * (5.0 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_n1 * 0.8, 0.0) # Snow shelf 1
+			var r_pt4 := right_pt + (right_vec * (6.5 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
+			var r_pt5 := right_pt + (right_vec * (14.0 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_n1 * 1.6, 0.0) # Snow shelf 2
+			var r_pt6 := right_pt + (right_vec * (18.0 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_n1 * 2.8, 0.0) # Upper precipice
+			var r_pt7 := right_pt + (right_vec * (40.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
+			var r_pt8 := right_pt + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, 80.0 + h_n1 * 4.0, 0.0) # Distant ridge
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
 			var bands: Array = [
 				{"p0": r_pt0, "p1": r_pt1, "v0": 0.0,  "v1": 0.08, "norm": -right_vec},
-				{"p0": r_pt1, "p1": r_pt2, "v0": 0.08, "v1": 0.22, "norm": Vector3.UP},
-				{"p0": r_pt2, "p1": r_pt3, "v0": 0.22, "v1": 0.30, "norm": -right_vec},
-				{"p0": r_pt3, "p1": r_pt4, "v0": 0.30, "v1": 0.44, "norm": Vector3.UP},
-				{"p0": r_pt4, "p1": r_pt5, "v0": 0.44, "v1": 0.52, "norm": -right_vec},
-				{"p0": r_pt5, "p1": r_pt6, "v0": 0.52, "v1": 0.62, "norm": Vector3.UP},
+				{"p0": r_pt1, "p1": r_pt2, "v0": 0.08, "v1": 0.22, "norm": -right_vec},
+				{"p0": r_pt2, "p1": r_pt3, "v0": 0.22, "v1": 0.30, "norm": Vector3.UP},
+				{"p0": r_pt3, "p1": r_pt4, "v0": 0.30, "v1": 0.44, "norm": -right_vec},
+				{"p0": r_pt4, "p1": r_pt5, "v0": 0.44, "v1": 0.52, "norm": Vector3.UP},
+				{"p0": r_pt5, "p1": r_pt6, "v0": 0.52, "v1": 0.62, "norm": -right_vec},
 				{"p0": r_pt6, "p1": r_pt7, "v0": 0.62, "v1": 0.82, "norm": (-right_vec * 0.7 + Vector3.UP * 0.3).normalized()},
 				{"p0": r_pt7, "p1": r_pt8, "v0": 0.82, "v1": 1.0,  "norm": (-right_vec * 0.4 + Vector3.UP * 0.6).normalized()}
 			]
@@ -2930,12 +2952,12 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.set_uv(Vector2(hs_u, b["v1"]))
 				hillside_st.add_vertex(b["p1"])
 
-			# LEFT: Rolling snow-covered pine forest hillside (Ref Image 3)
+			# LEFT: Rolling snow-covered hillside descending into alpine valley (Ref Image 3)
 			var s_pt0 := left_pt
-			var s_pt1 := left_pt - (right_vec * 0.4) + Vector3(0.0, 0.5, 0.0)
-			var s_pt2 := left_pt - (right_vec * (5.0 + h_n2 * 0.4)) + Vector3(0.0, 2.2 + h_n2 * 0.2, 0.0)
-			var s_pt3 := left_pt - (right_vec * (16.0 + h_n1 * 0.8)) + Vector3(0.0, 8.0 + h_n1 * 0.6, 0.0)
-			var s_pt4 := left_pt - (right_vec * (70.0 + h_n1 * 2.5)) + Vector3(0.0, 36.0 + h_n1 * 2.2, 0.0)
+			var s_pt1 := left_pt - (right_vec * 0.45) - Vector3(0.0, 0.2, 0.0)
+			var s_pt2 := left_pt - (right_vec * (7.5 + h_n2 * 0.5)) - Vector3(0.0, 1.8 + h_n2 * 0.3, 0.0)
+			var s_pt3 := left_pt - (right_vec * (22.0 + h_n1 * 1.2)) - Vector3(0.0, 6.5 + h_n1 * 0.8, 0.0)
+			var s_pt4 := left_pt - (right_vec * (90.0 + h_n1 * 3.0)) - Vector3(0.0, 22.0 + h_n1 * 2.0, 0.0)
 
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.0, float(i))); snow_st.add_vertex(s_pt0)
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.2, float(i))); snow_st.add_vertex(s_pt1)
@@ -2949,14 +2971,14 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "neo_shinjuku":
 			# Sidewalk curbs on both sides (Ref Image 2)
 			var sw_l0 := left_pt
-			var sw_l1 := left_pt - (right_vec * 2.4) + Vector3(0.0, 0.22, 0.0)
+			var sw_l1 := left_pt - (right_vec * 1.5) + Vector3(0.0, 0.20, 0.0)
 			var sw_r0 := right_pt
-			var sw_r1 := right_pt + (right_vec * 2.4) + Vector3(0.0, 0.22, 0.0)
+			var sw_r1 := right_pt + (right_vec * 1.5) + Vector3(0.0, 0.20, 0.0)
 			hillside_st.add_vertex(sw_l0); hillside_st.add_vertex(sw_l1)
 			hillside_st.add_vertex(sw_r0); hillside_st.add_vertex(sw_r1)
 
-		# 3. Guardrails (Enoshima: Left side along cliff; Shuto/Hakone: Right side; Shinjuku: Curbs only)
-		if current_biome_id in ["shuto_dusk", "hakone_snow"]:
+		# 3. Guardrails (Shuto: Right side; Enoshima/Hakone: Left side along valley/ocean; Shinjuku: Curbs only)
+		if current_biome_id == "shuto_dusk":
 			var bar_inner_top := right_pt + Vector3(0.0, 1.15, 0.0)
 			var bar_outer_top := right_pt + (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
 			var bar_outer_bottom := right_pt + (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
@@ -2968,7 +2990,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
 			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
 
-		elif current_biome_id == "enoshima_coast":
+		elif current_biome_id in ["enoshima_coast", "hakone_snow"]:
 			var bar_inner_top := left_pt + Vector3(0.0, 1.15, 0.0)
 			var bar_outer_top := left_pt - (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
 			var bar_outer_bottom := left_pt - (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
@@ -3070,62 +3092,64 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25, seg_rnd)
 
 		elif current_biome_id == "enoshima_coast" and not is_fork_approach and not is_twin_tunnel:
-			# Coastal palm trees along left cliff verge & right sandy beach (Ref Image 1)
+			# Coastal palm trees along left sandstone cliff shelves & right golden beach (Ref Image 1)
 			if i % 3 == 0:
-				var cliff_palm := seg_left - (seg_rv * (3.8 + seg_rnd * 2.5)) + Vector3(0.0, 2.2, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 1.05 + seg_rnd * 0.35, seg_rnd)
+				var cliff_palm := seg_left - (seg_rv * (5.5 + seg_rnd * 3.5)) + Vector3(0.0, 10.5, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 1.25 + seg_rnd * 0.45, seg_rnd)
 			elif i % 4 == 1:
-				var beach_palm := seg_right + (seg_rv * (3.2 + seg_rnd * 1.8)) - Vector3(0.0, 0.35, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 0.95 + seg_rnd * 0.25, seg_rnd + 1.0)
+				var beach_palm := seg_right + (seg_rv * (8.5 + seg_rnd * 7.0)) - Vector3(0.0, 0.45, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 1.10 + seg_rnd * 0.35, seg_rnd + 1.0)
 
 		elif current_biome_id == "hakone_snow" and not is_fork_approach and not is_twin_tunnel:
-			# Dense multi-tiered snow pines on rolling left slope & right cliff ledges (Ref Image 3)
+			# Dense multi-tiered snow pines on left valley slope & right cliff crest (Ref Image 3)
 			if i % 2 == 0:
-				var sp_l := seg_left - (seg_rv * (5.5 + seg_rnd * 4.5)) + Vector3(0.0, 2.2, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l, 1.15 + seg_rnd * 0.35, seg_rnd)
+				var sp_l := seg_left - (seg_rv * (3.8 + seg_rnd * 2.5)) - Vector3(0.0, 0.4, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l, 1.65 + seg_rnd * 0.40, seg_rnd)
 			if i % 3 == 1:
-				var sp_l_high := seg_left - (seg_rv * (18.0 + seg_rnd * 6.0)) + Vector3(0.0, 8.5, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l_high, 1.35 + seg_rnd * 0.35, seg_rnd + 2.0)
-			if i % 3 == 2:
-				var sp_r := seg_right + (seg_rv * (9.5 + seg_rnd * 4.0)) + Vector3(0.0, 8.5, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_r, 0.95 + seg_rnd * 0.35, seg_rnd + 1.0)
+				var sp_l_high := seg_left - (seg_rv * (14.0 + seg_rnd * 8.0)) - Vector3(0.0, 4.5, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l_high, 1.80 + seg_rnd * 0.45, seg_rnd + 2.0)
+			if i % 4 == 2:
+				var sp_r := seg_right + (seg_rv * (38.0 + seg_rnd * 6.0)) + Vector3(0.0, 58.0, 0.0)
+				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_r, 1.35 + seg_rnd * 0.35, seg_rnd + 1.0)
 
 		elif current_biome_id == "neo_shinjuku" and not is_fork_approach and not is_twin_tunnel:
 			# Continuous wall-to-wall Japanese urban apartment / storefront canyon (Ref Image 2)
 			if i % 4 == 0:
 				var bld_z_len: float = step_z * 4.0
-				var bld_pos_l := seg_left - (seg_rv * 1.8)
+				var bld_pos_l := seg_left - (seg_rv * 1.5)
 				var bld_h_l: float = 24.0 + seg_rnd * 18.0
 				_add_shinjuku_building(chunk_root, bld_st, win_st, bld_pos_l, -seg_rv, 14.0, bld_z_len, bld_h_l, seg_rnd, i)
 
-				var bld_pos_r := seg_right + (seg_rv * 1.8)
+				var bld_pos_r := seg_right + (seg_rv * 1.5)
 				var bld_h_r: float = 24.0 + fposmod(seg_rnd * 3.7, 1.0) * 18.0
 				_add_shinjuku_building(chunk_root, bld_st, win_st, bld_pos_r, seg_rv, 14.0, bld_z_len, bld_h_r, seg_rnd + 1.0, i + 1)
 
-			# Glowing 3D Japanese Vending Machines on sidewalks
-			if i % 8 == 2:
-				_add_3d_vending_machine(vending_st, win_st, seg_left - (seg_rv * 1.2), 0.0, seg_rnd, true)
-				_add_3d_vending_machine(vending_st, win_st, seg_right + (seg_rv * 1.2), PI, seg_rnd, false)
+			# 3D Japanese Vending Machines (Jidohanbaiki) with companion recycling bins
+			if i % 14 == 2:
+				_add_3d_vending_machine(vending_st, win_st, seg_left - (seg_rv * 1.05), 0.0, seg_rnd, true)
+			elif i % 14 == 9:
+				_add_3d_vending_machine(vending_st, win_st, seg_right + (seg_rv * 1.05), PI, seg_rnd + 1.0, false)
 
-			# Iconic Vertical Neon Blade Signs jutting out from facades (Ref Image 2)
-			if i % 8 == 0:
-				var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
-				var neon_pos_l := seg_left - (seg_rv * 0.8) + Vector3(0.0, 8.5, 0.0)
-				var neon_pos_r := seg_right + (seg_rv * 0.8) + Vector3(0.0, 8.5, 0.0)
-				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, "東\n岸\n大\n寿\n司", 0) # Magenta Sushi Kanji
-				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, "#\nO\nE\nS\nF\nF", 1)   # Electric Cyan #0ESFF
-			elif i % 8 == 4:
-				var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
-				var neon_pos_l := seg_left - (seg_rv * 0.8) + Vector3(0.0, 8.0, 0.0)
-				var neon_pos_r := seg_right + (seg_rv * 0.8) + Vector3(0.0, 8.0, 0.0)
-				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, "新\n宿\n24H", 0)
-				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, "ラ\nｌ\nメ\nン", 2)
+			# Diverse, Asymmetrical Japanese Neon Blade Signs
+			var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
+			if i % 10 == 1 or i % 10 == 6:
+				var s_hash: int = abs(int(start_z * 0.05) * 7 + i * 3) % SHINJUKU_SIGNS.size()
+				var s_info: Dictionary = SHINJUKU_SIGNS[s_hash]
+				var sign_y: float = 7.0 + fposmod(seg_rnd * 13.7 + float(i), 3.5)
+				var neon_pos_l := seg_left - (seg_rv * 0.70) + Vector3(0.0, sign_y, 0.0)
+				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, s_info["text"], s_info["light"], s_info["back"], s_info["w"], s_info["h"], s_info["bracket"])
+			elif i % 10 == 3 or i % 10 == 8:
+				var s_hash_r: int = abs(int(start_z * 0.05) * 7 + i * 3 + 5) % SHINJUKU_SIGNS.size()
+				var s_info_r: Dictionary = SHINJUKU_SIGNS[s_hash_r]
+				var sign_y_r: float = 7.0 + fposmod(seg_rnd * 17.3 + float(i), 3.5)
+				var neon_pos_r := seg_right + (seg_rv * 0.70) + Vector3(0.0, sign_y_r, 0.0)
+				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, s_info_r["text"], s_info_r["light"], s_info_r["back"], s_info_r["w"], s_info_r["h"], s_info_r["bracket"])
 
 			# Concrete Utility Poles (Denchuu) with transformers & overhead cable webs
 			if i % 6 == 0:
-				var pole_pos := seg_left - (seg_rv * 0.25)
-				var next_pole_pos := seg_left - (seg_rv * 0.25) - Vector3(0.0, 0.0, step_z * 6.0)
-				var cross_pos := seg_right + (seg_rv * 0.25)
+				var pole_pos := seg_left - (seg_rv * 0.35)
+				var next_pole_pos := seg_left - (seg_rv * 0.35) - Vector3(0.0, 0.0, step_z * 6.0)
+				var cross_pos := seg_right + (seg_rv * 0.35)
 				_add_3d_power_pole(pole_st, line_st, pole_pos, next_pole_pos, cross_pos)
 
 		if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
@@ -3142,8 +3166,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	road_inst.material_override = road_shader_mat
 	chunk_root.add_child(road_inst)
 
-	if current_biome_id == "shuto_dusk" or is_fork_approach or is_twin_tunnel:
-		hillside_st.generate_normals()
+	hillside_st.generate_normals()
 	var hillside_mesh := hillside_st.commit()
 	if is_instance_valid(hillside_mesh) and hillside_mesh.get_surface_count() > 0:
 		var hillside_inst := MeshInstance3D.new()
@@ -3278,7 +3301,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	var barrier_inst := MeshInstance3D.new()
 	barrier_inst.mesh = barrier_st.commit()
-	barrier_inst.material_override = barrier_material
+	barrier_inst.material_override = steel_guardrail_mat if current_biome_id == "hakone_snow" else barrier_material
 	barrier_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_inst)
 
@@ -4172,195 +4195,412 @@ func _add_3d_snow_pine(foliage_st: SurfaceTool, snow_st: SurfaceTool, ground_pos
 			snow_st.add_vertex(sv0); snow_st.add_vertex(sv1); snow_st.add_vertex(svt)
 			snow_st.add_vertex(sv0); snow_st.add_vertex(svt); snow_st.add_vertex(sv1)
 
-func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, origin: Vector3, face_dir: Vector3, depth: float, z_len: float, height: float, seed_val: float, _b_idx: int) -> void:
-	var p00 := origin
-	var p10 := origin + Vector3(0.0, 0.0, -z_len)
-	var p11 := p10 + Vector3(0.0, height, 0.0)
-	var p01 := p00 + Vector3(0.0, height, 0.0)
+func _st_add_oriented_box(st: SurfaceTool, center: Vector3, out_dir: Vector3, up_dir: Vector3, fwd_dir: Vector3, size_out: float, size_up: float, size_fwd: float, col: Color) -> void:
+	st.set_color(col)
+	var ho: Vector3 = out_dir * (size_out * 0.5)
+	var hu: Vector3 = up_dir * (size_up * 0.5)
+	var hf: Vector3 = fwd_dir * (size_fwd * 0.5)
 
-	# Main facade wall (Double-sided for robust visibility on both left and right sides)
+	var p000: Vector3 = center - ho - hu - hf
+	var p100: Vector3 = center + ho - hu - hf
+	var p110: Vector3 = center + ho + hu - hf
+	var p010: Vector3 = center - ho + hu - hf
+	var p001: Vector3 = center - ho - hu + hf
+	var p101: Vector3 = center + ho - hu + hf
+	var p111: Vector3 = center + ho + hu + hf
+	var p011: Vector3 = center - ho + hu + hf
+
+	# Double-sided faces to guarantee visibility with any coordinate orientation
+	st.add_vertex(p100); st.add_vertex(p101); st.add_vertex(p111)
+	st.add_vertex(p100); st.add_vertex(p111); st.add_vertex(p110)
+	st.add_vertex(p100); st.add_vertex(p111); st.add_vertex(p101)
+	st.add_vertex(p100); st.add_vertex(p110); st.add_vertex(p111)
+
+	st.add_vertex(p000); st.add_vertex(p010); st.add_vertex(p011)
+	st.add_vertex(p000); st.add_vertex(p011); st.add_vertex(p001)
+	st.add_vertex(p000); st.add_vertex(p011); st.add_vertex(p010)
+	st.add_vertex(p000); st.add_vertex(p001); st.add_vertex(p011)
+
+	st.add_vertex(p010); st.add_vertex(p110); st.add_vertex(p111)
+	st.add_vertex(p010); st.add_vertex(p111); st.add_vertex(p011)
+	st.add_vertex(p010); st.add_vertex(p111); st.add_vertex(p110)
+	st.add_vertex(p010); st.add_vertex(p011); st.add_vertex(p111)
+
+	st.add_vertex(p001); st.add_vertex(p101); st.add_vertex(p100)
+	st.add_vertex(p001); st.add_vertex(p100); st.add_vertex(p000)
+	st.add_vertex(p001); st.add_vertex(p100); st.add_vertex(p101)
+	st.add_vertex(p001); st.add_vertex(p000); st.add_vertex(p100)
+
+	st.add_vertex(p101); st.add_vertex(p001); st.add_vertex(p011)
+	st.add_vertex(p101); st.add_vertex(p011); st.add_vertex(p111)
+	st.add_vertex(p101); st.add_vertex(p011); st.add_vertex(p001)
+	st.add_vertex(p101); st.add_vertex(p111); st.add_vertex(p011)
+
+	st.add_vertex(p000); st.add_vertex(p100); st.add_vertex(p110)
+	st.add_vertex(p000); st.add_vertex(p110); st.add_vertex(p010)
+	st.add_vertex(p000); st.add_vertex(p110); st.add_vertex(p100)
+	st.add_vertex(p000); st.add_vertex(p010); st.add_vertex(p110)
+
+func _st_add_oriented_quad(st: SurfaceTool, center: Vector3, up_dir: Vector3, fwd_dir: Vector3, size_up: float, size_fwd: float, col: Color) -> void:
+	st.set_color(col)
+	var hu: Vector3 = up_dir * (size_up * 0.5)
+	var hf: Vector3 = fwd_dir * (size_fwd * 0.5)
+	var q0: Vector3 = center - hu - hf
+	var q1: Vector3 = center - hu + hf
+	var q2: Vector3 = center + hu + hf
+	var q3: Vector3 = center + hu - hf
+	st.add_vertex(q0); st.add_vertex(q1); st.add_vertex(q2)
+	st.add_vertex(q0); st.add_vertex(q2); st.add_vertex(q3)
+	st.add_vertex(q0); st.add_vertex(q2); st.add_vertex(q1)
+	st.add_vertex(q0); st.add_vertex(q3); st.add_vertex(q2)
+
+func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, origin: Vector3, face_dir: Vector3, depth: float, z_len: float, height: float, seed_val: float, b_idx: int) -> void:
+	var out_dir: Vector3 = -face_dir.normalized()
+	var up_dir: Vector3 = Vector3.UP
+	var fwd_dir: Vector3 = Vector3(0.0, 0.0, -1.0)
+
+	# Determine 1 of 5 distinct architectural archetypes
+	var arch_type: int = abs(b_idx * 7 + int(seed_val * 13.0)) % 5
+
+	# Archetype-scaled height (creates varied, realistic skyline silhouette)
+	var bld_h: float
+	var wall_col: Color
+	match arch_type:
+		0: # Yokocho Izakaya / Ramen Tavern (2 stories)
+			bld_h = clampf(height * 0.55, 13.0, 16.5)
+			wall_col = Color("#32241A") if (b_idx % 2 == 0) else Color("#2A1E16")
+		1: # Tokyo Apartment Mansion with Exterior Fire Escape (4-5 stories)
+			bld_h = clampf(height * 0.85, 21.0, 27.0)
+			wall_col = Color("#262C38") if (b_idx % 2 == 0) else Color("#202530")
+		2: # Commercial Entertainment Tower (Tall skyscraper)
+			bld_h = maxf(height * 1.30, 32.0)
+			wall_col = Color("#161920") if (b_idx % 2 == 0) else Color("#1C2028")
+		3: # Multi-Tenant Snack Bar & Karaoke Club (3-4 stories)
+			bld_h = clampf(height * 0.70, 17.0, 22.0)
+			wall_col = Color("#2A1E27") if (b_idx % 2 == 0) else Color("#241822")
+		_: # Keio Workshop & Shutter House (2-3 stories)
+			bld_h = clampf(height * 0.60, 14.0, 18.5)
+			wall_col = Color("#343C48") if (b_idx % 2 == 0) else Color("#2B333E")
+
+	var p00: Vector3 = origin
+	var p10: Vector3 = origin + (fwd_dir * z_len)
+	var p11: Vector3 = p10 + (up_dir * bld_h)
+	var p01: Vector3 = p00 + (up_dir * bld_h)
+
+	# Main facade wall (Double-sided for 100% solidity)
+	bld_st.set_color(wall_col)
 	bld_st.add_vertex(p00); bld_st.add_vertex(p10); bld_st.add_vertex(p11)
 	bld_st.add_vertex(p00); bld_st.add_vertex(p11); bld_st.add_vertex(p01)
 	bld_st.add_vertex(p00); bld_st.add_vertex(p11); bld_st.add_vertex(p10)
 	bld_st.add_vertex(p00); bld_st.add_vertex(p01); bld_st.add_vertex(p11)
 
-	# Roof slab extending back into depth
-	var r0 := p01 + (face_dir * depth)
-	var r1 := p11 + (face_dir * depth)
+	# Roof slab extending back into building depth
+	var r0: Vector3 = p01 + (face_dir * depth)
+	var r1: Vector3 = p11 + (face_dir * depth)
+	bld_st.set_color(wall_col * 0.75)
 	bld_st.add_vertex(p01); bld_st.add_vertex(p11); bld_st.add_vertex(r1)
 	bld_st.add_vertex(p01); bld_st.add_vertex(r1); bld_st.add_vertex(r0)
 
-	# Ground Floor: Roll-up shop security shutter (Ref Image 2)
-	var shutter_mesh := BoxMesh.new()
-	shutter_mesh.size = Vector3(0.12, 3.2, z_len * 0.95)
-	var shutter_inst := MeshInstance3D.new()
-	shutter_inst.mesh = shutter_mesh
-	shutter_inst.material_override = shutter_mat
-	shutter_inst.position = (p00 + p10) * 0.5 + Vector3(0.0, 1.6, 0.0) + (face_dir * -0.06)
-	shutter_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunk.add_child(shutter_inst)
+	# Front and back end-caps so every building is a 100% solid 3D architectural volume
+	var b00: Vector3 = p00 + (face_dir * depth)
+	var b10: Vector3 = p10 + (face_dir * depth)
+	bld_st.set_color(wall_col * 0.85)
+	# Front cap facing camera (+Z)
+	bld_st.add_vertex(p00); bld_st.add_vertex(b00); bld_st.add_vertex(r0)
+	bld_st.add_vertex(p00); bld_st.add_vertex(r0); bld_st.add_vertex(p01)
+	bld_st.add_vertex(p00); bld_st.add_vertex(r0); bld_st.add_vertex(b00)
+	bld_st.add_vertex(p00); bld_st.add_vertex(p01); bld_st.add_vertex(r0)
+	# Back cap facing -Z
+	bld_st.add_vertex(p10); bld_st.add_vertex(r1); bld_st.add_vertex(b10)
+	bld_st.add_vertex(p10); bld_st.add_vertex(p11); bld_st.add_vertex(r1)
+	bld_st.add_vertex(p10); bld_st.add_vertex(b10); bld_st.add_vertex(r1)
+	bld_st.add_vertex(p10); bld_st.add_vertex(r1); bld_st.add_vertex(p11)
 
-	# Colorful fabric shopfront awning extending over sidewalk at height 3.25m (Ref Image 2)
-	var awn_mat: Material = awning_red_mat if int(seed_val * 7.0) % 3 == 0 else (awning_blue_mat if int(seed_val * 7.0) % 3 == 1 else awning_green_mat)
-	var awn_mesh := BoxMesh.new()
-	awn_mesh.size = Vector3(1.4, 0.35, z_len * 0.96)
-	var awn_inst := MeshInstance3D.new()
-	awn_inst.mesh = awn_mesh
-	awn_inst.material_override = awn_mat
-	awn_inst.position = (p00 + p10) * 0.5 + Vector3(0.0, 3.25, 0.0) + (face_dir * -0.70)
-	awn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunk.add_child(awn_inst)
+	# Archetype-specific geometry details:
+	match arch_type:
+		0: # --- ARCHETYPE 0: YOKOCHO IZAKAYA & RAMEN TAVERN ---
+			# Ground floor open shopfront with warm amber interior
+			var shop_z0: float = z_len * 0.15
+			var shop_z1: float = z_len * 0.85
+			var shop_w: float = shop_z1 - shop_z0
+			var shop_center: Vector3 = p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 1.6)
 
-	# Upper floors: Windows, balconies, and AC units (Ref Image 2)
-	var num_floors: int = int((height - 4.5) / 3.8)
-	for fl in range(1, num_floors + 1):
-		var fl_y: float = 4.0 + float(fl - 1) * 3.8
-		for wz in [0.22, 0.50, 0.78]:
-			var w_center := p00 + Vector3(0.0, fl_y + 1.2, -z_len * wz)
-			var w_w: float = 1.8
-			var w_h: float = 1.5
-			var face_n := -face_dir * 0.04
+			# Dark timber framing posts & lintel
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * shop_z0) + (up_dir * 1.6) + (out_dir * 0.10), out_dir, up_dir, fwd_dir, 0.22, 3.2, 0.25, Color("#1A120A"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * shop_z1) + (up_dir * 1.6) + (out_dir * 0.10), out_dir, up_dir, fwd_dir, 0.22, 3.2, 0.25, Color("#1A120A"))
+			_st_add_oriented_box(bld_st, shop_center + (up_dir * 1.5) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.25, 0.28, shop_w + 0.3, Color("#1A120A"))
 
-			var wp0 := w_center - Vector3(0.0, 0.0, -w_w * 0.5) + face_n
-			var wp1 := w_center - Vector3(0.0, 0.0, w_w * 0.5) + face_n
-			var wp2 := wp1 + Vector3(0.0, w_h, 0.0)
-			var wp3 := wp0 + Vector3(0.0, w_h, 0.0)
+			# Warm illuminated shop interior (recessed threshold)
+			_st_add_oriented_quad(win_st, shop_center - (out_dir * 0.35), up_dir, fwd_dir, 2.8, shop_w * 0.85, Color("#FFDA77"))
 
-			# 45% warm amber lit windows, 55% unlit windows
-			var is_lit: bool = fposmod(seed_val * 17.3 + float(fl) * 5.1 + wz * 13.0, 1.0) < 0.45
-			if is_lit:
-				win_st.add_vertex(wp0); win_st.add_vertex(wp1); win_st.add_vertex(wp2)
-				win_st.add_vertex(wp0); win_st.add_vertex(wp2); win_st.add_vertex(wp3)
+			# Sliding lattice wood screen door on right half
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.68)) + (up_dir * 1.4) + (out_dir * 0.05), out_dir, up_dir, fwd_dir, 0.08, 2.7, shop_w * 0.45, Color("#261A10"))
 
-			# Balconies with steel railings on floors 2 and 3
-			if fl in [1, 2] and wz in [0.22, 0.78]:
-				var balc_w: float = 2.4
-				var balc_d: float = 0.85
-				var balc_h: float = 0.95
-				var b_base := w_center - Vector3(0.0, 1.2, 0.0)
-				var b_fwd := -face_dir * balc_d
-				var bp0 := b_base - Vector3(0.0, 0.0, -balc_w * 0.5)
-				var bp1 := b_base - Vector3(0.0, 0.0, balc_w * 0.5)
-				var bp0_out := bp0 + b_fwd
-				var bp1_out := bp1 + b_fwd
-				bld_st.add_vertex(bp0); bld_st.add_vertex(bp1); bld_st.add_vertex(bp1_out)
-				bld_st.add_vertex(bp0); bld_st.add_vertex(bp1_out); bld_st.add_vertex(bp0_out)
-				bld_st.add_vertex(bp0_out); bld_st.add_vertex(bp1_out); bld_st.add_vertex(bp1_out + Vector3(0.0, balc_h, 0.0))
-				bld_st.add_vertex(bp0_out); bld_st.add_vertex(bp1_out + Vector3(0.0, balc_h, 0.0)); bld_st.add_vertex(bp0_out + Vector3(0.0, balc_h, 0.0))
+			# Fabric Noren curtain draped over top of entrance
+			var noren_col: Color = Color("#8B1824") if (b_idx % 2 == 0) else Color("#18345C")
+			_st_add_oriented_box(bld_st, shop_center + (up_dir * 0.95) + (out_dir * 0.18), out_dir, up_dir, fwd_dir, 0.06, 0.85, shop_w * 0.90, noren_col)
 
-			# Wall-mounted AC condenser units under window 0.50
-			if fl >= 1 and wz == 0.50:
-				var ac_pos := w_center - Vector3(0.0, 0.85, 0.0) - (face_dir * 0.35)
-				var ac_w: float = 0.9
-				var ac_h: float = 0.6
-				var ac_d: float = 0.4
-				var ac_fwd := -face_dir * ac_d
-				var ap0 := ac_pos - Vector3(0.0, 0.0, -ac_w * 0.5)
-				var ap1 := ac_pos - Vector3(0.0, 0.0, ac_w * 0.5)
-				var ap0_o := ap0 + ac_fwd
-				var ap1_o := ap1 + ac_fwd
-				bld_st.add_vertex(ap0_o); bld_st.add_vertex(ap1_o); bld_st.add_vertex(ap1_o + Vector3(0.0, ac_h, 0.0))
-				bld_st.add_vertex(ap0_o); bld_st.add_vertex(ap1_o + Vector3(0.0, ac_h, 0.0)); bld_st.add_vertex(ap0_o + Vector3(0.0, ac_h, 0.0))
+			# Traditional overhanging tile eave extending 1.0m over sidewalk
+			_st_add_oriented_box(bld_st, shop_center + (up_dir * 1.75) + (out_dir * 0.50), out_dir, up_dir, fwd_dir, 1.05, 0.18, z_len * 0.94, Color("#1C1E24"))
+			_st_add_oriented_box(bld_st, shop_center + (up_dir * 1.85) + (out_dir * 0.98), out_dir, up_dir, fwd_dir, 0.16, 0.12, z_len * 0.96, Color("#121418"))
 
-func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, _seed_val: float, _is_cyan: bool = false) -> void:
+			# Hanging red paper chochin lanterns under eave
+			for lz_val in [0.32, 0.68]:
+				var lz_f: float = float(lz_val)
+				var l_pos: Vector3 = p00 + (fwd_dir * (z_len * lz_f)) + (up_dir * 2.65) + (out_dir * 0.65)
+				_st_add_oriented_box(bld_st, l_pos, out_dir, up_dir, fwd_dir, 0.40, 0.55, 0.40, Color("#E53528"))
+				_st_add_oriented_quad(win_st, l_pos + (out_dir * 0.22), up_dir, fwd_dir, 0.42, 0.28, Color("#FFAA40"))
+
+			# Backlit shop fascia signboard above eave
+			_st_add_oriented_box(bld_st, shop_center + (up_dir * 2.25) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.12, 0.65, 2.4, Color("#22160E"))
+			_st_add_oriented_quad(win_st, shop_center + (up_dir * 2.25) + (out_dir * 0.19), up_dir, fwd_dir, 0.55, 2.2, Color("#FFDE80"))
+
+			# Stacked beer/soda crate boxes on sidewalk
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.08)) + (up_dir * 0.18) + (out_dir * 0.70), out_dir, up_dir, fwd_dir, 0.42, 0.35, 0.55, Color("#E5A82A"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.08)) + (up_dir * 0.52) + (out_dir * 0.70), out_dir, up_dir, fwd_dir, 0.40, 0.32, 0.53, Color("#C82430"))
+
+			# A-frame wooden chalkboard menu on sidewalk
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.90)) + (up_dir * 0.48) + (out_dir * 0.95), out_dir, up_dir, fwd_dir, 0.35, 0.90, 0.55, Color("#362518"))
+			_st_add_oriented_quad(bld_st, p00 + (fwd_dir * (z_len * 0.90)) + (up_dir * 0.52) + (out_dir * 1.14), up_dir, fwd_dir, 0.65, 0.45, Color("#1A1D20"))
+
+			# 2nd floor warm lit windows
+			for wz_val in [0.30, 0.70]:
+				var wz_f: float = float(wz_val)
+				_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * wz_f)) + (up_dir * 5.4) + (out_dir * 0.04), up_dir, fwd_dir, 1.4, 1.8, Color("#FFBA42"))
+
+		1: # --- ARCHETYPE 1: TOKYO APARTMENT MANSION & EXTERIOR FIRE ESCAPE ---
+			# Ground floor entrance and mailboxes
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * 1.5) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 0.16, 2.8, 1.8, Color("#1E222A"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * 1.5) + (out_dir * 0.17), up_dir, fwd_dir, 2.2, 1.4, Color("#7CE0FF"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.28)) + (up_dir * 1.5) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 2.8, 2.8, Color("#3E4656"))
+
+			# Blue Japanese recycling bins on sidewalk
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 0.48) + (out_dir * 0.60), out_dir, up_dir, fwd_dir, 0.55, 0.95, 0.65, Color("#1B5299"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 0.98) + (out_dir * 0.60), out_dir, up_dir, fwd_dir, 0.57, 0.08, 0.67, Color("#3B4350"))
+
+			# Zigzagging steel fire escape stairwell (Floors 1 through 4)
+			var num_fl: int = int((bld_h - 4.0) / 3.8)
+			for fl in range(1, num_fl + 1):
+				var fl_y: float = 3.8 + float(fl - 1) * 3.8
+				var plat_z: float = z_len * (0.22 if fl % 2 == 1 else 0.42)
+				var plat_pos: Vector3 = p00 + (fwd_dir * plat_z) + (up_dir * fl_y) + (out_dir * 0.75)
+				# Platform
+				_st_add_oriented_box(bld_st, plat_pos, out_dir, up_dir, fwd_dir, 1.4, 0.12, 1.8, Color("#15181F"))
+				# Handrails
+				_st_add_oriented_box(bld_st, plat_pos + (out_dir * 0.65) + (up_dir * 0.45), out_dir, up_dir, fwd_dir, 0.06, 0.90, 1.8, Color("#12141A"))
+				_st_add_oriented_box(bld_st, plat_pos + (up_dir * 0.45) - (fwd_dir * 0.85), out_dir, up_dir, fwd_dir, 1.3, 0.90, 0.06, Color("#12141A"))
+				_st_add_oriented_box(bld_st, plat_pos + (up_dir * 0.45) + (fwd_dir * 0.85), out_dir, up_dir, fwd_dir, 1.3, 0.90, 0.06, Color("#12141A"))
+
+				# Diagonal stair flight
+				if fl < num_fl:
+					var next_z: float = z_len * (0.42 if fl % 2 == 1 else 0.22)
+					var stair_mid: Vector3 = p00 + (fwd_dir * ((plat_z + next_z) * 0.5)) + (up_dir * (fl_y + 1.9)) + (out_dir * 0.75)
+					_st_add_oriented_box(bld_st, stair_mid, out_dir, up_dir, fwd_dir, 0.85, 0.14, abs(next_z - plat_z), Color("#15181F"))
+
+				# Balconies on the right half of the facade
+				var balc_pos: Vector3 = p00 + (fwd_dir * (z_len * 0.74)) + (up_dir * fl_y) + (out_dir * 0.55)
+				_st_add_oriented_box(bld_st, balc_pos, out_dir, up_dir, fwd_dir, 1.1, 0.15, 2.6, Color("#1E222A"))
+				_st_add_oriented_box(bld_st, balc_pos + (out_dir * 0.52) + (up_dir * 0.45), out_dir, up_dir, fwd_dir, 0.06, 0.85, 2.6, Color("#12141A"))
+
+				# AC outdoor condenser unit on balcony
+				if fl in [1, 3]:
+					var ac_pos: Vector3 = balc_pos + (fwd_dir * 0.8) + (up_dir * 0.45) - (out_dir * 0.25)
+					_st_add_oriented_box(bld_st, ac_pos, out_dir, up_dir, fwd_dir, 0.40, 0.55, 0.75, Color("#D8DEE9"))
+					_st_add_oriented_quad(bld_st, ac_pos + (out_dir * 0.21), up_dir, fwd_dir, 0.42, 0.42, Color("#2B303A"))
+
+				# Lit apartment window
+				if fl % 2 == 0:
+					_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.74)) + (up_dir * (fl_y + 1.4)) + (out_dir * 0.04), up_dir, fwd_dir, 1.5, 1.8, Color("#FFB438"))
+
+		2: # --- ARCHETYPE 2: COMMERCIAL NEON & ENTERTAINMENT TOWER ---
+			# Tall 2-story glass lobby entrance
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.8) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.22, 5.4, z_len * 0.80, Color("#222834"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.8) + (out_dir * 0.24), up_dir, fwd_dir, 5.0, z_len * 0.72, Color("#7CE0FF"))
+
+			# Vertical window ribbon columns
+			var num_tower_fl: int = int((bld_h - 7.0) / 3.6)
+			for fl in range(1, num_tower_fl + 1):
+				var fl_y: float = 6.5 + float(fl - 1) * 3.6
+				for wz_val in [0.25, 0.50, 0.75]:
+					var wz_f: float = float(wz_val)
+					var is_lit: bool = fposmod(seed_val * 11.3 + float(fl) * 3.7 + wz_f * 17.0, 1.0) < 0.55
+					var w_col: Color = Color("#FFB844") if (fl % 2 == 0) else Color("#68D0FF")
+					if is_lit:
+						_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * wz_f)) + (up_dir * fl_y) + (out_dir * 0.04), up_dir, fwd_dir, 1.6, 1.4, w_col)
+
+			# Vertical drainage downspout pipe along building corner (full height)
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * 0.25) + (up_dir * (bld_h * 0.5)) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.18, bld_h, 0.18, Color("#505C6E"))
+
+			# Rooftop architecture: elevated cooling water tower on stilts
+			var tank_pos: Vector3 = p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * (bld_h + 1.2)) - (out_dir * 4.0)
+			for lx_val in [-0.9, 0.9]:
+				var lx_f: float = float(lx_val)
+				for lz_val in [-0.9, 0.9]:
+					var lz_f: float = float(lz_val)
+					_st_add_oriented_box(bld_st, tank_pos + (out_dir * lx_f) + (fwd_dir * lz_f) + (up_dir * 1.0), out_dir, up_dir, fwd_dir, 0.12, 2.0, 0.12, Color("#1A1D24"))
+			_st_add_oriented_box(bld_st, tank_pos + (up_dir * 2.8), out_dir, up_dir, fwd_dir, 2.2, 1.8, 2.2, Color("#687484"))
+			_st_add_oriented_box(bld_st, tank_pos + (up_dir * 3.8), out_dir, up_dir, fwd_dir, 2.4, 0.2, 2.4, Color("#4A5462"))
+
+			# Rooftop communications antenna with red aviation beacon
+			_st_add_oriented_box(bld_st, tank_pos + (up_dir * 7.0), out_dir, up_dir, fwd_dir, 0.14, 6.5, 0.14, Color("#758090"))
+			_st_add_oriented_box(win_st, tank_pos + (up_dir * 10.4), out_dir, up_dir, fwd_dir, 0.35, 0.35, 0.35, Color("#FF2233"))
+
+		3: # --- ARCHETYPE 3: MULTI-TENANT SNACK BAR & KARAOKE CLUB ---
+			# Half-open corrugated shutter revealing bar entrance
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.3) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 1.8, z_len * 0.88, Color("#3E4654"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 0.7) - (out_dir * 0.10), up_dir, fwd_dir, 1.4, z_len * 0.80, Color("#FFAA20"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.35) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.12, 0.65, 2.4, Color("#1E1420"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.35) + (out_dir * 0.19), up_dir, fwd_dir, 0.55, 2.2, Color("#FFAA00"))
+
+			# Staggered projecting acrylic lightboxes on upper floors
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.25)) + (up_dir * 5.8) + (out_dir * 0.45), out_dir, up_dir, fwd_dir, 0.85, 1.4, 0.35, Color("#1A0C22"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.25)) + (up_dir * 5.8) + (out_dir * 0.88), up_dir, fwd_dir, 1.3, 0.32, Color("#C832FF"))
+
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.75)) + (up_dir * 9.4) + (out_dir * 0.45), out_dir, up_dir, fwd_dir, 0.85, 1.4, 0.35, Color("#081A1C"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.75)) + (up_dir * 9.4) + (out_dir * 0.88), up_dir, fwd_dir, 1.3, 0.32, Color("#00F0D0"))
+
+			# Barred windows with security grilles
+			for fl in [1, 2]:
+				var fl_y: float = 5.8 + float(fl - 1) * 3.6
+				_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * fl_y) + (out_dir * 0.04), up_dir, fwd_dir, 1.2, 1.6, Color("#FFBA42"))
+				_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * fl_y) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 0.04, 1.3, 1.7, Color("#15171C"))
+
+			# Electrical service junction box on ground wall with conduit tubes
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.90)) + (up_dir * 1.8) + (out_dir * 0.15), out_dir, up_dir, fwd_dir, 0.25, 0.85, 0.60, Color("#4A5462"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.90)) + (up_dir * 3.4) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.06, 2.4, 0.06, Color("#6A7482"))
+
+		_: # --- ARCHETYPE 4: KEIO WORKSHOP & SHUTTER HOUSE ---
+			# Wide industrial roll-up garage door with yellow/black hazard warning stripes
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.42)) + (up_dir * 1.6) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 3.2, z_len * 0.70, Color("#444E5E"))
+			# Hazard warning stripe beam along bottom
+			for hz in range(6):
+				var h_col: Color = Color("#E6B800") if hz % 2 == 0 else Color("#181A20")
+				_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * (0.12 + float(hz) * 0.10))) + (up_dir * 0.18) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 0.10, 0.35, z_len * 0.10, h_col)
+
+			# Pedestrian side access door
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 1.4) + (out_dir * 0.05), out_dir, up_dir, fwd_dir, 0.08, 2.8, 1.2, Color("#262C38"))
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 1.8) + (out_dir * 0.10), up_dir, fwd_dir, 1.0, 0.5, Color("#60B8E0"))
+
+			# Retractable fabric shop awning
+			var awn_col: Color = Color("#8C2028") if b_idx % 2 == 0 else Color("#1A4880")
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.3) + (out_dir * 0.65), out_dir, up_dir, fwd_dir, 1.3, 0.25, z_len * 0.94, awn_col)
+
+			# Upper floor wide ribbon window
+			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 5.6) + (out_dir * 0.04), up_dir, fwd_dir, 1.4, z_len * 0.78, Color("#FFBA42"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 5.6) + (out_dir * 0.07), out_dir, up_dir, fwd_dir, 0.04, 1.45, z_len * 0.80, Color("#222834"))
+
+func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, seed_val: float, is_left: bool = false) -> void:
 	var w: float = 1.35
 	var h: float = 2.15
 	var d: float = 0.85
-	var fwd := Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, rot_y)
-	var right := Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, rot_y)
+	var fwd: Vector3 = Vector3(0.0, 0.0, -1.0).rotated(Vector3.UP, rot_y)
+	var right: Vector3 = Vector3(1.0, 0.0, 0.0).rotated(Vector3.UP, rot_y)
+	var up: Vector3 = Vector3.UP
 
-	var p0 := pos - (right * w * 0.5)
-	var p1 := pos + (right * w * 0.5)
-	var p2 := p1 + Vector3(0.0, h, 0.0)
-	var p3 := p0 + Vector3(0.0, h, 0.0)
+	# Select 1 of 4 authentic Japanese beverage brands
+	var brand_idx: int = abs(int(seed_val * 17.0)) % 4
+	var brand_col: Color
+	var trim_col: Color = Color("#14161C")
+	match brand_idx:
+		0: brand_col = Color("#D92027") # Coca-Cola Red
+		1: brand_col = Color("#10357A") # Boss Coffee Navy
+		2: brand_col = Color("#EBF2F8") # Pocari Sweat White
+		_: brand_col = Color("#1E5E35") # Green Tea Emerald
 
-	var b0 := p0 - (fwd * d)
-	var b1 := p1 - (fwd * d)
-	var b2 := p2 - (fwd * d)
-	var b3 := p3 - (fwd * d)
+	# 1. Main cabinet box
+	_st_add_oriented_box(v_body_st, pos + Vector3(0.0, h * 0.5, 0.0), fwd, up, right, d, h, w, brand_col)
 
-	# Main body cabinet (Full 3D box)
-	v_body_st.add_vertex(p0); v_body_st.add_vertex(p1); v_body_st.add_vertex(p2)
-	v_body_st.add_vertex(p0); v_body_st.add_vertex(p2); v_body_st.add_vertex(p3)
-	v_body_st.add_vertex(b0); v_body_st.add_vertex(p0); v_body_st.add_vertex(p3)
-	v_body_st.add_vertex(b0); v_body_st.add_vertex(p3); v_body_st.add_vertex(b3)
-	v_body_st.add_vertex(p1); v_body_st.add_vertex(b1); v_body_st.add_vertex(b2)
-	v_body_st.add_vertex(p1); v_body_st.add_vertex(b2); v_body_st.add_vertex(p2)
-	v_body_st.add_vertex(p3); v_body_st.add_vertex(p2); v_body_st.add_vertex(b2)
-	v_body_st.add_vertex(p3); v_body_st.add_vertex(b2); v_body_st.add_vertex(b3)
+	# 2. Top header brand panel
+	_st_add_oriented_box(v_body_st, pos + Vector3(0.0, h - 0.20, 0.0) + (fwd * 0.02), fwd, up, right, d * 0.98, 0.35, w * 0.94, trim_col)
 
-	# Illuminated drink display glass panel (Ref Image 2, Double-sided)
-	var gw_y0: float = 0.85
-	var gw_y1: float = h - 0.20
-	var gw0 := pos - (right * w * 0.42) + Vector3(0.0, gw_y0, 0.0) + (fwd * 0.04)
-	var gw1 := pos + (right * w * 0.42) + Vector3(0.0, gw_y0, 0.0) + (fwd * 0.04)
-	var gw2 := gw1 + Vector3(0.0, gw_y1 - gw_y0, 0.0)
-	var gw3 := gw0 + Vector3(0.0, gw_y1 - gw_y0, 0.0)
-	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw1); v_glass_st.add_vertex(gw2)
-	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw2); v_glass_st.add_vertex(gw3)
-	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw2); v_glass_st.add_vertex(gw1)
-	v_glass_st.add_vertex(gw0); v_glass_st.add_vertex(gw3); v_glass_st.add_vertex(gw2)
+	# 3. Illuminated drink display glass panel (Ref Image 2)
+	var gw_y: float = 1.35
+	var gw_h: float = 0.90
+	var gw_w: float = w * 0.84
+	_st_add_oriented_quad(v_glass_st, pos + Vector3(0.0, gw_y, 0.0) + (fwd * (d * 0.5 + 0.02)), up, right, gw_h, gw_w, Color("#FFFFFF"))
+
+	# Display shelf drink can rows (2 rows of colored can quads)
+	for row in range(2):
+		var cy: float = gw_y - 0.22 + float(row) * 0.38
+		for c_slot in range(4):
+			var cx: float = -gw_w * 0.36 + float(c_slot) * (gw_w * 0.24)
+			var can_col: Color = [Color("#FF2222"), Color("#1E88E5"), Color("#FFD700"), Color("#00E5FF")][(c_slot + row + brand_idx) % 4]
+			_st_add_oriented_quad(v_glass_st, pos + Vector3(0.0, cy, 0.0) + (right * cx) + (fwd * (d * 0.5 + 0.04)), up, right, 0.24, 0.16, can_col)
+
+	# 4. Bottom coin slot & delivery flap
+	_st_add_oriented_box(v_body_st, pos + Vector3(0.0, 0.38, 0.0) + (fwd * (d * 0.5 + 0.01)), fwd, up, right, 0.04, 0.38, w * 0.80, Color("#1A1D24"))
+
+	# 5. Companion Japanese Municipal Recycling Bin (ゴミ箱) placed right beside machine!
+	var bin_pos: Vector3 = pos + (right * (1.10 if is_left else -1.10))
+	var bin_col: Color = Color("#1E5AA8") if brand_idx % 2 == 0 else Color("#2E6845")
+	_st_add_oriented_box(v_body_st, bin_pos + Vector3(0.0, 0.45, 0.0), fwd, up, right, 0.65, 0.90, 0.65, bin_col)
+	_st_add_oriented_box(v_body_st, bin_pos + Vector3(0.0, 0.92, 0.0), fwd, up, right, 0.68, 0.08, 0.68, Color("#363D4A"))
+	_st_add_oriented_quad(v_body_st, bin_pos + Vector3(0.0, 0.965, 0.0) + (fwd * 0.12) - (right * 0.15), fwd, right, 0.18, 0.18, Color("#14161C"))
+	_st_add_oriented_quad(v_body_st, bin_pos + Vector3(0.0, 0.965, 0.0) + (fwd * 0.12) + (right * 0.15), fwd, right, 0.18, 0.18, Color("#14161C"))
 
 func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3, next_pos: Vector3, street_cross_pos: Vector3 = Vector3.ZERO) -> void:
-	var h: float = 9.5
-	var r: float = 0.22
+	var h: float = 9.8
+	var r: float = 0.24
 
 	# 1. Concrete Pole Shaft
 	for f in range(6):
 		var a0: float = float(f) * TAU / 6.0
 		var a1: float = float(f + 1) * TAU / 6.0
-		var v00 := pos + Vector3(cos(a0) * r, 0.0, sin(a0) * r)
-		var v10 := pos + Vector3(cos(a1) * r, 0.0, sin(a1) * r)
-		var v11 := pos + Vector3(cos(a1) * (r * 0.7), h, sin(a1) * (r * 0.7))
-		var v01 := pos + Vector3(cos(a0) * (r * 0.7), h, sin(a0) * (r * 0.7))
+		var v00: Vector3 = pos + Vector3(cos(a0) * r, 0.0, sin(a0) * r)
+		var v10: Vector3 = pos + Vector3(cos(a1) * r, 0.0, sin(a1) * r)
+		var v11: Vector3 = pos + Vector3(cos(a1) * (r * 0.7), h, sin(a1) * (r * 0.7))
+		var v01: Vector3 = pos + Vector3(cos(a0) * (r * 0.7), h, sin(a0) * (r * 0.7))
 		pole_st.add_vertex(v00); pole_st.add_vertex(v10); pole_st.add_vertex(v11)
 		pole_st.add_vertex(v00); pole_st.add_vertex(v11); pole_st.add_vertex(v01)
 
-	# 2. Steel Cross-Arms at Y = 7.8m and Y = 8.6m
+	# 2. Steel Cross-Arms at Y = 7.8m and Y = 8.8m
 	var cw: float = 1.6
-	for cy in [7.8, 8.6]:
-		var cp0 := pos + Vector3(-cw, cy - 0.08, 0.0)
-		var cp1 := pos + Vector3(cw, cy - 0.08, 0.0)
-		var cp2 := pos + Vector3(cw, cy + 0.08, 0.0)
-		var cp3 := pos + Vector3(-cw, cy + 0.08, 0.0)
+	for cy_val in [7.8, 8.8]:
+		var cy: float = float(cy_val)
+		var cp0: Vector3 = pos + Vector3(-cw, cy - 0.08, 0.0)
+		var cp1: Vector3 = pos + Vector3(cw, cy - 0.08, 0.0)
+		var cp2: Vector3 = pos + Vector3(cw, cy + 0.08, 0.0)
+		var cp3: Vector3 = pos + Vector3(-cw, cy + 0.08, 0.0)
 		pole_st.add_vertex(cp0); pole_st.add_vertex(cp1); pole_st.add_vertex(cp2)
 		pole_st.add_vertex(cp0); pole_st.add_vertex(cp2); pole_st.add_vertex(cp3)
 
 	# 3. Cylindrical Step-Down Transformer
-	var ty: float = 7.0
-	var tr: float = 0.35
-	var th: float = 1.1
+	var ty: float = 6.8
+	var tr: float = 0.36
+	var th: float = 1.2
 	for f in range(6):
 		var a0: float = float(f) * TAU / 6.0
 		var a1: float = float(f + 1) * TAU / 6.0
-		var tv0 := pos + Vector3(0.35 + cos(a0) * tr, ty, sin(a0) * tr)
-		var tv1 := pos + Vector3(0.35 + cos(a1) * tr, ty, sin(a1) * tr)
-		var tv2 := pos + Vector3(0.35 + cos(a1) * tr, ty + th, sin(a1) * tr)
-		var tv3 := pos + Vector3(0.35 + cos(a0) * tr, ty + th, sin(a0) * tr)
+		var tv0: Vector3 = pos + Vector3(0.35 + cos(a0) * tr, ty, sin(a0) * tr)
+		var tv1: Vector3 = pos + Vector3(0.35 + cos(a1) * tr, ty, sin(a1) * tr)
+		var tv2: Vector3 = pos + Vector3(0.35 + cos(a1) * tr, ty + th, sin(a1) * tr)
+		var tv3: Vector3 = pos + Vector3(0.35 + cos(a0) * tr, ty + th, sin(a0) * tr)
 		pole_st.add_vertex(tv0); pole_st.add_vertex(tv1); pole_st.add_vertex(tv2)
 		pole_st.add_vertex(tv0); pole_st.add_vertex(tv2); pole_st.add_vertex(tv3)
 
 	# 4. Longitudinal Power Cables along the street
 	if next_pos != Vector3.ZERO:
-		for y_off in [7.8, 8.6]:
-			var pA := pos + Vector3(0.0, y_off, 0.0)
-			var pB := next_pos + Vector3(0.0, y_off, 0.0)
-			var pMid := (pA + pB) * 0.5 - Vector3(0.0, 0.65, 0.0)
+		for y_off_val in [7.8, 8.8]:
+			var y_off: float = float(y_off_val)
+			var pA: Vector3 = pos + Vector3(0.0, y_off, 0.0)
+			var pB: Vector3 = next_pos + Vector3(0.0, y_off, 0.0)
+			var pMid: Vector3 = (pA + pB) * 0.5 - Vector3(0.0, 0.65, 0.0)
 			_add_cable_strip(line_st, pA, pMid)
 			_add_cable_strip(line_st, pMid, pB)
 
-	# 5. Overhead Street-Crossing Cables (Ref Image 2 - Dense Tokyo wire tangle)
+	# 5. Overhead Street-Crossing Cables (Dense Tokyo wire tangle - Ref Image 2)
 	if street_cross_pos != Vector3.ZERO:
-		for y_off in [8.0, 8.8]:
-			var cA := pos + Vector3(0.0, y_off, 0.0)
-			var cB := street_cross_pos + Vector3(0.0, y_off + 0.5, 0.0)
-			var cMid := (cA + cB) * 0.5 - Vector3(0.0, 0.95, 0.0)
+		for y_off_val in [7.6, 8.2, 9.0]:
+			var y_off: float = float(y_off_val)
+			var cA: Vector3 = pos + Vector3(0.0, y_off, 0.0)
+			var cB: Vector3 = street_cross_pos + Vector3(0.0, y_off + 0.4, 0.0)
+			var cMid: Vector3 = (cA + cB) * 0.5 - Vector3(0.0, 0.85 + (y_off - 7.6) * 0.2, 0.0)
 			_add_cable_strip(line_st, cA, cMid)
 			_add_cable_strip(line_st, cMid, cB)
 
 func _add_cable_strip(line_st: SurfaceTool, p0: Vector3, p1: Vector3) -> void:
-	var w := Vector3(0.0, 0.065, 0.0)
-	var wx := Vector3(0.050, 0.0, 0.0)
+	var w: Vector3 = Vector3(0.0, 0.065, 0.0)
+	var wx: Vector3 = Vector3(0.050, 0.0, 0.0)
 	line_st.add_vertex(p0 - w); line_st.add_vertex(p0 + w); line_st.add_vertex(p1 + w)
 	line_st.add_vertex(p0 - w); line_st.add_vertex(p1 + w); line_st.add_vertex(p1 - w)
 	line_st.add_vertex(p0 - wx); line_st.add_vertex(p0 + wx); line_st.add_vertex(p1 + wx)
@@ -4378,14 +4618,14 @@ static func _get_cjk_font() -> Font:
 		return cjk_font_file
 	return null
 
-func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, color_idx: int) -> void:
+func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, light_col: Color, back_col: Color, sign_w: float = 1.8, sign_h: float = 8.0, bracket_len: float = 1.6) -> void:
 	var sign_node := Node3D.new()
 	sign_node.position = pos
 	sign_node.transform.basis = Basis.looking_at(tan_vec, Vector3.UP)
 
-	# 1. Dark Metal Outer Frame (1.9m wide across X, 8.4m tall, 0.40m thick along Z)
+	# 1. Dark Metal Outer Frame
 	var frame_mesh := BoxMesh.new()
-	frame_mesh.size = Vector3(1.9, 8.4, 0.40)
+	frame_mesh.size = Vector3(sign_w + 0.1, sign_h + 0.2, 0.40)
 	var frame_inst := MeshInstance3D.new()
 	frame_inst.mesh = frame_mesh
 	frame_inst.material_override = barrier_material
@@ -4394,58 +4634,53 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 
 	# 2. Glowing Neon Blade Panel (Ref Image 2)
 	var panel_mesh := BoxMesh.new()
-	panel_mesh.size = Vector3(1.75, 8.2, 0.35)
+	panel_mesh.size = Vector3(sign_w, sign_h, 0.35)
 	var panel_inst := MeshInstance3D.new()
 	panel_inst.mesh = panel_mesh
-	var sign_mat: Material
-	var border_mat: Material
-	var light_col: Color
-	match color_idx % 3:
-		0:
-			sign_mat = neon_back_pink if is_instance_valid(neon_back_pink) else barrier_material
-			border_mat = neon_pink_mat
-			light_col = Color("#FF1866")
-		1:
-			sign_mat = neon_back_cyan if is_instance_valid(neon_back_cyan) else barrier_material
-			border_mat = neon_cyan_mat
-			light_col = Color("#00E5FF")
-		_:
-			sign_mat = barrier_material
-			border_mat = neon_yellow_mat
-			light_col = Color("#FFB800")
+	var sign_mat := StandardMaterial3D.new()
+	sign_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sign_mat.albedo_color = back_col
+	sign_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	panel_inst.material_override = sign_mat
 	panel_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(panel_inst)
 
 	# Thin Outer Neon Border Tube outlining the dark panel
 	var tube_mesh := BoxMesh.new()
-	tube_mesh.size = Vector3(1.82, 8.28, 0.38)
+	tube_mesh.size = Vector3(sign_w + 0.06, sign_h + 0.08, 0.38)
 	var tube_inst := MeshInstance3D.new()
 	tube_inst.mesh = tube_mesh
+	var border_mat := StandardMaterial3D.new()
+	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	border_mat.albedo_color = light_col
+	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	tube_inst.material_override = border_mat
 	tube_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(tube_inst)
 
-	# 3. Horizontal Iron Wall Mount Brackets pointing towards respective building wall
+	# 3. Horizontal Iron Wall Mount Brackets
 	var bracket_dir: float = -1.0 if (pos.x < 0.0) else 1.0
-	for by in [-2.8, 2.8]:
+	for by_val in [-sign_h * 0.35, sign_h * 0.35]:
+		var by: float = float(by_val)
 		var br_mesh := BoxMesh.new()
-		br_mesh.size = Vector3(1.6, 0.16, 0.16)
+		br_mesh.size = Vector3(bracket_len, 0.16, 0.16)
 		var br_inst := MeshInstance3D.new()
 		br_inst.mesh = br_mesh
 		br_inst.material_override = barrier_material
-		br_inst.position = Vector3(1.05 * bracket_dir, by, 0.0)
+		br_inst.position = Vector3((sign_w * 0.5 + bracket_len * 0.5) * bracket_dir, by, 0.0)
 		sign_node.add_child(br_inst)
 
-	# 4. Bold White Vertical Japanese / English Text (Facing oncoming traffic)
+	# 4. Bold Vertical Japanese Kanji Text (Front and Back)
 	var cjk_font: Font = _get_cjk_font()
+	var f_size: int = 64 if sign_h > 6.0 else 52
+	var p_size: float = 0.0105 if sign_h > 6.0 else 0.009
 
 	var lbl_front := Label3D.new()
 	if cjk_font:
 		lbl_front.font = cjk_font
 	lbl_front.text = text
-	lbl_front.font_size = 64
-	lbl_front.pixel_size = 0.0105
+	lbl_front.font_size = f_size
+	lbl_front.pixel_size = p_size
 	lbl_front.modulate = Color.WHITE
 	lbl_front.outline_modulate = light_col
 	lbl_front.outline_size = 32
@@ -4453,7 +4688,6 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	lbl_front.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl_front.position = Vector3(0.0, 0.0, 0.22)
 	lbl_front.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	lbl_front.no_depth_test = false
 	lbl_front.render_priority = 20
 	sign_node.add_child(lbl_front)
 
@@ -4461,8 +4695,8 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	if cjk_font:
 		lbl_back.font = cjk_font
 	lbl_back.text = text
-	lbl_back.font_size = 64
-	lbl_back.pixel_size = 0.0105
+	lbl_back.font_size = f_size
+	lbl_back.pixel_size = p_size
 	lbl_back.modulate = Color.WHITE
 	lbl_back.outline_modulate = light_col
 	lbl_back.outline_size = 32
@@ -4471,15 +4705,14 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	lbl_back.position = Vector3(0.0, 0.0, -0.22)
 	lbl_back.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 	lbl_back.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	lbl_back.no_depth_test = false
 	lbl_back.render_priority = 20
 	sign_node.add_child(lbl_back)
 
 	# 5. Local Neon Glow Light casting onto street & facade
 	var n_light := OmniLight3D.new()
 	n_light.light_color = light_col
-	n_light.light_energy = 9.0
-	n_light.omni_range = 22.0
+	n_light.light_energy = 8.5
+	n_light.omni_range = 20.0
 	n_light.shadow_enabled = false
 	sign_node.add_child(n_light)
 
