@@ -152,10 +152,19 @@ void fragment() {
 			}
 		}
 	}
-	// MODE 1: NEO-SHINJUKU ALLEY (Clean white lines with black ink border, Ref Image 2)
+	// MODE 1: NEO-SHINJUKU ALLEY (Clean white lines, crisp concrete curb edge #64748B, Ref Image 2)
 	else if (biome_mode == 1) {
+		// Road curb edge - crisp light-grey concrete curb lip (#64748B) with ink-black border
+		if (uv.x < 0.035 || uv.x > 0.965) {
+			float d_curb = min(abs(uv.x - 0.035), abs(uv.x - 0.965));
+			if (d_curb < 0.0035) {
+				col = ink_black.rgb; // Black ink border separating road and curb lip
+			} else {
+				col = vec3(0.392, 0.455, 0.545); // Light grey concrete curb edge #64748B
+			}
+		}
 		// Solid white edge lines with ink border
-		if ((uv.x >= 0.035 && uv.x <= 0.055) || (uv.x >= 0.945 && uv.x <= 0.965)) {
+		else if ((uv.x >= 0.035 && uv.x <= 0.055) || (uv.x >= 0.945 && uv.x <= 0.965)) {
 			float d_edge = min(abs(uv.x - 0.035), abs(uv.x - 0.055));
 			if (uv.x > 0.5) d_edge = min(abs(uv.x - 0.945), abs(uv.x - 0.965));
 			col = (d_edge < 0.0022) ? ink_black.rgb : line_white.rgb;

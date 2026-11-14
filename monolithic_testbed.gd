@@ -362,6 +362,8 @@ static var smoke_outline_mat: ShaderMaterial
 static var barrier_material: Material
 static var barrier_cap_material: Material
 static var steel_guardrail_mat: Material
+static var shinjuku_sidewalk_mat: Material
+static var gunmetal_bracket_mat: Material
 static var manga_env_shader: Shader
 static var manga_outline_shader: Shader
 static var comic_hero_shader: Shader
@@ -443,16 +445,16 @@ const BIOMES: Dictionary = {
 }
 
 const SHINJUKU_SIGNS: Array = [
-	{"text": "東\n岸\n大\n寿\n司", "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 0: Magenta Sushi (Ref Image 2)
-	{"text": "電\n脳\n遊\n戯",   "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 1: Electric Cyan Cyber Arcade (Ref Image 2)
-	{"text": "カ\nラ\nオ\nケ",   "light": Color("#B537F2"), "back": Color("#11131C"), "h": 6.8, "w": 1.6, "bracket": 1.5}, # 2: Karaoke Purple
-	{"text": "２\n４\nｈ\n薬",   "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.2, "w": 1.5, "bracket": 1.4}, # 3: 24h Pharmacy Red
-	{"text": "パ\nチ\nン\nコ",   "light": Color("#00FF88"), "back": Color("#11131C"), "h": 7.5, "w": 1.6, "bracket": 1.6}, # 4: Pachinko Green
-	{"text": "B\nA\nR\n宵",     "light": Color("#FFB703"), "back": Color("#11131C"), "h": 5.2, "w": 1.4, "bracket": 1.3}, # 5: Bar Yoi Amber
-	{"text": "新\n宿\n横\n丁",   "light": Color("#FFB703"), "back": Color("#11131C"), "h": 6.5, "w": 1.5, "bracket": 1.5}, # 6: Shinjuku Yokocho Gold
-	{"text": "ラ\nｌ\nメ\nン",   "light": Color("#FF5500"), "back": Color("#11131C"), "h": 5.8, "w": 1.5, "bracket": 1.4}, # 7: Ramen Flame
-	{"text": "居\n酒\n屋",       "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.0, "w": 1.5, "bracket": 1.4}, # 8: Izakaya Red
-	{"text": "麻\n雀\n荘",       "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 6.4, "w": 1.5, "bracket": 1.5}, # 9: Mahjong Turquoise
+	{"text": "東\n岸\n大\n寿\n司", "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 0: Neon Magenta #FF2A55 (Ref Image 2)
+	{"text": "電\n脳\n遊\n戯",   "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 1: Electric Cyan #00E5FF (Ref Image 2)
+	{"text": "カ\nラ\nオ\nケ",   "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.8, "w": 1.6, "bracket": 1.5}, # 2: Neon Magenta #FF2A55
+	{"text": "２\n４\nｈ\n薬",   "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 6.2, "w": 1.5, "bracket": 1.4}, # 3: Electric Cyan #00E5FF
+	{"text": "パ\nチ\nン\nコ",   "light": Color("#FFB703"), "back": Color("#11131C"), "h": 7.5, "w": 1.6, "bracket": 1.6}, # 4: Warm Amber #FFB703
+	{"text": "B\nA\nR\n宵",     "light": Color("#FFB703"), "back": Color("#11131C"), "h": 5.2, "w": 1.4, "bracket": 1.3}, # 5: Warm Amber #FFB703
+	{"text": "新\n宿\n横\n丁",   "light": Color("#FFB703"), "back": Color("#11131C"), "h": 6.5, "w": 1.5, "bracket": 1.5}, # 6: Warm Amber #FFB703
+	{"text": "ラ\nｌ\nメ\nン",   "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 5.8, "w": 1.5, "bracket": 1.4}, # 7: Neon Magenta #FF2A55
+	{"text": "居\n酒\n屋",       "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.0, "w": 1.5, "bracket": 1.4}, # 8: Neon Magenta #FF2A55
+	{"text": "麻\n雀\n荘",       "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 6.4, "w": 1.5, "bracket": 1.5}, # 9: Electric Cyan #00E5FF
 ]
 
 const STAGE_INTERVAL_METERS: float = 2500.0
@@ -759,10 +761,18 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 	if is_instance_valid(road_shader_mat):
 		var b_mode: int = 0
 		match new_biome_id:
-			"neo_shinjuku": b_mode = 1
-			"enoshima_coast": b_mode = 2
-			"hakone_snow": b_mode = 3
-			_: b_mode = 0
+			"neo_shinjuku":
+				b_mode = 1
+				road_shader_mat.set_shader_parameter("curb_red", Color("#282C37"))
+				road_shader_mat.set_shader_parameter("curb_white", Color("#64748B"))
+			"enoshima_coast":
+				b_mode = 2
+			"hakone_snow":
+				b_mode = 3
+			_:
+				b_mode = 0
+				road_shader_mat.set_shader_parameter("curb_red", Color("#D92027"))
+				road_shader_mat.set_shader_parameter("curb_white", Color("#FFFFFF"))
 		road_shader_mat.set_shader_parameter("biome_mode", b_mode)
 
 	# Weather state
@@ -1080,6 +1090,12 @@ func _setup_materials() -> void:
 
 	if not steel_guardrail_mat:
 		steel_guardrail_mat = _create_manga_env_mat(Color("#D4E2EE"), false, 0.036)
+
+	if not shinjuku_sidewalk_mat:
+		shinjuku_sidewalk_mat = _create_manga_env_mat(Color.WHITE, true, 0.038)
+
+	if not gunmetal_bracket_mat:
+		gunmetal_bracket_mat = _create_manga_env_mat(Color("#1E222D"), false, 0.032)
 
 	if not speedlines_mat:
 		var sl_sh: Shader = load("res://manga_speedlines.gdshader")
@@ -2962,13 +2978,45 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(1.0, float(i))); snow_st.add_vertex(s_pt4)
 
 		elif current_biome_id == "neo_shinjuku":
-			# Sidewalk curbs on both sides (Ref Image 2)
-			var sw_l0 := left_pt
-			var sw_l1 := left_pt - (right_vec * 1.5) + Vector3(0.0, 0.20, 0.0)
-			var sw_r0 := right_pt
-			var sw_r1 := right_pt + (right_vec * 1.5) + Vector3(0.0, 0.20, 0.0)
-			hillside_st.add_vertex(sw_l0); hillside_st.add_vertex(sw_l1)
-			hillside_st.add_vertex(sw_r0); hillside_st.add_vertex(sw_r1)
+			# Raised Japanese Concrete Sidewalk with light-grey curb edge #64748B and dark asphalt-concrete #282C37
+			var col_curb := Color("#64748B")
+			var col_walk := Color("#282C37")
+			var cur_h: float = 0.18
+			var walk_w: float = 1.6
+
+			# LEFT SIDEWALK:
+			var l_curb_bot := left_pt
+			var l_curb_top := left_pt + Vector3(0.0, cur_h, 0.0)
+			var l_walk_outer := left_pt - (right_vec * walk_w) + Vector3(0.0, cur_h, 0.0)
+
+			# Left curb face (vertical step)
+			hillside_st.set_normal(right_vec)
+			hillside_st.set_color(col_curb)
+			hillside_st.add_vertex(l_curb_bot)
+			hillside_st.add_vertex(l_curb_top)
+
+			# Left sidewalk slab (horizontal surface)
+			hillside_st.set_normal(Vector3.UP)
+			hillside_st.set_color(col_walk)
+			hillside_st.add_vertex(l_curb_top)
+			hillside_st.add_vertex(l_walk_outer)
+
+			# RIGHT SIDEWALK:
+			var r_curb_bot := right_pt
+			var r_curb_top := right_pt + Vector3(0.0, cur_h, 0.0)
+			var r_walk_outer := right_pt + (right_vec * walk_w) + Vector3(0.0, cur_h, 0.0)
+
+			# Right curb face (vertical step)
+			hillside_st.set_normal(-right_vec)
+			hillside_st.set_color(col_curb)
+			hillside_st.add_vertex(r_curb_bot)
+			hillside_st.add_vertex(r_curb_top)
+
+			# Right sidewalk slab (horizontal surface)
+			hillside_st.set_normal(Vector3.UP)
+			hillside_st.set_color(col_walk)
+			hillside_st.add_vertex(r_curb_top)
+			hillside_st.add_vertex(r_walk_outer)
 
 		# 3. Guardrails (Shuto, Enoshima, Hakone: Double-sided with posts; Shinjuku: Curbs only)
 		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"]:
@@ -3021,11 +3069,22 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_index(idx_next_bot)
 				hillside_st.add_index(idx_next_top)
 		elif current_biome_id == "neo_shinjuku":
-			var ni: int = i * 4
-			hillside_st.add_index(ni); hillside_st.add_index(ni + 4); hillside_st.add_index(ni + 1)
-			hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 4); hillside_st.add_index(ni + 5)
-			hillside_st.add_index(ni + 2); hillside_st.add_index(ni + 6); hillside_st.add_index(ni + 3)
-			hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 6); hillside_st.add_index(ni + 7)
+			var ni: int = i * 8
+			# Left curb face quad (facing inward toward road)
+			hillside_st.add_index(ni); hillside_st.add_index(ni + 8); hillside_st.add_index(ni + 1)
+			hillside_st.add_index(ni + 1); hillside_st.add_index(ni + 8); hillside_st.add_index(ni + 9)
+
+			# Left sidewalk slab quad (facing upward)
+			hillside_st.add_index(ni + 2); hillside_st.add_index(ni + 10); hillside_st.add_index(ni + 3)
+			hillside_st.add_index(ni + 3); hillside_st.add_index(ni + 10); hillside_st.add_index(ni + 11)
+
+			# Right curb face quad (facing inward toward road)
+			hillside_st.add_index(ni + 4); hillside_st.add_index(ni + 5); hillside_st.add_index(ni + 12)
+			hillside_st.add_index(ni + 5); hillside_st.add_index(ni + 13); hillside_st.add_index(ni + 12)
+
+			# Right sidewalk slab quad (facing upward)
+			hillside_st.add_index(ni + 6); hillside_st.add_index(ni + 7); hillside_st.add_index(ni + 14)
+			hillside_st.add_index(ni + 7); hillside_st.add_index(ni + 15); hillside_st.add_index(ni + 14)
 
 		if current_biome_id == "enoshima_coast":
 			var s_i: int = i * 4
@@ -3187,7 +3246,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "hakone_snow":
 			hillside_inst.material_override = snow_rock_mat
 		elif current_biome_id == "neo_shinjuku":
-			hillside_inst.material_override = barrier_material # Concrete sidewalk
+			hillside_inst.material_override = shinjuku_sidewalk_mat # Concrete sidewalk with curb
 		else:
 			if is_instance_valid(cliff_mat):
 				hillside_inst.material_override = cliff_mat
@@ -4687,53 +4746,40 @@ static func _get_cjk_font() -> Font:
 		return cjk_font_file
 	return null
 
-func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, light_col: Color, back_col: Color, sign_w: float = 1.8, sign_h: float = 8.0, bracket_len: float = 1.6) -> void:
+func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: String, light_col: Color, _back_col: Color, sign_w: float = 1.8, sign_h: float = 8.0, bracket_len: float = 1.6) -> void:
 	var sign_node := Node3D.new()
 	sign_node.position = pos
 	sign_node.transform.basis = Basis.looking_at(tan_vec, Vector3.UP)
 
-	# 1. Dark Metal Outer Frame (#11131C)
+	# 1. Thin Black Ink Outer Border Frame (#08090D)
 	var frame_mesh := BoxMesh.new()
-	frame_mesh.size = Vector3(sign_w + 0.1, sign_h + 0.2, 0.40)
+	frame_mesh.size = Vector3(sign_w + 0.10, sign_h + 0.12, 0.34)
 	var frame_inst := MeshInstance3D.new()
 	frame_inst.mesh = frame_mesh
 	var frame_dark_mat := StandardMaterial3D.new()
 	frame_dark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	frame_dark_mat.albedo_color = Color("#11131C")
+	frame_dark_mat.albedo_color = Color("#08090D")
 	frame_inst.material_override = frame_dark_mat
 	frame_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(frame_inst)
 
-	# 2. Dark Backing Panel (#11131C)
+	# 2. Glowing Saturated Backlit Neon Panel (Emission Energy = 1.1)
 	var panel_mesh := BoxMesh.new()
-	panel_mesh.size = Vector3(sign_w, sign_h, 0.35)
+	panel_mesh.size = Vector3(sign_w, sign_h, 0.38)
 	var panel_inst := MeshInstance3D.new()
 	panel_inst.mesh = panel_mesh
 	var sign_mat := StandardMaterial3D.new()
 	sign_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sign_mat.albedo_color = Color("#11131C")
+	sign_mat.albedo_color = light_col
+	sign_mat.emission_enabled = true
+	sign_mat.emission = light_col
+	sign_mat.emission_energy_multiplier = 1.10
 	sign_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	panel_inst.material_override = sign_mat
 	panel_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(panel_inst)
 
-	# Thin Saturated Outer Neon Border Tube (Emission 1.15)
-	var tube_mesh := BoxMesh.new()
-	tube_mesh.size = Vector3(sign_w + 0.06, sign_h + 0.08, 0.38)
-	var tube_inst := MeshInstance3D.new()
-	tube_inst.mesh = tube_mesh
-	var border_mat := StandardMaterial3D.new()
-	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	border_mat.albedo_color = light_col
-	border_mat.emission_enabled = true
-	border_mat.emission = light_col
-	border_mat.emission_energy_multiplier = 1.15
-	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	tube_inst.material_override = border_mat
-	tube_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	sign_node.add_child(tube_inst)
-
-	# 3. Horizontal Iron Wall Mount Brackets with Truss Struts
+	# 3. Horizontal Gunmetal Steel Wall Mount Brackets with Truss Struts (#1E222D with Black Ink Outlines)
 	var bracket_dir: float = -1.0 if (pos.x < 0.0) else 1.0
 	for by_val in [-sign_h * 0.35, sign_h * 0.35]:
 		var by: float = float(by_val)
@@ -4741,7 +4787,7 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 		br_mesh.size = Vector3(bracket_len, 0.14, 0.14)
 		var br_inst := MeshInstance3D.new()
 		br_inst.mesh = br_mesh
-		br_inst.material_override = barrier_material
+		br_inst.material_override = gunmetal_bracket_mat
 		br_inst.position = Vector3((sign_w * 0.5 + bracket_len * 0.5) * bracket_dir, by, 0.0)
 		sign_node.add_child(br_inst)
 
@@ -4749,7 +4795,7 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 		var st_mesh := BoxMesh.new()
 		st_mesh.size = Vector3(bracket_len * 1.15, 0.10, 0.10)
 		strut.mesh = st_mesh
-		strut.material_override = barrier_material
+		strut.material_override = gunmetal_bracket_mat
 		strut.position = Vector3((sign_w * 0.5 + bracket_len * 0.5) * bracket_dir, by - 0.30, 0.0)
 		strut.rotation_degrees = Vector3(0.0, 0.0, 22.0 * bracket_dir)
 		sign_node.add_child(strut)
@@ -4759,18 +4805,22 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	var f_size: int = 56 if sign_h > 6.0 else 44
 	var p_size: float = 0.012 if sign_h > 6.0 else 0.010
 
+	var lum: float = light_col.r * 0.299 + light_col.g * 0.587 + light_col.b * 0.114
+	var text_col: Color = Color("#08090D") if (lum > 0.52) else Color.WHITE
+	var outline_col: Color = Color.WHITE if (lum > 0.52) else Color("#08090D")
+
 	var lbl_front := Label3D.new()
 	if cjk_font:
 		lbl_front.font = cjk_font
 	lbl_front.text = text
 	lbl_front.font_size = f_size
 	lbl_front.pixel_size = p_size
-	lbl_front.modulate = Color.WHITE
-	lbl_front.outline_modulate = Color("#08090D")
+	lbl_front.modulate = text_col
+	lbl_front.outline_modulate = outline_col
 	lbl_front.outline_size = 10
 	lbl_front.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_front.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl_front.position = Vector3(0.0, 0.0, 0.20)
+	lbl_front.position = Vector3(0.0, 0.0, 0.21)
 	lbl_front.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	lbl_front.render_priority = 25
 	sign_node.add_child(lbl_front)
@@ -4781,12 +4831,12 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	lbl_back.text = text
 	lbl_back.font_size = f_size
 	lbl_back.pixel_size = p_size
-	lbl_back.modulate = Color.WHITE
-	lbl_back.outline_modulate = Color("#08090D")
+	lbl_back.modulate = text_col
+	lbl_back.outline_modulate = outline_col
 	lbl_back.outline_size = 10
 	lbl_back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl_back.position = Vector3(0.0, 0.0, -0.20)
+	lbl_back.position = Vector3(0.0, 0.0, -0.21)
 	lbl_back.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 	lbl_back.billboard = BaseMaterial3D.BILLBOARD_DISABLED
 	lbl_back.render_priority = 25
