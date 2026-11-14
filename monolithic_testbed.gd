@@ -34,7 +34,7 @@ const COLOR_SUN: Color = Color(1.0, 0.98, 0.92)            # Brilliant White Sun
 const COLOR_CLIFF_SUN: Color = Color(0.24, 0.44, 0.28)     # Rich Sunlit Anime Pine Green
 const COLOR_CLIFF_SHADOW: Color = Color(0.12, 0.22, 0.16)  # Deep Mountain Shade
 const COLOR_BARRIER: Color = Color(0.70, 0.74, 0.80)       # Matte Galvanized Track Barrier (prevents bloom flare)
-const COLOR_BARRIER_CAP: Color = Color(0.92, 0.18, 0.15)   # Safety Red Rumble Cap
+const COLOR_BARRIER_CAP: Color = Color(0.40, 0.44, 0.52)   # Clean Matte Steel / Track Cap
 const COLOR_PLAYER_CAR: Color = Color(0.941, 0.937, 0.918)  # Warm paper white/cream #F0EFEA
 const COLOR_ANIME_SHADOW: Color = Color(0.196, 0.208, 0.290) # Cool slate violet/indigo #32354A
 
@@ -359,9 +359,11 @@ static var hillside_layer2_mat: StandardMaterial3D
 static var hillside_layer3_mat: StandardMaterial3D
 static var smoke_cel_mat: ShaderMaterial
 static var smoke_outline_mat: ShaderMaterial
-static var barrier_material: StandardMaterial3D
-static var barrier_cap_material: StandardMaterial3D
-static var steel_guardrail_mat: StandardMaterial3D
+static var barrier_material: Material
+static var barrier_cap_material: Material
+static var steel_guardrail_mat: Material
+static var manga_env_shader: Shader
+static var manga_outline_shader: Shader
 static var comic_hero_shader: Shader
 static var comic_ink_shader: Shader
 static var comic_outline_mat: ShaderMaterial
@@ -378,7 +380,7 @@ const BIOMES: Dictionary = {
 		"sky_horizon": Color("#E8827A"),
 		"ground_horizon": Color("#242B3D"),
 		"sun_color": Color("#FFF8EB"),
-		"sun_energy": 1.25,
+		"sun_energy": 0.75,
 		"ambient_color": Color("#2A283D"),
 		"ambient_energy": 0.28,
 		"fog_color": Color("#242B3D"),
@@ -395,7 +397,7 @@ const BIOMES: Dictionary = {
 		"sky_horizon": Color("#8C172E"), # Glowing crimson twilight dusk (Ref Image 2)
 		"ground_horizon": Color("#0E0B18"),
 		"sun_color": Color("#30243C"),
-		"sun_energy": 0.35,
+		"sun_energy": 0.45,
 		"ambient_color": Color("#1C1628"),
 		"ambient_energy": 0.45,
 		"fog_color": Color("#200E29"),
@@ -412,7 +414,7 @@ const BIOMES: Dictionary = {
 		"sky_horizon": Color("#FFD152"), # Radiant golden lemon horizon (Ref Image 1)
 		"ground_horizon": Color("#1D3850"),
 		"sun_color": Color("#FFE080"),
-		"sun_energy": 1.85,
+		"sun_energy": 0.85,
 		"ambient_color": Color("#804838"), # Warm golden-hour sunset ambient
 		"ambient_energy": 0.52,
 		"fog_color": Color("#F06B4D"),
@@ -429,7 +431,7 @@ const BIOMES: Dictionary = {
 		"sky_horizon": Color("#E8F5FC"), # Icy white peak horizon (Ref Image 3)
 		"ground_horizon": Color("#7898B4"),
 		"sun_color": Color("#EDF6FF"),
-		"sun_energy": 1.45,
+		"sun_energy": 0.80,
 		"ambient_color": Color("#9AB6D2"),
 		"ambient_energy": 0.42,
 		"fog_color": Color("#CFE3F4"),
@@ -441,16 +443,16 @@ const BIOMES: Dictionary = {
 }
 
 const SHINJUKU_SIGNS: Array = [
-	{"text": "東\n岸\n大\n寿\n司", "light": Color("#FF1866"), "back": Color("#180612"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 0: Magenta Sushi (Ref Image 2)
-	{"text": "#\nO\nE\nS\nF\nF",   "light": Color("#00E5FF"), "back": Color("#06141C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 1: Electric Cyan (Ref Image 2)
-	{"text": "カ\nラ\nオ\nケ",   "light": Color("#B537F2"), "back": Color("#14061A"), "h": 6.8, "w": 1.6, "bracket": 1.5}, # 2: Karaoke Purple
-	{"text": "２\n４\nｈ\n薬",   "light": Color("#FF2255"), "back": Color("#18060A"), "h": 6.2, "w": 1.5, "bracket": 1.4}, # 3: 24h Pharmacy Red
-	{"text": "パ\nチ\nン\nコ",   "light": Color("#00FF88"), "back": Color("#04180E"), "h": 7.5, "w": 1.6, "bracket": 1.6}, # 4: Pachinko Green
-	{"text": "B\nA\nR\n宵",     "light": Color("#FFAA00"), "back": Color("#181004"), "h": 5.2, "w": 1.4, "bracket": 1.3}, # 5: Bar Yoi Amber
-	{"text": "新\n宿\n横\n丁",   "light": Color("#FFD700"), "back": Color("#181404"), "h": 6.5, "w": 1.5, "bracket": 1.5}, # 6: Shinjuku Yokocho Gold
-	{"text": "ラ\nｌ\nメ\nン",   "light": Color("#FF5500"), "back": Color("#1A0A02"), "h": 5.8, "w": 1.5, "bracket": 1.4}, # 7: Ramen Flame
-	{"text": "居\n酒\n屋",       "light": Color("#FF3333"), "back": Color("#1A0606"), "h": 6.0, "w": 1.5, "bracket": 1.4}, # 8: Izakaya Red
-	{"text": "麻\n雀\n荘",       "light": Color("#00F0D0"), "back": Color("#041618"), "h": 6.4, "w": 1.5, "bracket": 1.5}, # 9: Mahjong Turquoise
+	{"text": "東\n岸\n大\n寿\n司", "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 0: Magenta Sushi (Ref Image 2)
+	{"text": "電\n脳\n遊\n戯",   "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 8.4, "w": 1.9, "bracket": 1.8}, # 1: Electric Cyan Cyber Arcade (Ref Image 2)
+	{"text": "カ\nラ\nオ\nケ",   "light": Color("#B537F2"), "back": Color("#11131C"), "h": 6.8, "w": 1.6, "bracket": 1.5}, # 2: Karaoke Purple
+	{"text": "２\n４\nｈ\n薬",   "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.2, "w": 1.5, "bracket": 1.4}, # 3: 24h Pharmacy Red
+	{"text": "パ\nチ\nン\nコ",   "light": Color("#00FF88"), "back": Color("#11131C"), "h": 7.5, "w": 1.6, "bracket": 1.6}, # 4: Pachinko Green
+	{"text": "B\nA\nR\n宵",     "light": Color("#FFB703"), "back": Color("#11131C"), "h": 5.2, "w": 1.4, "bracket": 1.3}, # 5: Bar Yoi Amber
+	{"text": "新\n宿\n横\n丁",   "light": Color("#FFB703"), "back": Color("#11131C"), "h": 6.5, "w": 1.5, "bracket": 1.5}, # 6: Shinjuku Yokocho Gold
+	{"text": "ラ\nｌ\nメ\nン",   "light": Color("#FF5500"), "back": Color("#11131C"), "h": 5.8, "w": 1.5, "bracket": 1.4}, # 7: Ramen Flame
+	{"text": "居\n酒\n屋",       "light": Color("#FF2A55"), "back": Color("#11131C"), "h": 6.0, "w": 1.5, "bracket": 1.4}, # 8: Izakaya Red
+	{"text": "麻\n雀\n荘",       "light": Color("#00E5FF"), "back": Color("#11131C"), "h": 6.4, "w": 1.5, "bracket": 1.5}, # 9: Mahjong Turquoise
 ]
 
 const STAGE_INTERVAL_METERS: float = 2500.0
@@ -621,7 +623,7 @@ var rival_speed: float = 0.0
 var rival_active: bool = false
 var rival_state: int = 0  # 0: PASSING_PLAYER, 1: DISRUPTING_TRAFFIC, 2: POLICE_ROADBLOCK, 3: ESCAPING
 var rival_timer: float = 0.0
-var rival_spawn_cooldown: float = 5.0  # Spawns ~5s into race
+var rival_spawn_cooldown: float = 120.0 # Peaceful start for cruising
 var rival_disrupt_count: int = 0
 var rival_grazed: bool = false
 var rival_passed_player: bool = false
@@ -892,9 +894,24 @@ func _run_biome_captures() -> void:
 			car_root.position = Vector3(0.0, 0.0, 0.0)
 			car_root.rotation = Vector3.ZERO
 			car_root.visible = false
+		if is_instance_valid(smoke_left):
+			smoke_left.emitting = false
+			smoke_left.visible = false
+		if is_instance_valid(smoke_right):
+			smoke_right.emitting = false
+			smoke_right.visible = false
+		if is_instance_valid(cutin_container):
+			cutin_container.visible = false
+		if is_instance_valid(hud_hazard_banner):
+			hud_hazard_banner.visible = false
+		if is_instance_valid(hud_speed_label):
+			hud_speed_label.text = "166"
+		if is_instance_valid(hud_score_label):
+			hud_score_label.text = "SCORE: 599"
+		_trigger_radio_chatter("HIGHWAY DISPATCH", "Patrol Unit 1: Intercepting black sports car exceeding 200 km/h!", Color("#FF3344"), true)
 		if is_instance_valid(follow_cam):
-			follow_cam.position = Vector3(0.0, 2.2, -8.0)
-			follow_cam.rotation = Vector3(-0.04, 0.0, 0.0)
+			follow_cam.position = Vector3(0.0, 2.05, -7.5)
+			follow_cam.rotation = Vector3(-0.035, 0.0, 0.0)
 		player_speed = 46.0
 		stage_start_z = 0.0
 		_rebuild_start_chunks()
@@ -984,25 +1001,25 @@ func _setup_spark_pools() -> void:
 		spark_container.add_child(spray)
 		water_spray_pool.append(spray)
 
-# 1. PURGE INVERTED HULL PASS FROM ALL ENVIRONMENT PROPS & VEHICLES
-func purge_outlines(node: Node) -> void:
-	if not is_instance_valid(node):
-		return
-	if node is MeshInstance3D:
-		# Remove next_pass from material_override
-		if node.material_override and node.material_override.next_pass:
-			node.material_override.next_pass = null
-		# Remove next_pass from all surface materials
-		if node.mesh:
-			for i in range(node.mesh.get_surface_count()):
-				var mat = node.get_surface_override_material(i)
-				if mat and mat.next_pass:
-					mat.next_pass = null
-				var surf_mat = node.mesh.surface_get_material(i)
-				if surf_mat and surf_mat.next_pass:
-					surf_mat.next_pass = null
-	for child in node.get_children():
-		purge_outlines(child)
+# 1. PURGE INVERTED HULL PASS (DISABLED: OUTLINES ARE MANDATORY)
+func purge_outlines(_node: Node) -> void:
+	return
+
+static func _create_manga_env_mat(base_tint: Color = Color.WHITE, use_vcol: bool = false, outline_w: float = 0.042) -> ShaderMaterial:
+	if not manga_env_shader:
+		manga_env_shader = load("res://shaders/manga_env.gdshader")
+	if not manga_outline_shader:
+		manga_outline_shader = load("res://shaders/manga_env_outline.gdshader")
+	var mat := ShaderMaterial.new()
+	mat.shader = manga_env_shader
+	mat.set_shader_parameter("albedo_tint", base_tint)
+	mat.set_shader_parameter("use_vertex_color", use_vcol)
+	var out_mat := ShaderMaterial.new()
+	out_mat.shader = manga_outline_shader
+	out_mat.set_shader_parameter("outline_width", outline_w)
+	out_mat.set_shader_parameter("outline_color", Color("#08090D"))
+	mat.next_pass = out_mat
+	return mat
 
 static func _load_texture_safe(res_path: String) -> Texture2D:
 	if ResourceLoader.exists(res_path):
@@ -1056,28 +1073,13 @@ func _setup_materials() -> void:
 		cliff_dark_mat.cull_mode = BaseMaterial3D.CULL_BACK
 
 	if not barrier_material:
-		barrier_material = StandardMaterial3D.new()
-		barrier_material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		barrier_material.specular_mode = BaseMaterial3D.SPECULAR_TOON
-		barrier_material.albedo_color = COLOR_BARRIER
-		barrier_material.cull_mode = BaseMaterial3D.CULL_BACK
-		barrier_material.metallic = 0.60
-		barrier_material.roughness = 0.28
+		barrier_material = _create_manga_env_mat(COLOR_BARRIER, false, 0.038)
 
 	if not barrier_cap_material:
-		barrier_cap_material = StandardMaterial3D.new()
-		barrier_cap_material.diffuse_mode = BaseMaterial3D.DIFFUSE_TOON
-		barrier_cap_material.specular_mode = BaseMaterial3D.SPECULAR_TOON
-		barrier_cap_material.albedo_color = COLOR_BARRIER_CAP
-		barrier_cap_material.cull_mode = BaseMaterial3D.CULL_BACK
-		barrier_cap_material.roughness = 0.35
+		barrier_cap_material = _create_manga_env_mat(COLOR_BARRIER_CAP, false, 0.032)
 
 	if not steel_guardrail_mat:
-		var sg_mat := StandardMaterial3D.new()
-		sg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sg_mat.albedo_color = Color("#D4E2EE") # Cold galvanized steel Touge guardrail (Ref Image 3)
-		sg_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		steel_guardrail_mat = sg_mat
+		steel_guardrail_mat = _create_manga_env_mat(Color("#D4E2EE"), false, 0.036)
 
 	if not speedlines_mat:
 		var sl_sh: Shader = load("res://manga_speedlines.gdshader")
@@ -1263,7 +1265,7 @@ func _setup_materials() -> void:
 		coastal_sand_mat = s_mat
 
 	if not ocean_water_mat:
-		var ocean_sh: Shader = load("res://shaders/coastal_ocean.gdshader")
+		var ocean_sh: Shader = load("res://shaders/manga_ocean.gdshader")
 		var ow_mat := ShaderMaterial.new()
 		ow_mat.shader = ocean_sh
 		ocean_water_mat = ow_mat
@@ -1275,49 +1277,45 @@ func _setup_materials() -> void:
 		ocean_foam_mat = f_mat
 
 	if not palm_trunk_mat:
-		var pt_mat := StandardMaterial3D.new()
-		pt_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		pt_mat.albedo_color = Color("#5E381C") # Rich brown fibrous bark (Ref Image 1)
-		palm_trunk_mat = pt_mat
+		palm_trunk_mat = _create_manga_env_mat(Color("#5E381C"), false, 0.044)
 
 	if not palm_frond_mat:
-		var pf_mat := StandardMaterial3D.new()
-		pf_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		pf_mat.albedo_color = Color("#38841E") # Lush tropical green fronds (Ref Image 1)
-		pf_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		palm_frond_mat = pf_mat
+		palm_frond_mat = _create_manga_env_mat(Color("#38841E"), false, 0.038)
 
 	if not coastal_cliff_mat:
 		var c_cliff_sh: Shader = load("res://shaders/coastal_cliff.gdshader")
 		var cc_mat := ShaderMaterial.new()
 		cc_mat.shader = c_cliff_sh
+		if not manga_outline_shader:
+			manga_outline_shader = load("res://shaders/manga_env_outline.gdshader")
+		var cc_out := ShaderMaterial.new()
+		cc_out.shader = manga_outline_shader
+		cc_out.set_shader_parameter("outline_width", 0.052)
+		cc_out.set_shader_parameter("outline_color", Color("#08090D"))
+		cc_mat.next_pass = cc_out
 		coastal_cliff_mat = cc_mat
 
 	if not snow_rock_mat:
 		var s_cliff_sh: Shader = load("res://shaders/snow_cliff.gdshader")
 		var sr_mat := ShaderMaterial.new()
 		sr_mat.shader = s_cliff_sh
+		if not manga_outline_shader:
+			manga_outline_shader = load("res://shaders/manga_env_outline.gdshader")
+		var sr_out := ShaderMaterial.new()
+		sr_out.shader = manga_outline_shader
+		sr_out.set_shader_parameter("outline_width", 0.052)
+		sr_out.set_shader_parameter("outline_color", Color("#08090D"))
+		sr_mat.next_pass = sr_out
 		snow_rock_mat = sr_mat
 
 	if not snow_foliage_mat:
-		var sf_mat := StandardMaterial3D.new()
-		sf_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sf_mat.albedo_color = Color("#122A1A") # Deep evergreen pine needles (Ref Image 3)
-		sf_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		snow_foliage_mat = sf_mat
+		snow_foliage_mat = _create_manga_env_mat(Color("#122A1A"), false, 0.040)
 
 	if not snowbank_mat:
-		var sb_mat := StandardMaterial3D.new()
-		sb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sb_mat.albedo_color = Color("#F4F9FD") # Pure white puffy snow blanket (Ref Image 3)
-		snowbank_mat = sb_mat
+		snowbank_mat = _create_manga_env_mat(Color("#F4F9FD"), false, 0.036)
 
 	if not shinjuku_building_mat:
-		var b_mat := StandardMaterial3D.new()
-		b_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		b_mat.albedo_color = Color("#262D3D") # Cool slate Japanese alley concrete (Ref Image 2)
-		b_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		shinjuku_building_mat = b_mat
+		shinjuku_building_mat = _create_manga_env_mat(Color.WHITE, true, 0.046)
 
 	if not shinjuku_window_mat:
 		var w_mat := StandardMaterial3D.new()
@@ -1360,14 +1358,12 @@ func _setup_materials() -> void:
 		neon_back_cyan = nbc
 
 	if not vending_body_mat:
-		var vb_mat := StandardMaterial3D.new()
-		vb_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		vb_mat.albedo_color = Color("#D92027")
-		vending_body_mat = vb_mat
+		vending_body_mat = _create_manga_env_mat(Color.WHITE, true, 0.038)
 
 	if not vending_glass_mat:
 		var vg_mat := StandardMaterial3D.new()
 		vg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		vg_mat.vertex_color_use_as_albedo = true
 		vg_mat.albedo_color = Color("#FFFFFF") # Bright drink display illumination (Ref Image 2)
 		vending_glass_mat = vg_mat
 
@@ -1456,16 +1452,7 @@ func _setup_materials() -> void:
 		foliage_sheet_tex = _load_texture_safe("res://assets/textures/foliage_tree_sheet.png")
 
 	if not hillside_foliage_mat:
-		var fol_sh: Shader = load("res://shaders/anime_nature_3d.gdshader")
-		var fol_mat := ShaderMaterial.new()
-		fol_mat.shader = fol_sh
-		fol_mat.set_shader_parameter("sun_direction", Vector3(-0.5, -0.8, -0.3))
-		fol_mat.set_shader_parameter("sun_tint", Color(1.0, 0.95, 0.85, 1.0))
-		fol_mat.set_shader_parameter("shadow_tint_color", Color(0.03, 0.07, 0.04, 1.0))
-		fol_mat.set_shader_parameter("horizon_fog_color", Color(0.20, 0.24, 0.32, 1.0))
-		fol_mat.set_shader_parameter("horizon_fog_color", Color(0.22, 0.26, 0.40, 1.0))
-		fol_mat.set_shader_parameter("rim_power", 2.5)
-		hillside_foliage_mat = fol_mat
+		hillside_foliage_mat = _create_manga_env_mat(Color.WHITE, true, 0.040)
 
 	if not leaf_green_tex:
 		leaf_green_tex = _load_texture_safe("res://assets/textures/leaf_green.png")
@@ -2864,18 +2851,21 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_vertex(b["p1"])
 
 		elif current_biome_id == "enoshima_coast":
-			# LEFT: Stepped Sandstone Rock Cliff with dramatic vertical bluffs & palm shelves (Ref Image 1)
+			# LEFT: Stepped Sandstone Rock Cliff with jagged rocky crags & palm shelves (Ref Image 1)
 			var c_n1: float = sin(global_z * 0.018) * 3.8 + cos(global_z * 0.042) * 2.2
 			var c_n2: float = sin(global_z * 0.085) * 1.4 + cos(global_z * 0.18) * 0.7
+			var c_block: float = floor(global_z / 5.5)
+			var crag_x: float = sin(c_block * 19.3) * 2.2 + cos(c_block * 41.7) * 1.4
+			var crag_y: float = cos(c_block * 27.5) * 2.8
 
 			var pt0 := left_pt
-			var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, 0.5, 0.0)
-			var pt2 := left_pt - (right_vec * (0.8 + c_n2 * 0.2)) + Vector3(0.0, 8.5 + c_n1 * 0.8, 0.0) # Vertical rock wall 1
-			var pt3 := left_pt - (right_vec * (5.5 + c_n1 * 0.5)) + Vector3(0.0, 10.5 + c_n1 * 0.8, 0.0) # Lower terrace shelf
-			var pt4 := left_pt - (right_vec * (7.2 + c_n1 * 0.6)) + Vector3(0.0, 24.0 + c_n1 * 1.5, 0.0) # Vertical rock wall 2
-			var pt5 := left_pt - (right_vec * (16.0 + c_n1 * 1.0)) + Vector3(0.0, 27.5 + c_n1 * 1.5, 0.0) # Mid terrace shelf
-			var pt6 := left_pt - (right_vec * (20.0 + c_n1 * 1.2)) + Vector3(0.0, 48.0 + c_n1 * 2.8, 0.0) # Towering upper bluff
-			var pt7 := left_pt - (right_vec * (45.0 + c_n1 * 2.0)) + Vector3(0.0, 56.0 + c_n1 * 3.0, 0.0) # High cliff plateau
+			var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
+			var pt2 := left_pt - (right_vec * (1.2 + crag_x * 0.4 + c_n2 * 0.2)) + Vector3(0.0, 8.5 + crag_y * 0.6 + c_n1 * 0.8, 0.0) # Vertical rock wall 1
+			var pt3 := left_pt - (right_vec * (6.0 + crag_x * 0.8 + c_n1 * 0.5)) + Vector3(0.0, 10.5 + crag_y * 0.6 + c_n1 * 0.8, 0.0) # Lower terrace shelf
+			var pt4 := left_pt - (right_vec * (8.5 + crag_x * 0.9 + c_n1 * 0.6)) + Vector3(0.0, 24.0 + crag_y * 1.2 + c_n1 * 1.5, 0.0) # Vertical rock wall 2
+			var pt5 := left_pt - (right_vec * (17.5 + crag_x * 1.2 + c_n1 * 1.0)) + Vector3(0.0, 27.5 + crag_y * 1.2 + c_n1 * 1.5, 0.0) # Mid terrace shelf
+			var pt6 := left_pt - (right_vec * (22.5 + crag_x * 1.5 + c_n1 * 1.2)) + Vector3(0.0, 48.0 + crag_y * 2.0 + c_n1 * 2.8, 0.0) # Towering upper bluff
+			var pt7 := left_pt - (right_vec * (48.0 + c_n1 * 2.0)) + Vector3(0.0, 56.0 + c_n1 * 3.0, 0.0) # High cliff plateau
 			var pt8 := left_pt - (right_vec * (120.0 + c_n1 * 3.5)) + Vector3(0.0, 78.0 + c_n1 * 4.0, 0.0) # Mountain ridge crest
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
@@ -2898,12 +2888,12 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_vertex(b["p1"])
 
 			# RIGHT: Broad golden sandy beach + stepped white comic wave surf lines (Ref Image 1)
-			var wave_noise: float = sin(global_z * 0.16) * 1.8 + cos(global_z * 0.42) * 0.9
-			var sand_end := right_pt + (right_vec * (10.0 + wave_noise * 0.6)) - Vector3(0.0, 0.35, 0.0)
-			var wet_sand_end := right_pt + (right_vec * (18.0 + wave_noise * 0.9)) - Vector3(0.0, 0.60, 0.0)
-			var wave_foam_end := right_pt + (right_vec * (25.0 + wave_noise * 1.2)) - Vector3(0.0, 0.70, 0.0)
-			var ocean_near := right_pt + (right_vec * 85.0) - Vector3(0.0, 0.75, 0.0)
-			var ocean_far := right_pt + (right_vec * 650.0) - Vector3(0.0, 0.80, 0.0)
+			var wave_noise: float = sin(global_z * 0.16) * 1.5 + cos(global_z * 0.42) * 0.8
+			var sand_end := right_pt + (right_vec * (3.8 + wave_noise * 0.3)) - Vector3(0.0, 0.15, 0.0)
+			var wet_sand_end := right_pt + (right_vec * (7.2 + wave_noise * 0.5)) - Vector3(0.0, 0.28, 0.0)
+			var wave_foam_end := right_pt + (right_vec * (12.5 + wave_noise * 0.7)) - Vector3(0.0, 0.38, 0.0)
+			var ocean_near := right_pt + (right_vec * 85.0) - Vector3(0.0, 0.45, 0.0)
+			var ocean_far := right_pt + (right_vec * 850.0) - Vector3(0.0, 0.45, 0.0)
 
 			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.0, float(i))); sand_st.add_vertex(right_pt)
 			sand_st.set_normal(Vector3.UP); sand_st.set_uv(Vector2(0.5, float(i))); sand_st.add_vertex(sand_end)
@@ -2921,16 +2911,19 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "hakone_snow":
 			var h_n1: float = sin(global_z * 0.022) * 3.5 + cos(global_z * 0.055) * 2.0
 			var h_n2: float = sin(global_z * 0.11) * 1.2 + cos(global_z * 0.24) * 0.6
+			var h_block: float = floor(global_z / 5.5)
+			var h_crag_x: float = sin(h_block * 21.3) * 2.4 + cos(h_block * 43.1) * 1.5
+			var h_crag_y: float = cos(h_block * 33.7) * 3.2
 
-			# RIGHT: Sheer craggy granite rock cliff with snow ledges (Ref Image 3)
+			# RIGHT: Sheer craggy granite rock cliff with jagged snow ledges (Ref Image 3)
 			var r_pt0 := right_pt
-			var r_pt1 := right_pt + (right_vec * 0.35) + Vector3(0.0, 0.5, 0.0)
-			var r_pt2 := right_pt + (right_vec * (1.2 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
-			var r_pt3 := right_pt + (right_vec * (5.0 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_n1 * 0.8, 0.0) # Snow shelf 1
-			var r_pt4 := right_pt + (right_vec * (6.5 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
-			var r_pt5 := right_pt + (right_vec * (14.0 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_n1 * 1.6, 0.0) # Snow shelf 2
-			var r_pt6 := right_pt + (right_vec * (18.0 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_n1 * 2.8, 0.0) # Upper precipice
-			var r_pt7 := right_pt + (right_vec * (40.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
+			var r_pt1 := right_pt + (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
+			var r_pt2 := right_pt + (right_vec * (1.6 + h_crag_x * 0.4 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
+			var r_pt3 := right_pt + (right_vec * (5.5 + h_crag_x * 0.8 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Snow shelf 1
+			var r_pt4 := right_pt + (right_vec * (7.8 + h_crag_x * 0.9 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
+			var r_pt5 := right_pt + (right_vec * (15.5 + h_crag_x * 1.2 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Snow shelf 2
+			var r_pt6 := right_pt + (right_vec * (20.5 + h_crag_x * 1.5 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_crag_y * 2.0 + h_n1 * 2.8, 0.0) # Upper precipice
+			var r_pt7 := right_pt + (right_vec * (42.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
 			var r_pt8 := right_pt + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, 80.0 + h_n1 * 4.0, 0.0) # Distant ridge
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
@@ -2977,30 +2970,34 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			hillside_st.add_vertex(sw_l0); hillside_st.add_vertex(sw_l1)
 			hillside_st.add_vertex(sw_r0); hillside_st.add_vertex(sw_r1)
 
-		# 3. Guardrails (Shuto: Right side; Enoshima/Hakone: Left side along valley/ocean; Shinjuku: Curbs only)
-		if current_biome_id == "shuto_dusk":
-			var bar_inner_top := right_pt + Vector3(0.0, 1.15, 0.0)
-			var bar_outer_top := right_pt + (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
-			var bar_outer_bottom := right_pt + (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
+		# 3. Guardrails (Shuto, Enoshima, Hakone: Double-sided with posts; Shinjuku: Curbs only)
+		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"]:
+			# Right Guardrail (Vertices 0..3) - Lowered in Enoshima for panoramic ocean view
+			var r_guard_h: float = 0.52 if current_biome_id == "enoshima_coast" else 1.15
+			var r_bar_inner_top := right_pt + Vector3(0.0, r_guard_h, 0.0)
+			var r_bar_outer_top := right_pt + (right_vec * 0.50) + Vector3(0.0, r_guard_h, 0.0)
+			var r_bar_outer_bottom := right_pt + (right_vec * 0.50) - Vector3(0.0, 3.5, 0.0)
 
 			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(right_pt)
-			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
-			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
-			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
-			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
-			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(r_bar_inner_top)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(r_bar_outer_top)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(r_bar_outer_bottom)
 
-		elif current_biome_id in ["enoshima_coast", "hakone_snow"]:
-			var bar_inner_top := left_pt + Vector3(0.0, 1.15, 0.0)
-			var bar_outer_top := left_pt - (right_vec * 0.55) + Vector3(0.0, 1.15, 0.0)
-			var bar_outer_bottom := left_pt - (right_vec * 0.55) - Vector3(0.0, 4.0, 0.0)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(r_bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(r_bar_outer_top)
+
+			# Left Guardrail (Vertices 4..7)
+			var l_bar_inner_top := left_pt + Vector3(0.0, 1.15, 0.0)
+			var l_bar_outer_top := left_pt - (right_vec * 0.50) + Vector3(0.0, 1.15, 0.0)
+			var l_bar_outer_bottom := left_pt - (right_vec * 0.50) - Vector3(0.0, 3.5, 0.0)
 
 			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(left_pt)
-			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_inner_top)
-			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(bar_inner_top)
-			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(bar_outer_top)
-			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(bar_outer_top)
-			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(bar_outer_bottom)
+			barrier_st.set_normal(right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(l_bar_inner_top)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(0.0, v_uv)); barrier_st.add_vertex(l_bar_outer_top)
+			barrier_st.set_normal(-right_vec); barrier_st.set_uv(Vector2(1.0, v_uv)); barrier_st.add_vertex(l_bar_outer_bottom)
+
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(l_bar_inner_top)
+			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(l_bar_outer_top)
 
 	for i in range(CHUNK_SEGMENTS):
 		var i2: int = i * 2
@@ -3153,13 +3150,26 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				_add_3d_power_pole(pole_st, line_st, pole_pos, next_pole_pos, cross_pos)
 
 		if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
-			var bi: int = i * 4
-			barrier_st.add_index(bi); barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 4)
-			barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 4)
-			barrier_cap_st.add_index(i2); barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 2)
-			barrier_cap_st.add_index(i2 + 1); barrier_cap_st.add_index(i2 + 3); barrier_cap_st.add_index(i2 + 2)
-			barrier_st.add_index(bi + 2); barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 6)
-			barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 6)
+			var bi: int = i * 8
+			# Right barrier inner & outer
+			barrier_st.add_index(bi); barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 8)
+			barrier_st.add_index(bi + 1); barrier_st.add_index(bi + 9); barrier_st.add_index(bi + 8)
+			barrier_st.add_index(bi + 2); barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 10)
+			barrier_st.add_index(bi + 3); barrier_st.add_index(bi + 11); barrier_st.add_index(bi + 10)
+
+			# Left barrier inner & outer
+			barrier_st.add_index(bi + 4); barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 12)
+			barrier_st.add_index(bi + 5); barrier_st.add_index(bi + 13); barrier_st.add_index(bi + 12)
+			barrier_st.add_index(bi + 6); barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 14)
+			barrier_st.add_index(bi + 7); barrier_st.add_index(bi + 15); barrier_st.add_index(bi + 14)
+
+			var ci: int = i * 4
+			# Right cap
+			barrier_cap_st.add_index(ci); barrier_cap_st.add_index(ci + 1); barrier_cap_st.add_index(ci + 4)
+			barrier_cap_st.add_index(ci + 1); barrier_cap_st.add_index(ci + 5); barrier_cap_st.add_index(ci + 4)
+			# Left cap
+			barrier_cap_st.add_index(ci + 2); barrier_cap_st.add_index(ci + 3); barrier_cap_st.add_index(ci + 6)
+			barrier_cap_st.add_index(ci + 3); barrier_cap_st.add_index(ci + 7); barrier_cap_st.add_index(ci + 6)
 
 	var road_inst := MeshInstance3D.new()
 	road_inst.mesh = road_st.commit()
@@ -3179,7 +3189,10 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "neo_shinjuku":
 			hillside_inst.material_override = barrier_material # Concrete sidewalk
 		else:
-			hillside_inst.material_override = cliff_mat if is_instance_valid(cliff_mat) else hillside_layer2_mat
+			if is_instance_valid(cliff_mat):
+				hillside_inst.material_override = cliff_mat
+			else:
+				hillside_inst.material_override = hillside_layer2_mat
 		hillside_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		chunk_root.add_child(hillside_inst)
 
@@ -3209,6 +3222,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			w_inst.material_override = ocean_water_mat
 			w_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(w_inst)
+		trunk_st.generate_normals()
 		var tr_mesh := trunk_st.commit()
 		if is_instance_valid(tr_mesh) and tr_mesh.get_surface_count() > 0:
 			var tr_inst := MeshInstance3D.new()
@@ -3225,6 +3239,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			sn_inst.material_override = snowbank_mat
 			sn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(sn_inst)
+		pine_foliage_st.generate_normals()
 		var pf_mesh := pine_foliage_st.commit()
 		if is_instance_valid(pf_mesh) and pf_mesh.get_surface_count() > 0:
 			var pf_inst := MeshInstance3D.new()
@@ -3232,6 +3247,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			pf_inst.material_override = snow_foliage_mat
 			pf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(pf_inst)
+		pine_snow_st.generate_normals()
 		var ps_mesh := pine_snow_st.commit()
 		if is_instance_valid(ps_mesh) and ps_mesh.get_surface_count() > 0:
 			var ps_inst := MeshInstance3D.new()
@@ -3240,6 +3256,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			ps_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(ps_inst)
 	elif current_biome_id == "neo_shinjuku":
+		bld_st.generate_normals()
 		var b_mesh := bld_st.commit()
 		if is_instance_valid(b_mesh) and b_mesh.get_surface_count() > 0:
 			var b_inst := MeshInstance3D.new()
@@ -3254,6 +3271,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			wn_inst.material_override = shinjuku_window_mat
 			wn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(wn_inst)
+		vending_st.generate_normals()
 		var v_mesh := vending_st.commit()
 		if is_instance_valid(v_mesh) and v_mesh.get_surface_count() > 0:
 			var v_inst := MeshInstance3D.new()
@@ -3277,6 +3295,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			chunk_root.add_child(l_inst)
 
 	if current_biome_id in ["shuto_dusk", "enoshima_coast"]:
+		foliage_st.generate_normals()
 		var fol_mesh := foliage_st.commit()
 		if is_instance_valid(fol_mesh) and fol_mesh.get_surface_count() > 0:
 			var fol_inst := MeshInstance3D.new()
@@ -3301,15 +3320,57 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	var barrier_inst := MeshInstance3D.new()
 	barrier_inst.mesh = barrier_st.commit()
-	barrier_inst.material_override = steel_guardrail_mat if current_biome_id == "hakone_snow" else barrier_material
+	if current_biome_id in ["hakone_snow", "enoshima_coast"]:
+		barrier_inst.material_override = steel_guardrail_mat
+	else:
+		barrier_inst.material_override = barrier_material
 	barrier_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_inst)
 
 	var barrier_cap_inst := MeshInstance3D.new()
 	barrier_cap_inst.mesh = barrier_cap_st.commit()
-	barrier_cap_inst.material_override = snowbank_mat if current_biome_id == "hakone_snow" else barrier_cap_material
+	if current_biome_id == "hakone_snow":
+		barrier_cap_inst.material_override = snowbank_mat
+	elif current_biome_id == "enoshima_coast":
+		barrier_cap_inst.material_override = steel_guardrail_mat
+	else:
+		barrier_cap_inst.material_override = barrier_cap_material
 	barrier_cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	chunk_root.add_child(barrier_cap_inst)
+
+	if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
+		var p_hw: float = ROAD_WIDTH * 0.5
+		if current_biome_id == "enoshima_coast":
+			p_hw = 7.0
+		elif current_biome_id == "hakone_snow":
+			p_hw = 6.8
+		elif current_biome_id == "neo_shinjuku":
+			p_hw = 5.2
+
+		var p_mat: Material = steel_guardrail_mat if current_biome_id in ["hakone_snow", "enoshima_coast"] else barrier_material
+		for p_idx in range(0, CHUNK_SEGMENTS, 3):
+			var p_gz: float = start_z - float(p_idx) * step_z
+			var p_cx: float = _sample_road_x(p_gz)
+			var p_rv: Vector3 = _sample_road_right(p_gz)
+
+			var r_post_h: float = 0.60 if current_biome_id == "enoshima_coast" else 1.25
+			var r_post_y: float = 0.25 if current_biome_id == "enoshima_coast" else 0.50
+			var p_mesh_r := BoxMesh.new()
+			p_mesh_r.size = Vector3(0.16, r_post_h, 0.16)
+
+			var post_r := MeshInstance3D.new()
+			post_r.mesh = p_mesh_r
+			post_r.position = Vector3(p_cx, r_post_y, -float(p_idx) * step_z) + (p_rv * (p_hw + 0.15))
+			post_r.material_override = p_mat
+			chunk_root.add_child(post_r)
+
+			var p_mesh_l := BoxMesh.new()
+			p_mesh_l.size = Vector3(0.16, 1.25, 0.16)
+			var post_l := MeshInstance3D.new()
+			post_l.mesh = p_mesh_l
+			post_l.position = Vector3(p_cx, 0.50, -float(p_idx) * step_z) - (p_rv * (p_hw + 0.15))
+			post_l.material_override = p_mat
+			chunk_root.add_child(post_l)
 
 	for joint_step in [0.0, 40.0, 80.0]:
 		var j_rel_z: float = -joint_step
@@ -3323,15 +3384,23 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		joint_node.transform.basis = Basis.looking_at(j_tan, Vector3.UP)
 		joint_node.rotate_object_local(Vector3(0, 0, 1), j_bank)
 
+		var joint_w: float = ROAD_WIDTH
+		if current_biome_id == "enoshima_coast":
+			joint_w = 14.0
+		elif current_biome_id == "hakone_snow":
+			joint_w = 13.6
+		elif current_biome_id == "neo_shinjuku":
+			joint_w = 10.4
+
 		var r_mesh := BoxMesh.new()
-		r_mesh.size = Vector3(21.4, 0.02, 0.38)
+		r_mesh.size = Vector3(joint_w, 0.02, 0.38)
 		var r_inst := MeshInstance3D.new()
 		r_inst.mesh = r_mesh
 		r_inst.material_override = expansion_rubber_mat
 		joint_node.add_child(r_inst)
 
 		var t_mesh := BoxMesh.new()
-		t_mesh.size = Vector3(21.4, 0.025, 0.08)
+		t_mesh.size = Vector3(joint_w, 0.025, 0.08)
 		for t_side in [-0.20, 0.20]:
 			var t_inst := MeshInstance3D.new()
 			t_inst.mesh = t_mesh
@@ -4623,29 +4692,32 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	sign_node.position = pos
 	sign_node.transform.basis = Basis.looking_at(tan_vec, Vector3.UP)
 
-	# 1. Dark Metal Outer Frame
+	# 1. Dark Metal Outer Frame (#11131C)
 	var frame_mesh := BoxMesh.new()
 	frame_mesh.size = Vector3(sign_w + 0.1, sign_h + 0.2, 0.40)
 	var frame_inst := MeshInstance3D.new()
 	frame_inst.mesh = frame_mesh
-	frame_inst.material_override = barrier_material
+	var frame_dark_mat := StandardMaterial3D.new()
+	frame_dark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	frame_dark_mat.albedo_color = Color("#11131C")
+	frame_inst.material_override = frame_dark_mat
 	frame_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(frame_inst)
 
-	# 2. Glowing Neon Blade Panel (Ref Image 2)
+	# 2. Dark Backing Panel (#11131C)
 	var panel_mesh := BoxMesh.new()
 	panel_mesh.size = Vector3(sign_w, sign_h, 0.35)
 	var panel_inst := MeshInstance3D.new()
 	panel_inst.mesh = panel_mesh
 	var sign_mat := StandardMaterial3D.new()
 	sign_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	sign_mat.albedo_color = back_col
+	sign_mat.albedo_color = Color("#11131C")
 	sign_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	panel_inst.material_override = sign_mat
 	panel_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(panel_inst)
 
-	# Thin Outer Neon Border Tube outlining the dark panel
+	# Thin Saturated Outer Neon Border Tube (Emission 1.15)
 	var tube_mesh := BoxMesh.new()
 	tube_mesh.size = Vector3(sign_w + 0.06, sign_h + 0.08, 0.38)
 	var tube_inst := MeshInstance3D.new()
@@ -4653,27 +4725,39 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	var border_mat := StandardMaterial3D.new()
 	border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	border_mat.albedo_color = light_col
+	border_mat.emission_enabled = true
+	border_mat.emission = light_col
+	border_mat.emission_energy_multiplier = 1.15
 	border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	tube_inst.material_override = border_mat
 	tube_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sign_node.add_child(tube_inst)
 
-	# 3. Horizontal Iron Wall Mount Brackets
+	# 3. Horizontal Iron Wall Mount Brackets with Truss Struts
 	var bracket_dir: float = -1.0 if (pos.x < 0.0) else 1.0
 	for by_val in [-sign_h * 0.35, sign_h * 0.35]:
 		var by: float = float(by_val)
 		var br_mesh := BoxMesh.new()
-		br_mesh.size = Vector3(bracket_len, 0.16, 0.16)
+		br_mesh.size = Vector3(bracket_len, 0.14, 0.14)
 		var br_inst := MeshInstance3D.new()
 		br_inst.mesh = br_mesh
 		br_inst.material_override = barrier_material
 		br_inst.position = Vector3((sign_w * 0.5 + bracket_len * 0.5) * bracket_dir, by, 0.0)
 		sign_node.add_child(br_inst)
 
+		var strut := MeshInstance3D.new()
+		var st_mesh := BoxMesh.new()
+		st_mesh.size = Vector3(bracket_len * 1.15, 0.10, 0.10)
+		strut.mesh = st_mesh
+		strut.material_override = barrier_material
+		strut.position = Vector3((sign_w * 0.5 + bracket_len * 0.5) * bracket_dir, by - 0.30, 0.0)
+		strut.rotation_degrees = Vector3(0.0, 0.0, 22.0 * bracket_dir)
+		sign_node.add_child(strut)
+
 	# 4. Bold Vertical Japanese Kanji Text (Front and Back)
 	var cjk_font: Font = _get_cjk_font()
-	var f_size: int = 64 if sign_h > 6.0 else 52
-	var p_size: float = 0.0105 if sign_h > 6.0 else 0.009
+	var f_size: int = 56 if sign_h > 6.0 else 44
+	var p_size: float = 0.012 if sign_h > 6.0 else 0.010
 
 	var lbl_front := Label3D.new()
 	if cjk_font:
@@ -4682,13 +4766,13 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	lbl_front.font_size = f_size
 	lbl_front.pixel_size = p_size
 	lbl_front.modulate = Color.WHITE
-	lbl_front.outline_modulate = light_col
-	lbl_front.outline_size = 32
+	lbl_front.outline_modulate = Color("#08090D")
+	lbl_front.outline_size = 10
 	lbl_front.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_front.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl_front.position = Vector3(0.0, 0.0, 0.22)
+	lbl_front.position = Vector3(0.0, 0.0, 0.20)
 	lbl_front.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	lbl_front.render_priority = 20
+	lbl_front.render_priority = 25
 	sign_node.add_child(lbl_front)
 
 	var lbl_back := Label3D.new()
@@ -4698,21 +4782,21 @@ func _add_3d_neon_sign(chunk: Node3D, pos: Vector3, tan_vec: Vector3, text: Stri
 	lbl_back.font_size = f_size
 	lbl_back.pixel_size = p_size
 	lbl_back.modulate = Color.WHITE
-	lbl_back.outline_modulate = light_col
-	lbl_back.outline_size = 32
+	lbl_back.outline_modulate = Color("#08090D")
+	lbl_back.outline_size = 10
 	lbl_back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl_back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	lbl_back.position = Vector3(0.0, 0.0, -0.22)
+	lbl_back.position = Vector3(0.0, 0.0, -0.20)
 	lbl_back.rotation_degrees = Vector3(0.0, 180.0, 0.0)
 	lbl_back.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	lbl_back.render_priority = 20
+	lbl_back.render_priority = 25
 	sign_node.add_child(lbl_back)
 
-	# 5. Local Neon Glow Light casting onto street & facade
+	# 5. Local Neon Glow Light casting onto street & facade (gentle atmospheric wash)
 	var n_light := OmniLight3D.new()
 	n_light.light_color = light_col
-	n_light.light_energy = 8.5
-	n_light.omni_range = 20.0
+	n_light.light_energy = 1.15
+	n_light.omni_range = 10.0
 	n_light.shadow_enabled = false
 	sign_node.add_child(n_light)
 
@@ -5398,9 +5482,9 @@ func _setup_player_car() -> void:
 			# 1. Base Body Material: Solid-State Comic Ink Shader
 			var ink_mat := ShaderMaterial.new()
 			ink_mat.shader = preload("res://shaders/comic_ink_car.gdshader")
-			ink_mat.set_shader_parameter("paper_white", Color("#EAE6DF"))
+			ink_mat.set_shader_parameter("paper_white", Color("#F59E0B"))
 			ink_mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-			ink_mat.set_shader_parameter("stripe_blue", Color("#0057E0"))
+			ink_mat.set_shader_parameter("stripe_blue", Color("#003C9E"))
 			ink_mat.set_shader_parameter("navy_diffuser", Color("#1F3861"))
 			ink_mat.set_shader_parameter("ink_black", Color("#0A0914"))
 			ink_mat.set_shader_parameter("shadow_tint", Color("#1E202B"))
@@ -5428,7 +5512,7 @@ func _setup_player_car() -> void:
 
 			# Apply MaterialFailsafe to protect taillights & glass, while applying comic ink to body
 			var sun_fwd := -sun_light.global_transform.basis.z if is_instance_valid(sun_light) else Vector3(-0.5, -0.8, -0.3)
-			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#EAE6DF"), sun_fwd, true)
+			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#F59E0B"), sun_fwd, true)
 
 			# 3D Auto Modellista GT Racing Wing (Trunk Elevated GT Spoiler)
 			var gt_wing := _create_gt_racing_wing()
@@ -6150,7 +6234,7 @@ func _reset_race() -> void:
 		hud_combo_bar.visible = false
 
 	rival_active = false
-	rival_spawn_cooldown = 4.0
+	rival_spawn_cooldown = 120.0
 	rival_state = 0
 	rival_timer = 0.0
 	rival_grazed = false
@@ -7740,7 +7824,7 @@ func _process_day_night_cycle(delta: float) -> void:
 	var sun_cols := [Color("#FFF8EB"), Color("#FFA347"), Color("#6B8AFF"), Color("#FFE6C2"), Color("#FFF8EB")]
 	var sun_pits := [-55.0, -24.0, -42.0, -26.0, -55.0]
 	var sun_yaws := [32.0, 48.0, 25.0, -42.0, 32.0]
-	var sun_nrgs := [1.25, 1.10, 0.20, 0.95, 1.25]
+	var sun_nrgs := [0.75, 0.70, 0.20, 0.65, 0.75]
 
 	var amb_cols := [Color("#526880"), Color("#887082"), Color("#1A2238"), Color("#8A6478"), Color("#526880")]
 	var amb_nrgs := [0.55, 0.60, 0.28, 0.48, 0.55]
@@ -7794,6 +7878,8 @@ func _process_day_night_cycle(delta: float) -> void:
 	if in_tunnel:
 		cur_sun_nrg *= 0.10
 		cur_amb_nrg *= 0.35
+
+	cur_sun_nrg = minf(cur_sun_nrg, 0.85) # Strict cap: prevent washing out player car & snow surfaces
 
 	# Update Sun DirectionalLight3D
 	var car_tints := [
@@ -8841,31 +8927,10 @@ func _spawn_diffuser_ground_sparks() -> void:
 				spark.visible = false
 		)
 
-func _trigger_manga_cutin(title_text: String) -> void:
-	if cutin_active or cutin_cooldown > 0.0 or current_state == GameState.CRASHED:
-		return
-	cutin_active = true
-	cutin_cooldown = 4.0
-	if is_instance_valid(cutin_subviewport):
-		cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	if is_instance_valid(cutin_title_label):
-		cutin_title_label.text = title_text
+func _trigger_manga_cutin(_title_text: String) -> void:
 	if is_instance_valid(cutin_container):
-		cutin_container.visible = true
-		cutin_container.position.x = 1120.0
-		if is_instance_valid(cutin_tween) and cutin_tween.is_valid():
-			cutin_tween.kill()
-		cutin_tween = create_tween()
-		cutin_tween.tween_property(cutin_container, "position:x", 700.0, 0.12).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		cutin_tween.tween_interval(0.75)
-		cutin_tween.tween_property(cutin_container, "position:x", 1120.0, 0.10).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		cutin_tween.tween_callback(func():
-			if is_instance_valid(cutin_container):
-				cutin_container.visible = false
-			if is_instance_valid(cutin_subviewport):
-				cutin_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
-			cutin_active = false
-		)
+		cutin_container.visible = false
+	return
 
 func _process_weather_cycle(delta: float) -> void:
 	weather_timer -= delta

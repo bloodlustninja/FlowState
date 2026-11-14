@@ -4,9 +4,9 @@ render_mode blend_mix, depth_draw_opaque, cull_back;
 // Auto Modellista & Initial D Manga Cel-Shaded Vehicle Shader
 // Variable Pen-Pressure Smoothstep Inking + Auto Modellista Livery + Manga Speed Wedges
 
-uniform vec4 paper_white : source_color = vec4(0.92, 0.90, 0.86, 1.0);  // Warm paper cream #EAE6DF
+uniform vec4 paper_white : source_color = vec4(0.961, 0.620, 0.043, 1.0);  // Rich yellow-orange #F59E0B
 uniform vec4 slate_grey : source_color = vec4(0.43, 0.45, 0.52, 1.0);   // Slate grey lower flank #6E7485
-uniform vec4 stripe_blue : source_color = vec4(0.00, 0.34, 0.88, 1.0);  // Auto Modellista Cobalt Blue #0057E0
+uniform vec4 stripe_blue : source_color = vec4(0.00, 0.235, 0.620, 1.0);  // Dark cobalt blue #003C9E
 uniform vec4 navy_diffuser : source_color = vec4(0.12, 0.22, 0.38, 1.0); // Lower rear diffuser navy #1F3861
 uniform vec4 ink_black : source_color = vec4(0.04, 0.04, 0.06, 1.0);    // Bold manga ink #0A0914
 uniform vec4 ink_shadow : source_color = vec4(0.05, 0.05, 0.09, 1.0);   // Deep core shadow ink
@@ -374,4 +374,13 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
+}
+
+void light() {
+	// Manga cel diffuse: prevent blown-out overexposure from high scene light energy
+	float NdotL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	float cel = step(0.12, NdotL);
+	vec3 clamped_light = clamp(LIGHT_COLOR, vec3(0.0), vec3(1.0));
+	vec3 lit_surface = ALBEDO * mix(vec3(0.72), vec3(1.0), cel);
+	DIFFUSE_LIGHT = lit_surface * clamped_light;
 }

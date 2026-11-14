@@ -30,7 +30,7 @@ void fragment() {
 	if (lit) {
 		vec3 col = is_open ? green_color.rgb : red_color.rgb;
 		ALBEDO = col;
-		EMISSION = col * 4.8;
+		EMISSION = col * 1.0;
 	} else {
 		ALBEDO = bg_color.rgb;
 		EMISSION = vec3(0.0);

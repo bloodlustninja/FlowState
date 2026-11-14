@@ -55,9 +55,9 @@ static func create_stripe_material() -> StandardMaterial3D:
 static func create_body_material(paint: Color, sun_dir: Vector3 = Vector3(-0.5, -0.8, -0.3), has_stripes: bool = false, is_two_tone: bool = false) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = multi_shader
-	mat.set_shader_parameter("paper_white", Color("#EAE6DF"))
+	mat.set_shader_parameter("paper_white", Color("#F59E0B"))
 	mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-	mat.set_shader_parameter("stripe_blue", Color("#0057E0"))
+	mat.set_shader_parameter("stripe_blue", Color("#003C9E"))
 	mat.set_shader_parameter("navy_diffuser", Color("#1F3861"))
 	mat.set_shader_parameter("ink_black", Color("#0A0914"))
 	mat.set_shader_parameter("ink_shadow", Color(0.05, 0.05, 0.09, 1.0))
