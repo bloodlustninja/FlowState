@@ -728,10 +728,19 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 	match b_data["weather"]:
 		"rain":
 			set_weather_rain(true)
+			if is_instance_valid(hud_rain_overlay):
+				hud_rain_overlay.visible = true
+				hud_rain_overlay.modulate.a = 1.0
 		"snow":
 			_set_weather_state(WeatherState.SNOW)
+			if is_instance_valid(hud_rain_overlay):
+				hud_rain_overlay.visible = false
+				hud_rain_overlay.modulate.a = 0.0
 		_:
 			set_weather_rain(false)
+			if is_instance_valid(hud_rain_overlay):
+				hud_rain_overlay.visible = false
+				hud_rain_overlay.modulate.a = 0.0
 
 func _cycle_start_biome(dir: int) -> void:
 	if discovered_biomes.is_empty():
@@ -796,7 +805,41 @@ func _ready() -> void:
 	_setup_rival_car()
 	_setup_camera()
 	_setup_hud()
+	current_state = GameState.START
+	if is_instance_valid(hud_start_screen):
+		hud_start_screen.visible = true
 	purge_outlines(self)
+	if OS.get_cmdline_args().has("--capture-biomes") or OS.get_cmdline_user_args().has("--capture-biomes"):
+		_run_biome_captures()
+
+func _run_biome_captures() -> void:
+	var artifact_dir := "C:/Users/jatin/.gemini/antigravity/brain/40ded32f-0a02-44db-8bea-5acffc621743"
+	for f in range(25):
+		await get_tree().process_frame
+
+	var img_start := get_viewport().get_texture().get_image()
+	if img_start:
+		img_start.save_png(artifact_dir + "/capture_vibe_pill.png")
+		print("CAPTURED: vibe pill")
+
+	_start_race()
+
+	var biomes_to_capture := ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+	for b_id in biomes_to_capture:
+		current_biome_id = b_id
+		last_sky_update_progress = -999.0
+		_apply_biome_transition(b_id)
+		_rebuild_start_chunks()
+		player_speed = 46.0
+		for f in range(35):
+			await get_tree().process_frame
+		var img := get_viewport().get_texture().get_image()
+		if img:
+			var out_file: String = artifact_dir + "/capture_" + b_id + ".png"
+			img.save_png(out_file)
+			print("CAPTURED: ", b_id)
+
+	get_tree().quit()
 
 func _setup_skid_pool() -> void:
 	skid_quad_mesh = QuadMesh.new()
@@ -6991,6 +7034,22 @@ func _process_day_night_cycle(delta: float) -> void:
 			in_tunnel = true
 			break
 	is_in_tunnel = in_tunnel
+
+	if current_biome_id in BIOMES and current_biome_id != "shuto_dusk":
+		var b_data: Dictionary = BIOMES[current_biome_id]
+		cur_sky_top = b_data["sky_top"]
+		cur_sky_hor = b_data["sky_horizon"]
+		cur_gnd_hor = b_data["ground_horizon"]
+		cur_sun_col = b_data["sun_color"]
+		cur_sun_nrg = b_data["sun_energy"]
+		cur_amb_col = b_data["ambient_color"]
+		cur_amb_nrg = b_data["ambient_energy"]
+		cur_fog_col = b_data["fog_color"]
+		if current_biome_id == "neo_shinjuku":
+			night_factor = 1.0
+		else:
+			night_factor = 0.15
+
 	if in_tunnel:
 		cur_sun_nrg *= 0.10
 		cur_amb_nrg *= 0.35
