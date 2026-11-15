@@ -785,6 +785,12 @@ func play_dive_in_transition(callback: Callable) -> void:
 	var tw_hero := create_tween().set_parallel(true)
 	tw_hero.tween_property(hero_panel_root, "scale", Vector2(3.5, 3.5), 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 
+	# Fade out hero border and caption immediately so zero border lines persist into gameplay
+	if is_instance_valid(hero_border):
+		tw_hero.tween_property(hero_border, "modulate:a", 0.0, 0.15)
+	if is_instance_valid(caption_box):
+		tw_hero.tween_property(caption_box, "modulate:a", 0.0, 0.15)
+
 	# 2. Animate B&W ink mix from 0.75 -> 0.0 in radial wipe into 100% 3D color
 	if is_instance_valid(hero_mat):
 		tw_hero.tween_method(func(val: float): hero_mat.set_shader_parameter("bw_ink_mix", val), 0.75, 0.0, 0.50).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)

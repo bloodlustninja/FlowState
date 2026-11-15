@@ -1,8 +1,6 @@
 extends Node3D
 
-const BiomeAssetFactory = preload("res://scripts/builders/BiomeAssetFactory.gd")
-const MangaComicPage = preload("res://ui/MangaComicPage.gd")
-const CockpitCutIn = preload("res://ui/CockpitCutIn.gd")
+# BiomeAssetFactory, MangaComicPage, CockpitCutIn are registered global class_names
 
 # ==============================================================================
 # FLOWSTATE: MASTER ARCADE RACER (AUTO MODELLISTA / INITIAL D ANIME STYLE)
@@ -16,14 +14,14 @@ const ROAD_WIDTH: float = 20.0                # 20m Wide 4-Lane Highway
 const CHUNK_LENGTH: float = 120.0
 const CHUNK_SEGMENTS: int = 40
 const NUM_CHUNKS: int = 4
-const LANE_OFFSETS: Array[float] = [-6.6, -2.2, 2.2, 6.6]
+const LANE_OFFSETS: Array[float] = [-6.0, -2.0, 2.0, 6.0]
 
 # --- VEHICLE HANDLING & PHYSICS ---
 const CRUISE_SPEED: float = 46.0              # ~165 KM/H
 const BOOST_SPEED: float = 58.0               # ~210 KM/H
 const BRAKE_SPEED: float = 28.0               # ~100 KM/H
 const MAX_LAT_SPEED: float = 22.0             # Responsive lane transitions
-const LATERAL_LIMIT: float = 8.6              # Guardrail collision limit
+const LATERAL_LIMIT: float = 8.5              # Guardrail collision limit (strictly +/- 8.5m)
 const TIRE_RADIUS: float = 0.35
 
 # --- EXACT VEHICLE BOUNDS (SCALED 0.72) ---
@@ -83,8 +81,13 @@ var smoke_left: CPUParticles3D
 var smoke_right: CPUParticles3D
 var trail_left: MeshInstance3D
 var trail_right: MeshInstance3D
-var trail_mesh_l: PlaneMesh
-var trail_mesh_r: PlaneMesh
+var trail_imm_l: ImmediateMesh
+var trail_imm_r: ImmediateMesh
+const TRAIL_BUFFER_SIZE: int = 16
+var trail_buffer_l: Array[Vector3] = []
+var trail_buffer_r: Array[Vector3] = []
+var trail_last_emit_pos: Vector3 = Vector3.ZERO
+var trail_initialized: bool = false
 var spoiler_streak_l: MeshInstance3D
 var spoiler_streak_r: MeshInstance3D
 var exhaust_flame_l: MeshInstance3D
@@ -818,13 +821,8 @@ func _apply_biome_transition(new_biome_id: String, inside_tunnel: bool = false) 
 			sun_light.light_color = b_data["sun_color"]
 			sun_light.light_energy = b_data["sun_energy"]
 
-		# Horizon Mountain / Island Silhouette Manager
-		if is_instance_valid(horizon_manager):
-			horizon_manager.set_biome_style(new_biome_id)
-
-	# Distant Tokyo Skyline (Show on Shuto Dusk; Neo-Shinjuku uses centered canyon towers in HorizonManager)
-	if is_instance_valid(background_rig):
-		background_rig.visible = (new_biome_id == "shuto_dusk")
+	# Dedicated Horizon Clusters & Time-Of-Day Synchronization
+	_sync_biome_horizon_and_tod(new_biome_id)
 
 	# Road surface shader biome mode
 	if is_instance_valid(road_shader_mat):
@@ -946,7 +944,8 @@ func _trigger_smooth_tunnel_exit_transition(new_biome_id: String) -> void:
 			sun_light.light_energy = lerpf(start_sun_nrg, target_sun_nrg, t)
 	, 0.0, 1.0, 1.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
-	# 2. Smooth HorizonManager Silhouettes Transition
+	# 2. Smooth HorizonManager Silhouettes Transition & Sync Biome Horizon
+	_sync_biome_horizon_and_tod(new_biome_id)
 	if is_instance_valid(horizon_manager):
 		horizon_manager.smooth_transition_to_biome(new_biome_id, 1.5)
 
@@ -1030,6 +1029,7 @@ func _launch_from_start_screen(_biome_id: String) -> void:
 		return
 
 	is_launching_to_race = true
+	_reset_trail_buffers()
 	_play_proc_audio("page_flip")
 
 	# 1. Freeze-frame manga ink flash (0.06s)
@@ -1076,6 +1076,8 @@ func _finish_launch_to_racing() -> void:
 	camera_title_blend = 0.0
 	if is_instance_valid(hud_start_screen):
 		hud_start_screen.visible = false
+	if is_instance_valid(manga_comic_page):
+		manga_comic_page.visible = false
 	if is_instance_valid(hud_gameplay_container):
 		hud_gameplay_container.visible = true
 		hud_gameplay_container.modulate.a = 1.0
@@ -1179,6 +1181,8 @@ func _run_biome_captures() -> void:
 		hud_gameplay_container.visible = false
 	if is_instance_valid(hud_start_screen):
 		hud_start_screen.visible = false
+	if is_instance_valid(manga_comic_page):
+		manga_comic_page.visible = false
 	if is_instance_valid(hud_radio_chatter):
 		hud_radio_chatter.visible = false
 
@@ -1187,6 +1191,8 @@ func _run_biome_captures() -> void:
 		current_biome_id = b_id
 		last_sky_update_progress = -999.0
 		_apply_biome_transition(b_id)
+		_sync_biome_horizon_and_tod(b_id)
+		_reset_trail_buffers()
 
 		# Force weather overlays to instant target values for capture
 		if is_instance_valid(leaf_particles):
@@ -2073,6 +2079,7 @@ func _setup_background_layers() -> void:
 	background_rig = Node3D.new()
 	background_rig.name = "BackgroundRig"
 	background_rig.top_level = true
+	background_rig.visible = (current_biome_id == "shuto_dusk")
 	add_child(background_rig)
 
 	# 2. Distant City Skyline Silhouettes (Full 3D Solid Tokyo Metropolis - Batched 1 Draw Call)
@@ -3226,7 +3233,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		elif current_biome_id == "enoshima_coast":
 			half_w = 9.0
 		elif current_biome_id == "hakone_snow":
-			half_w = 6.8
+			half_w = 8.5
 
 		if is_fork_approach:
 			var widen_t: float = float(i) / float(CHUNK_SEGMENTS)
@@ -3362,16 +3369,20 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			var h_crag_x: float = sin(h_block * 21.3) * 2.4 + cos(h_block * 43.1) * 1.5
 			var h_crag_y: float = cos(h_block * 33.7) * 3.2
 
-			# RIGHT: Sheer craggy granite rock cliff with jagged snow ledges (Ref Image 3)
-			var r_pt0 := right_pt
-			var r_pt1 := right_pt + (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
-			var r_pt2 := right_pt + (right_vec * (1.6 + h_crag_x * 0.4 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
-			var r_pt3 := right_pt + (right_vec * (5.5 + h_crag_x * 0.8 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Snow shelf 1
-			var r_pt4 := right_pt + (right_vec * (7.8 + h_crag_x * 0.9 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
-			var r_pt5 := right_pt + (right_vec * (15.5 + h_crag_x * 1.2 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Snow shelf 2
-			var r_pt6 := right_pt + (right_vec * (20.5 + h_crag_x * 1.5 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_crag_y * 2.0 + h_n1 * 2.8, 0.0) # Upper precipice
-			var r_pt7 := right_pt + (right_vec * (42.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
-			var r_pt8 := right_pt + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, 80.0 + h_n1 * 4.0, 0.0) # Distant ridge
+			# RIGHT FLAT SNOW SHOULDER STRIP (between +8.5m and +10.2m)
+			var r_sh_start := right_pt
+			var r_sh_end := right_pt + (right_vec * 1.7)
+
+			# RIGHT: Sheer craggy granite rock cliff with jagged snow ledges (Shifted outward to X >= +10.2m)
+			var r_pt0 := r_sh_end
+			var r_pt1 := r_sh_end + (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
+			var r_pt2 := r_sh_end + (right_vec * (1.6 + h_crag_x * 0.4 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
+			var r_pt3 := r_sh_end + (right_vec * (5.5 + h_crag_x * 0.8 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Snow shelf 1
+			var r_pt4 := r_sh_end + (right_vec * (7.8 + h_crag_x * 0.9 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
+			var r_pt5 := r_sh_end + (right_vec * (15.5 + h_crag_x * 1.2 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Snow shelf 2
+			var r_pt6 := r_sh_end + (right_vec * (20.5 + h_crag_x * 1.5 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_crag_y * 2.0 + h_n1 * 2.8, 0.0) # Upper precipice
+			var r_pt7 := r_sh_end + (right_vec * (42.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
+			var r_pt8 := r_sh_end + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, 80.0 + h_n1 * 4.0, 0.0) # Distant ridge
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
 			var bands: Array = [
@@ -3399,6 +3410,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			var s_pt3 := left_pt - (right_vec * (22.0 + h_n1 * 1.2)) - Vector3(0.0, 6.5 + h_n1 * 0.8, 0.0)
 			var s_pt4 := left_pt - (right_vec * (90.0 + h_n1 * 3.0)) - Vector3(0.0, 22.0 + h_n1 * 2.0, 0.0)
 
+			# Band 0..3: Left hillside snow valley
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.0, float(i))); snow_st.add_vertex(s_pt0)
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.2, float(i))); snow_st.add_vertex(s_pt1)
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.2, float(i))); snow_st.add_vertex(s_pt1)
@@ -3407,6 +3419,10 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.8, float(i))); snow_st.add_vertex(s_pt3)
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.8, float(i))); snow_st.add_vertex(s_pt3)
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(1.0, float(i))); snow_st.add_vertex(s_pt4)
+
+			# Band 4: Right flat snow shoulder strip (between +8.5m and +10.2m) with valid cel-shaded snow material
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(0.0, float(i))); snow_st.add_vertex(r_sh_start)
+			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(1.0, float(i))); snow_st.add_vertex(r_sh_end)
 
 		elif current_biome_id == "neo_shinjuku":
 			# Raised Japanese Concrete Sidewalk with light-grey curb edge #64748B and dark asphalt-concrete #242834
@@ -3502,7 +3518,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		road_st.add_index(i2 + 3)
 		road_st.add_index(i2 + 2)
 
-		if current_biome_id in ["shuto_dusk", "enoshima_coast"] or is_fork_approach or is_twin_tunnel:
+		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"] or is_fork_approach or is_twin_tunnel:
 			for b in range(8):
 				var idx_curr_bot: int = (i * 8 + b) * 2
 				var idx_curr_top: int = idx_curr_bot + 1
@@ -3550,11 +3566,11 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			water_st.add_index(w_i + 3); water_st.add_index(w_i + 6); water_st.add_index(w_i + 7)
 
 		elif current_biome_id == "hakone_snow":
-			var sn_i: int = i * 8
-			for sb in range(4):
+			var sn_i: int = i * 10
+			for sb in range(5):
 				var b0: int = sn_i + sb * 2
 				var b1: int = b0 + 1
-				var nb0: int = b0 + 8
+				var nb0: int = b0 + 10
 				var nb1: int = nb0 + 1
 				snow_st.add_index(b0); snow_st.add_index(nb0); snow_st.add_index(b1)
 				snow_st.add_index(b1); snow_st.add_index(nb0); snow_st.add_index(nb1)
@@ -3762,7 +3778,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	road_inst.material_override = road_shader_mat
 	chunk_root.add_child(road_inst)
 
-	if current_biome_id in ["shuto_dusk", "enoshima_coast"] or is_fork_approach or is_twin_tunnel:
+	if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"] or is_fork_approach or is_twin_tunnel:
 		hillside_st.generate_normals()
 	var hillside_mesh := hillside_st.commit()
 	if is_instance_valid(hillside_mesh) and hillside_mesh.get_surface_count() > 0:
@@ -3952,7 +3968,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		if current_biome_id == "enoshima_coast":
 			p_hw = 9.0
 		elif current_biome_id == "hakone_snow":
-			p_hw = 6.8
+			p_hw = 8.5
 		elif current_biome_id == "neo_shinjuku":
 			p_hw = 5.2
 
@@ -7183,31 +7199,29 @@ func _setup_player_car() -> void:
 			trail_mat.shader = trail_sh
 			trail_mat.set_shader_parameter("trail_color", Color(1.0, 0.02, 0.13, 0.85))
 
-			trail_mesh_l = PlaneMesh.new()
-			trail_mesh_l.size = Vector2(0.28, 0.001)
-			trail_mesh_l.orientation = PlaneMesh.FACE_Y
+			trail_imm_l = ImmediateMesh.new()
 			trail_left = MeshInstance3D.new()
 			trail_left.name = "SpeedTrailL"
-			trail_left.mesh = trail_mesh_l
+			trail_left.mesh = trail_imm_l
 			trail_left.material_override = trail_mat
-			trail_left.position = Vector3(-0.52, 0.58, 1.55)
-			trail_left.rotation_degrees = Vector3(18.5, 0.0, 0.0)
+			trail_left.top_level = true
+			trail_left.transform = Transform3D.IDENTITY
 			trail_left.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			trail_left.visible = false
-			visual_rig.add_child(trail_left)
+			add_child(trail_left)
 
-			trail_mesh_r = PlaneMesh.new()
-			trail_mesh_r.size = Vector2(0.28, 0.001)
-			trail_mesh_r.orientation = PlaneMesh.FACE_Y
+			trail_imm_r = ImmediateMesh.new()
 			trail_right = MeshInstance3D.new()
 			trail_right.name = "SpeedTrailR"
-			trail_right.mesh = trail_mesh_r
+			trail_right.mesh = trail_imm_r
 			trail_right.material_override = trail_mat
-			trail_right.position = Vector3(0.52, 0.58, 1.55)
-			trail_right.rotation_degrees = Vector3(18.5, 0.0, 0.0)
+			trail_right.top_level = true
+			trail_right.transform = Transform3D.IDENTITY
 			trail_right.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			trail_right.visible = false
-			visual_rig.add_child(trail_right)
+			add_child(trail_right)
+
+			_reset_trail_buffers()
 
 			# 4. SPOILER WINGTIP VORTICES (Aerodynamic Vapor Needles)
 			# Unshaded Manga White (#FFFFFF, alpha = 0.85) with 1px solid black ink edge (#080808)
@@ -7903,6 +7917,7 @@ func _reset_race() -> void:
 		hud_hazard_banner.visible = false
 	if is_instance_valid(hazard_tween) and hazard_tween.is_valid():
 		hazard_tween.kill()
+	_reset_trail_buffers()
 	if is_instance_valid(trail_left):
 		trail_left.visible = false
 		trail_right.visible = false
@@ -8626,6 +8641,7 @@ func _setup_hud() -> void:
 	hud_tod_toggle_btn.add_theme_color_override("font_color", Color("#FFFFFF"))
 	hud_tod_toggle_btn.pressed.connect(_on_tod_btn_pressed)
 	hud_gameplay_container.add_child(hud_tod_toggle_btn)
+	_update_tod_indicator(current_biome_id)
 
 	# Dynamic Manga Comic Cut-In Panel
 	cutin_container = Control.new()
@@ -9518,16 +9534,11 @@ func _physics_process(delta: float) -> void:
 	_update_hud(delta)
 
 func _on_tod_btn_pressed() -> void:
-	tod_mode = (tod_mode + 1) % 4
-	match tod_mode:
-		0:
-			if is_instance_valid(hud_tod_toggle_btn): hud_tod_toggle_btn.text = "☀️ AUTO"
-		1:
-			if is_instance_valid(hud_tod_toggle_btn): hud_tod_toggle_btn.text = "☀️ NOON"
-		2:
-			if is_instance_valid(hud_tod_toggle_btn): hud_tod_toggle_btn.text = "🌅 DUSK"
-		3:
-			if is_instance_valid(hud_tod_toggle_btn): hud_tod_toggle_btn.text = "🌙 NIGHT"
+	var loop := ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]
+	var cur_idx := loop.find(current_biome_id)
+	var next_idx := (cur_idx + 1) % loop.size() if cur_idx != -1 else 0
+	_apply_biome_transition(loop[next_idx])
+	_sync_biome_horizon_and_tod(loop[next_idx])
 
 func _process_day_night_cycle(delta: float) -> void:
 	if tod_mode == 0:
@@ -9957,21 +9968,8 @@ func _process_suspension_and_vibration(delta: float) -> void:
 	if is_instance_valid(exhaust_tip_r):
 		exhaust_tip_r.position = Vector3(0.42 - tip_jiggle_x, 0.28 + tip_jiggle_y, 1.95)
 
-	# 3. TAILLIGHT SPEED TRAILS: Length stretches from 0.0m at 100 km/h to 1.8m at 200 km/h
-	if is_instance_valid(trail_left) and is_instance_valid(trail_right):
-		var kmh_val: float = player_speed * 3.6
-		var trail_t: float = clamp((kmh_val - 100.0) / 100.0, 0.0, 1.0)
-		var current_trail_len: float = trail_t * 1.8
-		if current_trail_len > 0.02 and current_state == GameState.RACING:
-			trail_left.visible = true
-			trail_right.visible = true
-			trail_mesh_l.size = Vector2(0.28, current_trail_len)
-			trail_mesh_r.size = Vector2(0.28, current_trail_len)
-			trail_left.position = Vector3(-0.52, 0.58, 1.55 + (current_trail_len * 0.5))
-			trail_right.position = Vector3(0.52, 0.58, 1.55 + (current_trail_len * 0.5))
-		else:
-			trail_left.visible = false
-			trail_right.visible = false
+	# 3. TAILLIGHT & DRIFT SPEED TRAILS: Continuous world-space ribbon ring buffer
+	_update_trail_ribbons(delta)
 
 	# 4. SPOILER WINGTIP VORTICES (Aerodynamic Vapor Needles)
 	# Trigger: Active ONLY when vehicle velocity > 165 km/h, trailing 3.2m needle with fast 18 FPS turbulence jitter
@@ -9997,6 +9995,117 @@ func _process_suspension_and_vibration(delta: float) -> void:
 		else:
 			spoiler_streak_l.visible = false
 			spoiler_streak_r.visible = false
+
+func _reset_trail_buffers() -> void:
+	if not is_instance_valid(car_root):
+		return
+	var cur_l: Vector3 = car_root.global_transform * Vector3(-0.52, 0.58, 1.55)
+	var cur_r: Vector3 = car_root.global_transform * Vector3(0.52, 0.58, 1.55)
+	trail_buffer_l.clear()
+	trail_buffer_r.clear()
+	for k in range(TRAIL_BUFFER_SIZE):
+		trail_buffer_l.append(cur_l)
+		trail_buffer_r.append(cur_r)
+	trail_last_emit_pos = car_root.global_position
+	trail_initialized = true
+	if is_instance_valid(trail_imm_l):
+		trail_imm_l.clear_surfaces()
+	if is_instance_valid(trail_imm_r):
+		trail_imm_r.clear_surfaces()
+
+func _update_trail_ribbons(_delta: float) -> void:
+	if not is_instance_valid(car_root) or not is_instance_valid(trail_left) or not is_instance_valid(trail_right):
+		return
+
+	if current_state != GameState.RACING:
+		trail_left.visible = false
+		trail_right.visible = false
+		return
+
+	var kmh_val: float = player_speed * 3.6
+	if kmh_val < 90.0:
+		trail_left.visible = false
+		trail_right.visible = false
+		return
+
+	if not trail_initialized or trail_buffer_l.size() < TRAIL_BUFFER_SIZE:
+		_reset_trail_buffers()
+		return
+
+	# Skip emitting segment if distance > 4.0m to prevent diagonal screen stretch
+	var dist: float = car_root.global_position.distance_to(trail_last_emit_pos)
+	if dist > 4.0:
+		_reset_trail_buffers()
+		return
+	trail_last_emit_pos = car_root.global_position
+
+	var cur_l: Vector3 = car_root.global_transform * Vector3(-0.52, 0.58, 1.55)
+	var cur_r: Vector3 = car_root.global_transform * Vector3(0.52, 0.58, 1.55)
+
+	trail_buffer_l.pop_back()
+	trail_buffer_l.push_front(cur_l)
+	trail_buffer_r.pop_back()
+	trail_buffer_r.push_front(cur_r)
+
+	trail_left.visible = true
+	trail_right.visible = true
+
+	# Ensure top_level and IDENTITY transform so world positions are never double-transformed
+	trail_left.top_level = true
+	trail_left.transform = Transform3D.IDENTITY
+	trail_right.top_level = true
+	trail_right.transform = Transform3D.IDENTITY
+
+	# Render Left Ribbon Mesh
+	if is_instance_valid(trail_imm_l):
+		trail_imm_l.clear_surfaces()
+		trail_imm_l.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		for i in range(TRAIL_BUFFER_SIZE):
+			var pt: Vector3 = trail_buffer_l[i]
+			var uvy: float = float(i) / float(TRAIL_BUFFER_SIZE - 1)
+			var half_w: float = 0.14 * (1.0 - uvy * 0.45)
+			trail_imm_l.surface_set_uv(Vector2(0.0, uvy))
+			trail_imm_l.surface_add_vertex(pt + Vector3(-half_w, 0.0, 0.0))
+			trail_imm_l.surface_set_uv(Vector2(1.0, uvy))
+			trail_imm_l.surface_add_vertex(pt + Vector3(half_w, 0.0, 0.0))
+		trail_imm_l.surface_end()
+
+	# Render Right Ribbon Mesh
+	if is_instance_valid(trail_imm_r):
+		trail_imm_r.clear_surfaces()
+		trail_imm_r.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		for i in range(TRAIL_BUFFER_SIZE):
+			var pt: Vector3 = trail_buffer_r[i]
+			var uvy: float = float(i) / float(TRAIL_BUFFER_SIZE - 1)
+			var half_w: float = 0.14 * (1.0 - uvy * 0.45)
+			trail_imm_r.surface_set_uv(Vector2(0.0, uvy))
+			trail_imm_r.surface_add_vertex(pt + Vector3(-half_w, 0.0, 0.0))
+			trail_imm_r.surface_set_uv(Vector2(1.0, uvy))
+			trail_imm_r.surface_add_vertex(pt + Vector3(half_w, 0.0, 0.0))
+		trail_imm_r.surface_end()
+
+func _sync_biome_horizon_and_tod(biome_id: String) -> void:
+	if is_instance_valid(background_rig):
+		background_rig.visible = (biome_id == "shuto_dusk")
+	if is_instance_valid(horizon_manager):
+		horizon_manager.set_biome_style(biome_id)
+	_update_tod_indicator(biome_id)
+
+func _update_tod_indicator(biome_id: String = "") -> void:
+	if not is_instance_valid(hud_tod_toggle_btn):
+		return
+	var b_id: String = biome_id if not biome_id.is_empty() else current_biome_id
+	match b_id:
+		"shuto_dusk":
+			hud_tod_toggle_btn.text = "🌅 DUSK 18:30"
+		"neo_shinjuku":
+			hud_tod_toggle_btn.text = "🌙 MIDNIGHT 00:30"
+		"hakone_snow":
+			hud_tod_toggle_btn.text = "🌄 DAWN 06:30"
+		"enoshima_coast":
+			hud_tod_toggle_btn.text = "☀️ AFTERNOON 16:30"
+		_:
+			hud_tod_toggle_btn.text = "🌅 DUSK 18:30"
 
 func _process_crashed_state(delta: float) -> void:
 	if is_instance_valid(trail_left):
@@ -10184,7 +10293,7 @@ func _trigger_overdrive_shockwave() -> void:
 	for td in traffic_pool:
 		var dist_ahead: float = player_z - td.current_z
 		if dist_ahead > 0.0 and dist_ahead < 18.0 and not td.is_roadblock:
-			var outer_lane: float = -3.8 if td.lane_offset < 0.0 else 3.8
+			var outer_lane: float = -6.0 if td.lane_offset < 0.0 else 6.0
 			td.is_switching = true
 			td.switch_start_x = td.lane_offset
 			td.switch_target_x = outer_lane
@@ -10357,8 +10466,8 @@ func _process_traffic_and_collisions(delta: float) -> void:
 		# Disrupted civilian dynamics (spinout slide across lanes)
 		if td.is_disrupted and not td.is_roadblock and not td.roadblock_crashing:
 			td.lane_offset += td.disrupt_slide_speed * delta
-			if abs(td.lane_offset) > LATERAL_LIMIT:
-				td.lane_offset = clamp(td.lane_offset, -LATERAL_LIMIT, LATERAL_LIMIT)
+			if abs(td.lane_offset) > 6.5:
+				td.lane_offset = clamp(td.lane_offset, -6.5, 6.5)
 				td.disrupt_slide_speed *= -0.5
 				td.disrupt_spin_rate *= -0.6
 			td.disrupt_yaw += td.disrupt_spin_rate * delta

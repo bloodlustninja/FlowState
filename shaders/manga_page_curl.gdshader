@@ -16,6 +16,10 @@ uniform vec4 back_page_color : source_color = vec4(0.94, 0.92, 0.88, 1.0);
 uniform float corner_peek : hint_range(0.0, 0.25) = 0.06; // Small corner curl when idle
 
 void fragment() {
+	if (progress >= 0.99) {
+		COLOR = vec4(0.0, 0.0, 0.0, 0.0);
+		return;
+	}
 	vec2 uv = UV;
 	
 	// Effective progress blending idle corner curl with active page turn
