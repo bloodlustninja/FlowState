@@ -18,6 +18,7 @@ uniform vec4 snow_top_color : source_color = vec4(0.99, 0.99, 1.0, 1.0);     // 
 uniform vec4 snow_shadow_color : source_color = vec4(0.74, 0.84, 0.92, 1.0);  // Soft Cyan Snow Shadow #BDD6EB
 uniform vec4 crevice_ink_color : source_color = vec4(0.06, 0.08, 0.12, 1.0); // Dark Comic Ink #10141E
 uniform float hatch_density : hint_range(50.0, 300.0) = 145.0;
+uniform bool enable_hatching = false;
 
 varying vec3 v_world_pos;
 varying vec3 v_normal;
@@ -71,8 +72,8 @@ void fragment() {
 		base_col = rock;
 	}
 
-	// 45-Degree Screen-Space Manga Pen Hatching STRICTLY in Deep Shadow Crevices (NdotL < 0.25)
-	if (n_dot_l < 0.25 && cel_sun < 0.5) {
+	// 45-Degree Screen-Space Manga Pen Hatching (Disabled on large cliffs per user directive)
+	if (enable_hatching && n_dot_l < 0.25 && cel_sun < 0.5) {
 		float c45 = (FRAGCOORD.x + FRAGCOORD.y) * (hatch_density / 1080.0);
 		float pen_stroke = step(0.48, fract(c45));
 		float crevice_depth = clamp((0.25 - n_dot_l) / 0.45, 0.0, 1.0);

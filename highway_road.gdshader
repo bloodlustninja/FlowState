@@ -55,31 +55,42 @@ void fragment() {
 	// BIOME 1: NEO-SHINJUKU ALLEY — AUTHENTIC WET ASPHALT WITH PUDDLE REFLECTIONS (Ref Image 2)
 	// =========================================================================
 	if (biome_mode == 1) {
-		// Organic irregular puddle noise masks
-		float p1 = sin(uv.y * 6.5 + uv.x * 4.2);
-		float p2 = cos(uv.y * 13.8 - uv.x * 7.5);
-		float p3 = sin(uv.y * 28.0 + uv.x * 12.0) * 0.25;
-		float puddle_island = smoothstep(0.35, 0.78, (p1 + p2 + p3) * 0.45);
+		// Organic irregular puddle noise masks (discrete puddles like Ref Image 2)
+		float p1 = sin(uv.y * 4.2 + uv.x * 3.0);
+		float p2 = cos(uv.y * 8.5 - uv.x * 5.2);
+		float p3 = sin(uv.y * 19.0 + uv.x * 9.5) * 0.35;
+		// Puddle island mask: concentrated into clear, organic wet spots
+		float puddle_island = smoothstep(0.48, 0.75, (p1 + p2 + p3) * 0.45);
 
-		// Wet wheel path tracks (subtle glossy sheen)
-		float wet_track_l = smoothstep(0.12, 0.0, abs(uv.x - 0.300)) * 0.55;
-		float wet_track_r = smoothstep(0.12, 0.0, abs(uv.x - 0.700)) * 0.55;
-		float wet_sheen = clamp(puddle_island * 0.95 + wet_track_l + wet_track_r, 0.0, 1.0);
+		// Thin manga ink perimeter outline around puddle water edge
+		float puddle_edge = step(0.42, (p1 + p2 + p3) * 0.45) * (1.0 - step(0.48, (p1 + p2 + p3) * 0.45));
 
-		// Darken asphalt base under wet water
-		col = mix(col, vec3(0.04, 0.05, 0.07), wet_sheen * 0.65);
+		// Subtle damp sheen along driving paths
+		float wet_track_l = smoothstep(0.14, 0.0, abs(uv.x - 0.300)) * 0.25;
+		float wet_track_r = smoothstep(0.14, 0.0, abs(uv.x - 0.700)) * 0.25;
+		float damp_sheen = clamp(puddle_island + wet_track_l + wet_track_r, 0.0, 1.0);
 
-		// Left lane magenta neon reflections (#FF1473) strictly on puddles and wet sheen
-		float mag_falloff = smoothstep(0.60, 0.05, uv.x);
-		vec3 mag_neon = vec3(1.0, 0.08, 0.45);
-		vec3 mag_reflect = mag_neon * mag_falloff * wet_sheen * 0.90;
+		// Darken asphalt base under wet puddles
+		col = mix(col, vec3(0.038, 0.045, 0.065), damp_sheen * 0.75);
+		col = mix(col, ink_black.rgb, puddle_edge * 0.55);
 
-		// Right lane cyan neon reflections (#00E5FF) strictly on puddles and wet sheen
-		float cyn_falloff = smoothstep(0.40, 0.95, uv.x);
-		vec3 cyn_neon = vec3(0.0, 0.88, 1.0);
-		vec3 cyn_reflect = cyn_neon * cyn_falloff * wet_sheen * 0.90;
+		// Multi-Tone Neon Reflections: Concentrated inside puddles, gentle on damp sheen
+		if (uv.x >= 0.055 && uv.x <= 0.945) {
+			float mag_falloff = smoothstep(0.55, 0.08, uv.x);
+			vec3 mag_neon = vec3(1.0, 0.165, 0.333); // Neon Magenta #FF2A55
+			vec3 mag_reflect = mag_neon * mag_falloff * (puddle_island * 0.92 + damp_sheen * 0.12);
 
-		col += mag_reflect + cyn_reflect;
+			float cyn_falloff = smoothstep(0.45, 0.92, uv.x);
+			vec3 cyn_neon = vec3(0.0, 0.898, 1.0);   // Electric Cyan #00E5FF
+			vec3 cyn_reflect = cyn_neon * cyn_falloff * (puddle_island * 0.92 + damp_sheen * 0.12);
+
+			// Warm Amber Reflections (#FFB703) from izakaya lanterns & shop fascias
+			float amb_falloff = smoothstep(0.28, 0.50, uv.x) * (1.0 - smoothstep(0.50, 0.72, uv.x));
+			vec3 amb_neon = vec3(1.0, 0.718, 0.012); // Warm Amber #FFB703
+			vec3 amb_reflect = amb_neon * amb_falloff * (puddle_island * 0.68 + damp_sheen * 0.08);
+
+			col += mag_reflect + cyn_reflect + amb_reflect;
+		}
 	}
 
 	// =========================================================================
@@ -154,13 +165,15 @@ void fragment() {
 	}
 	// MODE 1: NEO-SHINJUKU ALLEY (Clean white lines, crisp concrete curb edge #64748B, Ref Image 2)
 	else if (biome_mode == 1) {
-		// Road curb edge - crisp light-grey concrete curb lip (#64748B) with ink-black border
+		// Road curb edge - crisp light-grey concrete curb lip (#64748B) and dark slate-concrete (#242834)
 		if (uv.x < 0.035 || uv.x > 0.965) {
 			float d_curb = min(abs(uv.x - 0.035), abs(uv.x - 0.965));
 			if (d_curb < 0.0035) {
 				col = ink_black.rgb; // Black ink border separating road and curb lip
-			} else {
+			} else if (d_curb < 0.014) {
 				col = vec3(0.392, 0.455, 0.545); // Light grey concrete curb edge #64748B
+			} else {
+				col = vec3(0.141, 0.157, 0.204); // Dark slate-concrete #242834
 			}
 		}
 		// Solid white edge lines with ink border

@@ -4,13 +4,13 @@ render_mode blend_mix, depth_draw_opaque, cull_back;
 // Auto Modellista & Initial D Manga Cel-Shaded Vehicle Shader
 // Variable Pen-Pressure Smoothstep Inking + Auto Modellista Livery + Manga Speed Wedges
 
-uniform vec4 paper_white : source_color = vec4(0.92, 0.90, 0.86, 1.0);  // Warm paper cream #EAE6DF
+uniform vec4 paper_white : source_color = vec4(0.96, 0.97, 0.99, 1.0);  // Crisp pearl white #F5F7FA
 uniform vec4 slate_grey : source_color = vec4(0.43, 0.45, 0.52, 1.0);   // Slate grey lower flank #6E7485
-uniform vec4 stripe_blue : source_color = vec4(0.00, 0.34, 0.88, 1.0);  // Auto Modellista Cobalt Blue #0057E0
-uniform vec4 navy_diffuser : source_color = vec4(0.12, 0.22, 0.38, 1.0); // Lower rear diffuser navy #1F3861
+uniform vec4 stripe_blue : source_color = vec4(0.067, 0.094, 0.153, 1.0);  // Dark charcoal/navy #111827
+uniform vec4 navy_diffuser : source_color = vec4(0.067, 0.094, 0.153, 1.0); // Lower rear diffuser dark charcoal/navy #111827
 uniform vec4 ink_black : source_color = vec4(0.04, 0.04, 0.06, 1.0);    // Bold manga ink #0A0914
 uniform vec4 ink_shadow : source_color = vec4(0.05, 0.05, 0.09, 1.0);   // Deep core shadow ink
-uniform vec4 paint_color : source_color = vec4(0.90, 0.88, 0.82, 1.0);  // Fallback single tone
+uniform vec4 paint_color : source_color = vec4(0.96, 0.97, 0.99, 1.0);  // Crisp pearl white #F5F7FA
 uniform vec4 day_night_tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);  // Ambient sky tint
 uniform float sodium_intensity : hint_range(0.0, 1.0) = 0.0;            // Overhead sodium streetlight wash
 uniform vec4 sodium_color : source_color = vec4(1.0, 0.65, 0.15, 1.0);
@@ -129,7 +129,8 @@ void fragment() {
 	if (sodium_intensity > 0.01 && v_car_norm.y > 0.20) {
 		base_color = mix(base_color, sodium_color.rgb, sodium_intensity * 0.45);
 	}
-	base_color *= day_night_tint.rgb;
+	vec3 neutral_tint = mix(vec3(1.0), day_night_tint.rgb, 0.15);
+	base_color *= neutral_tint;
 
 	// =========================================================================
 	// 4. VARIABLE-WEIGHT GRAPHIC INKING (Initial D Manga & Auto Modellista)
@@ -372,4 +373,28 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	METALLIC = 0.0;
 	SPECULAR = 0.0;
+}
+
+void light() {
+	// 1. Diffuse Cel-Shading Step
+	float NdotL = clamp(dot(NORMAL, LIGHT), 0.0, 1.0);
+	float cel = step(0.12, NdotL);
+
+	// 2. Cool-Slate Manga Shadow (#94A3B8 / vec3(0.580, 0.639, 0.722)) for shaded panels
+	vec3 cool_slate_shadow = vec3(0.580, 0.639, 0.722);
+	vec3 cel_tone = mix(cool_slate_shadow, vec3(1.0), cel);
+	vec3 diffuse_cel = ALBEDO * cel_tone;
+
+	// 3. Desaturate & clamp LIGHT_COLOR influence on main diffuse cel-shaded bands
+	vec3 neutral_light = mix(vec3(1.0), clamp(LIGHT_COLOR, 0.0, 1.0), 0.20);
+
+	// 4. Multiply diffuse cel-shading by neutral_light and clamp total brightness <= 1.05
+	vec3 diffuse_result = clamp(diffuse_cel * neutral_light * ATTENUATION, vec3(0.0), vec3(1.05));
+
+	// 5. Subtle Fresnel Edge Rim-Light with Biome Color Bounce
+	// Bounces sunset gold, neon magenta/cyan, or icy blue off edges, spoiler, and roof contours
+	float fresnel = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 3.5) * 0.35;
+	vec3 rim_bounce = fresnel * clamp(LIGHT_COLOR, 0.0, 1.0) * ATTENUATION;
+
+	DIFFUSE_LIGHT += diffuse_result + rim_bounce;
 }

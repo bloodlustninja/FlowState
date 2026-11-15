@@ -12,23 +12,15 @@ void fragment() {
 	// Silhouette detection via Normal dot View
 	float ndv = abs(dot(NORMAL, VIEW));
 
-	if (ndv < 0.22) {
+	if (ndv < 0.18) {
 		// Outer ink contour at glancing angles / silhouette edge
 		ALBEDO = ink_contour.rgb;
 		ALPHA = 1.0;
 	} else {
-		// 3-tier stepped color mapping based on UV.y and view alignment
-		// Base of cone is hot white core, mid is vibrant yellow, tip is fiery orange-red
-		float step_val = (1.0 - UV.y) * 0.7 + (1.0 - ndv) * 0.3;
-
-		vec3 col;
-		if (step_val < 0.35) {
-			col = core_color.rgb;
-		} else if (step_val < 0.72) {
-			col = mid_color.rgb;
-		} else {
-			col = rim_color.rgb;
-		}
+		// Electric cyan-to-white gradient along cone length (#00E5FF -> #FFFFFF)
+		// Base (UV.y ~ 1.0) is hot white core, tapering along Z into electric cyan
+		float gradient = clamp(UV.y * 1.3 - (1.0 - ndv) * 0.35, 0.0, 1.0);
+		vec3 col = mix(mid_color.rgb, core_color.rgb, smoothstep(0.25, 0.85, gradient));
 
 		ALBEDO = col;
 		ALPHA = 1.0;

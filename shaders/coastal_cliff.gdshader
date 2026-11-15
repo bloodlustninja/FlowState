@@ -11,13 +11,14 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
 // =============================================================================
 
 uniform vec4 sun_tint : source_color = vec4(1.0, 0.90, 0.72, 1.0);
-uniform vec4 rock_sun_color : source_color = vec4(0.851, 0.627, 0.400, 1.0);    // Warm Golden Sandstone #D9A066
-uniform vec4 rock_mid_color : source_color = vec4(0.74, 0.47, 0.23, 1.0);    // Amber Sandstone #BD783A
-uniform vec4 rock_shadow_color : source_color = vec4(0.36, 0.20, 0.09, 1.0); // Deep Warm Manga Shadow #5C3218
+uniform vec4 rock_sun_color : source_color = vec4(0.902, 0.722, 0.490, 1.0);    // Warm Sunlit Sandstone #E6B87D
+uniform vec4 rock_mid_color : source_color = vec4(0.760, 0.540, 0.320, 1.0);    // Amber Sandstone
+uniform vec4 rock_shadow_color : source_color = vec4(0.612, 0.420, 0.243, 1.0); // Shadow Face #9C6B3E
 uniform vec4 grass_top_color : source_color = vec4(0.36, 0.56, 0.14, 1.0);   // Lush Tropical Green #5C8E24
 uniform vec4 grass_shadow_color : source_color = vec4(0.22, 0.35, 0.08, 1.0);// Deep Bush Shadow #385A14
-uniform vec4 crevice_ink_color : source_color = vec4(0.08, 0.05, 0.03, 1.0); // Dark Comic Ink #140D08
+uniform vec4 crevice_ink_color : source_color = vec4(0.078, 0.067, 0.059, 1.0); // Bold Black Ink Crease #14110F
 uniform float hatch_density : hint_range(50.0, 300.0) = 145.0;
+uniform bool enable_hatching = false;
 
 varying vec3 v_world_pos;
 varying vec3 v_normal;
@@ -73,8 +74,8 @@ void fragment() {
 		base_col = rock;
 	}
 
-	// 45-Degree Screen-Space Manga Pen Hatching STRICTLY in Deep Shadow Crevices (NdotL < 0.25)
-	if (n_dot_l < 0.25 && cel_sun < 0.5) {
+	// 45-Degree Screen-Space Manga Pen Hatching (Disabled on cliffs per user directive)
+	if (enable_hatching && n_dot_l < 0.25 && cel_sun < 0.5) {
 		float c45 = (FRAGCOORD.x + FRAGCOORD.y) * (hatch_density / 1080.0);
 		float pen_stroke = step(0.48, fract(c45));
 		float crevice_depth = clamp((0.25 - n_dot_l) / 0.45, 0.0, 1.0);

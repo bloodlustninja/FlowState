@@ -1,5 +1,9 @@
 extends Node3D
 
+const BiomeAssetFactory = preload("res://scripts/builders/BiomeAssetFactory.gd")
+const MangaComicPage = preload("res://ui/MangaComicPage.gd")
+const CockpitCutIn = preload("res://ui/CockpitCutIn.gd")
+
 # ==============================================================================
 # FLOWSTATE: MASTER ARCADE RACER (AUTO MODELLISTA / INITIAL D ANIME STYLE)
 # Hero Comic White Muscle Car + Vibrant Daytime Cobalt Sky + Light Anime Tarmac +
@@ -209,6 +213,21 @@ class PuddleData:
 var active_puddles: Array[PuddleData] = []
 static var puddle_mat: StandardMaterial3D
 
+# --- BIOME CUSTOM ROAD OBSTACLES DATA ---
+class BiomeCustomObstacleData:
+	var node: Node3D
+	var global_z: float
+	var global_x: float
+	var type: String              # "kei_van", "manhole", "black_ice", "snowbank", "sand_drift"
+	var half_w: float = 1.0
+	var half_l: float = 2.0
+	var triggered: bool = false
+	var hazard_timer: float = 0.0
+	var hazard_state: bool = false
+	var light_nodes: Array[Node3D] = []
+
+var active_custom_obstacles: Array[BiomeCustomObstacleData] = []
+
 # --- SEASONAL WEATHER PARTICLES (TEXTURED LEAVES & 3-LAYER 3D SNOW) ---
 var leaf_particles: CPUParticles3D
 var snow_layer_near: CPUParticles3D
@@ -377,8 +396,9 @@ const BIOMES: Dictionary = {
 	"shuto_dusk": {
 		"name": "SHUTO DUSK",
 		"kanji": "首都高 DUSK",
-		"badge": "SHUTO EXPRESSWAY // DUSK",
+		"badge": "STAGE 1: SHUTO DUSK // SUNSET 18:30",
 		"sky_top": Color("#0E2864"),
+		"sky_mid": Color("#7A7CA8"),
 		"sky_horizon": Color("#E8827A"),
 		"ground_horizon": Color("#242B3D"),
 		"sun_color": Color("#FFF8EB"),
@@ -393,27 +413,47 @@ const BIOMES: Dictionary = {
 	},
 	"neo_shinjuku": {
 		"name": "NEO-SHINJUKU",
-		"kanji": "新宿 ALLEY",
-		"badge": "NEO-SHINJUKU // URBAN CANYON",
-		"sky_top": Color("#090610"),
-		"sky_horizon": Color("#8C172E"), # Glowing crimson twilight dusk (Ref Image 2)
+		"kanji": "新宿 MIDNIGHT",
+		"badge": "STAGE 2: NEO-SHINJUKU // MIDNIGHT 00:30",
+		"sky_top": Color("#131626"),     # Deep violet night zenith (#131626)
+		"sky_mid": Color("#2E1235"),     # Deep plum-magenta mid
+		"sky_horizon": Color("#4A153B"), # Glowing crimson twilight dusk (#4A153B)
 		"ground_horizon": Color("#0E0B18"),
 		"sun_color": Color("#30243C"),
 		"sun_energy": 0.45,
 		"ambient_color": Color("#1C1628"),
 		"ambient_energy": 0.45,
-		"fog_color": Color("#200E29"),
+		"fog_color": Color("#2E1235"),
 		"fog_density": 0.0004,
 		"weather": "rain",
 		"traffic_min_dist": 200.0,
 		"traffic_max_dist": 290.0,
 	},
+	"hakone_snow": {
+		"name": "HAKONE DAWN",
+		"kanji": "箱根 DAWN",
+		"badge": "STAGE 3: HAKONE SNOW PEAKS // ALPINE DAWN 06:30",
+		"sky_top": Color("#BAE6FD"),     # Pale morning ice-blue sky (#BAE6FD)
+		"sky_mid": Color("#E0F2FE"),     # Soft morning frost azure
+		"sky_horizon": Color("#FBCFE8"), # Soft rose-gold sunrise horizon (#FBCFE8)
+		"ground_horizon": Color("#7898B4"),
+		"sun_color": Color("#FFF1F2"),   # Soft rose sunrise light
+		"sun_energy": 0.80,
+		"ambient_color": Color("#9AB6D2"),
+		"ambient_energy": 0.42,
+		"fog_color": Color("#FBCFE8"),   # Soft morning rose-gold fog mist
+		"fog_density": 0.00015,
+		"weather": "snow",
+		"traffic_min_dist": 450.0,
+		"traffic_max_dist": 680.0,
+	},
 	"enoshima_coast": {
 		"name": "ENOSHIMA COAST",
-		"kanji": "江の島 COAST",
-		"badge": "ENOSHIMA COAST // OCEAN HIGHWAY",
-		"sky_top": Color("#8F2249"),     # Vibrant deep anime rose sunset (Ref Image 1)
-		"sky_horizon": Color("#FFD152"), # Radiant golden lemon horizon (Ref Image 1)
+		"kanji": "江の島 AFTERNOON",
+		"badge": "STAGE 4: ENOSHIMA SEASIDE // GOLDEN AFTERNOON 16:30",
+		"sky_top": Color("#FB7185"),     # Warm coastal rose sky (#FB7185)
+		"sky_mid": Color("#F472B6"),     # Sunset coral pink
+		"sky_horizon": Color("#FDE68A"), # Warm golden-amber coastal sky (#FDE68A)
 		"ground_horizon": Color("#1D3850"),
 		"sun_color": Color("#FFE080"),
 		"sun_energy": 0.85,
@@ -424,23 +464,6 @@ const BIOMES: Dictionary = {
 		"weather": "sunny",
 		"traffic_min_dist": 280.0,
 		"traffic_max_dist": 390.0,
-	},
-	"hakone_snow": {
-		"name": "HAKONE SNOW",
-		"kanji": "箱根 TOUGE",
-		"badge": "HAKONE SNOW // ALPINE PASS",
-		"sky_top": Color("#4775A3"),     # Crisp cold alpine azure (Ref Image 3)
-		"sky_horizon": Color("#E8F5FC"), # Icy white peak horizon (Ref Image 3)
-		"ground_horizon": Color("#7898B4"),
-		"sun_color": Color("#EDF6FF"),
-		"sun_energy": 0.80,
-		"ambient_color": Color("#9AB6D2"),
-		"ambient_energy": 0.42,
-		"fog_color": Color("#CFE3F4"),
-		"fog_density": 0.0002,
-		"weather": "snow",
-		"traffic_min_dist": 450.0,
-		"traffic_max_dist": 680.0,
 	}
 }
 
@@ -458,21 +481,46 @@ const SHINJUKU_SIGNS: Array = [
 ]
 
 const STAGE_INTERVAL_METERS: float = 2500.0
+const CHRONOLOGICAL_BIOME_ORDER: Array[String] = [
+	"shuto_dusk",     # Stage 1: Sunset / 18:30
+	"neo_shinjuku",   # Stage 2: Midnight / 00:30
+	"hakone_snow",    # Stage 3: Alpine Dawn / 06:30
+	"enoshima_coast"  # Stage 4: Golden Afternoon / 16:30
+]
 var stage_tier: int = 1
 var stage_start_z: float = 0.0
 var current_biome_id: String = "shuto_dusk"
-var discovered_biomes: Array[String] = ["shuto_dusk"]
+var discovered_biomes: Array[String] = ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]
 
-var fork_left_biome: String = "hakone_snow"
-var fork_right_biome: String = "enoshima_coast"
+var fork_left_biome: String = "neo_shinjuku"
+var fork_right_biome: String = "neo_shinjuku"
+var fork_left_label: String = "NEO-SHINJUKU\n// MIDNIGHT"
+var fork_right_label: String = "SHUTO C1\n// MIDNIGHT"
 var fork_active: bool = false
 var active_fork_mid_z: float = -999999.0
 var active_fork_exit_z: float = -999999.0
 var fork_transition_done: bool = false
 const SAVE_DATA_PATH: String = "user://save_data.cfg"
 
-# Start Screen & Vibe Pill UI
+# Smooth 1.5-Second Tunnel Exit Exposure & Sky Lerp
+var tunnel_exit_active: bool = false
+var tunnel_exit_tween: Tween
+var sun_flash_tween: Tween
+var hud_tunnel_sun_flash: ColorRect
+
+# Full-Screen Flippable Manga Comic-Book Start Spread & Multi-Camera Rig
 var hud_start_screen: Control
+var hud_gameplay_container: Control
+var manga_comic_page: MangaComicPage
+var panorama_subviewport: SubViewport
+var panorama_cam: Camera3D
+var hero_subviewport: SubViewport
+var hero_chase_cam: Camera3D
+var wheel_subviewport: SubViewport
+var wheel_close_cam: Camera3D
+var hud_ink_flash: ColorRect
+var camera_title_blend: float = 1.0
+var is_launching_to_race: bool = false
 var hud_vibe_label: Label
 var hud_stage_banner: Control
 var hud_stage_label: Label
@@ -488,6 +536,8 @@ static var coastal_cliff_mat: Material
 
 static var snow_rock_mat: Material
 static var snow_foliage_mat: Material
+static var pine_snow_mat: Material
+static var cedar_trunk_mat: Material
 static var snowbank_mat: Material
 
 static var shinjuku_building_mat: Material
@@ -504,6 +554,19 @@ static var awning_blue_mat: Material
 static var awning_green_mat: Material
 static var shutter_mat: Material
 static var attenuator_mat: Material
+static var noise_barrier_mat: Material
+static var noise_barrier_glass_mat: Material
+static var spruce_foliage_mat: Material
+static var tetrapod_mat: Material
+static var snow_pole_mat: Material
+static var stone_guardpost_mat: Material
+static var mountain_sign_mat: Material
+static var coastal_route_sign_mat: Material
+static var torii_red_mat: Material
+static var wooden_boardwalk_mat: Material
+static var taxi_lantern_mat: Material
+static var truss_steel_mat: Material
+static var gantry_catwalk_mat: Material
 
 # Player Motion State
 var player_z: float = 0.0
@@ -582,6 +645,11 @@ var graze_speed_kick_timer: float = 0.0
 var cam_fov_punch: float = 0.0
 var cam_fov_punch_timer: float = 0.0
 
+# Scrape Destabilization & Fishtail Inertia
+var scrape_destabilize_timer: float = 0.0
+var scrape_destabilize_dir: float = 0.0
+var scrape_destabilize_yaw: float = 0.0
+
 # HUD & Audio Elements for Boost / Graze
 var hud_nitro_bar_bg: ColorRect
 var hud_nitro_bar: ColorRect
@@ -601,9 +669,9 @@ const TRAFFIC_CONFIGS: Dictionary = {
 }
 
 const TRAFFIC_SPAWN_ORDER: Array[String] = [
-	"truck", "sedan", "police", "suv", "muscle",
+	"suv", "sedan", "police", "muscle", "suv",
 	"dekotora", "sedan", "police", "muscle", "sedan",
-	"suv", "truck"
+	"suv", "muscle"
 ]
 
 # Scoring, Combos & HUD
@@ -659,8 +727,7 @@ func _get_stage_top_speed_kmh(tier: int) -> float:
 		1: return 165.0
 		2: return 185.0
 		3: return 205.0
-		4: return 225.0
-		_: return minf(245.0, 225.0 + float(tier - 4) * 10.0)
+		_: return 225.0 # Strictly capped at 225.0 km/h; 250+ km/h reserved for Nitro/Overdrive bursts
 
 func _get_stage_cruise_speed() -> float:
 	return _get_stage_top_speed_kmh(stage_tier) / 3.6
@@ -678,7 +745,7 @@ func _get_stage_score_multiplier(tier: int) -> float:
 
 func _load_save_data() -> void:
 	var cfg := ConfigFile.new()
-	var all_default_biomes: Array = ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+	var all_default_biomes: Array = ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]
 	if cfg.load(SAVE_DATA_PATH) == OK:
 		var loaded_list = cfg.get_value("biomes", "discovered_biomes", all_default_biomes)
 		if loaded_list is Array:
@@ -688,7 +755,7 @@ func _load_save_data() -> void:
 				if s in BIOMES and not s in discovered_biomes:
 					discovered_biomes.append(s)
 		if discovered_biomes.is_empty():
-			discovered_biomes = ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+			discovered_biomes = ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]
 		var last_b: String = cfg.get_value("biomes", "last_biome", "shuto_dusk")
 		if last_b in discovered_biomes:
 			current_biome_id = last_b
@@ -719,39 +786,41 @@ func _rebuild_start_chunks() -> void:
 	chunk_spawn_count = 0
 	_setup_road_system()
 
-func _apply_biome_transition(new_biome_id: String) -> void:
+func _apply_biome_transition(new_biome_id: String, inside_tunnel: bool = false) -> void:
 	if not new_biome_id in BIOMES:
 		return
 	current_biome_id = new_biome_id
 	var b_data: Dictionary = BIOMES[new_biome_id]
 
-	# Sky & Atmosphere
-	if is_instance_valid(anime_sky_mat):
-		var s_mode: int = 0
-		match new_biome_id:
-			"neo_shinjuku": s_mode = 1
-			"enoshima_coast": s_mode = 2
-			"hakone_snow": s_mode = 3
-			_: s_mode = 0
-		anime_sky_mat.set_shader_parameter("biome_mode", s_mode)
-	if is_instance_valid(procedural_sky_mat):
-		procedural_sky_mat.sky_top_color = b_data["sky_top"]
-		procedural_sky_mat.sky_horizon_color = b_data["sky_horizon"]
-		procedural_sky_mat.ground_horizon_color = b_data["ground_horizon"]
-	if is_instance_valid(world_env_resource):
-		world_env_resource.ambient_light_color = b_data["ambient_color"]
-		world_env_resource.ambient_light_energy = b_data["ambient_energy"]
-		world_env_resource.fog_light_color = b_data["fog_color"]
-		world_env_resource.fog_density = b_data["fog_density"]
+	# Sky & Atmosphere (apply immediately if not inside tunnel or if captured)
+	if not inside_tunnel:
+		if is_instance_valid(anime_sky_mat):
+			var s_mode: int = 0
+			match new_biome_id:
+				"neo_shinjuku": s_mode = 1
+				"enoshima_coast": s_mode = 2
+				"hakone_snow": s_mode = 3
+				_: s_mode = 0
+			anime_sky_mat.set_shader_parameter("biome_mode", s_mode)
+			anime_sky_mat.set_shader_parameter("use_blend", false)
+		if is_instance_valid(procedural_sky_mat):
+			procedural_sky_mat.sky_top_color = b_data["sky_top"]
+			procedural_sky_mat.sky_horizon_color = b_data["sky_horizon"]
+			procedural_sky_mat.ground_horizon_color = b_data["ground_horizon"]
+		if is_instance_valid(world_env_resource):
+			world_env_resource.ambient_light_color = b_data["ambient_color"]
+			world_env_resource.ambient_light_energy = b_data["ambient_energy"]
+			world_env_resource.fog_light_color = b_data["fog_color"]
+			world_env_resource.fog_density = b_data["fog_density"]
 
-	# Directional Sun
-	if is_instance_valid(sun_light):
-		sun_light.light_color = b_data["sun_color"]
-		sun_light.light_energy = b_data["sun_energy"]
+		# Directional Sun
+		if is_instance_valid(sun_light):
+			sun_light.light_color = b_data["sun_color"]
+			sun_light.light_energy = b_data["sun_energy"]
 
-	# Horizon Mountain / Island Silhouette Manager
-	if is_instance_valid(horizon_manager):
-		horizon_manager.set_biome_style(new_biome_id)
+		# Horizon Mountain / Island Silhouette Manager
+		if is_instance_valid(horizon_manager):
+			horizon_manager.set_biome_style(new_biome_id)
 
 	# Distant Tokyo Skyline (Show on Shuto Dusk; Neo-Shinjuku uses centered canyon towers in HorizonManager)
 	if is_instance_valid(background_rig):
@@ -763,7 +832,7 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 		match new_biome_id:
 			"neo_shinjuku":
 				b_mode = 1
-				road_shader_mat.set_shader_parameter("curb_red", Color("#282C37"))
+				road_shader_mat.set_shader_parameter("curb_red", Color("#242834"))
 				road_shader_mat.set_shader_parameter("curb_white", Color("#64748B"))
 			"enoshima_coast":
 				b_mode = 2
@@ -779,16 +848,135 @@ func _apply_biome_transition(new_biome_id: String) -> void:
 	match b_data["weather"]:
 		"rain":
 			set_weather_rain(true)
+			if is_instance_valid(leaf_particles):
+				leaf_particles.emitting = (new_biome_id == "shuto_dusk")
+				leaf_particles.visible = (new_biome_id == "shuto_dusk")
 			if is_instance_valid(hud_rain_overlay):
 				hud_rain_overlay.visible = true
 				hud_rain_overlay.modulate.a = 1.0
 		"snow":
 			_set_weather_state(WeatherState.SNOW)
+			if is_instance_valid(leaf_particles):
+				leaf_particles.emitting = false
+				leaf_particles.visible = false
 			if is_instance_valid(hud_rain_overlay):
 				hud_rain_overlay.visible = false
 				hud_rain_overlay.modulate.a = 0.0
 		_:
 			set_weather_rain(false)
+			if is_instance_valid(leaf_particles):
+				leaf_particles.emitting = (new_biome_id == "shuto_dusk")
+				leaf_particles.visible = (new_biome_id == "shuto_dusk")
+			if is_instance_valid(hud_rain_overlay):
+				hud_rain_overlay.visible = false
+				hud_rain_overlay.modulate.a = 0.0
+
+# ==============================================================================
+# SMOOTH 1.5-SECOND TUNNEL EXIT EXPOSURE & SKY LERP
+# ==============================================================================
+func _trigger_smooth_tunnel_exit_transition(new_biome_id: String) -> void:
+	if not new_biome_id in BIOMES:
+		return
+	var b_data: Dictionary = BIOMES[new_biome_id]
+
+	if tunnel_exit_tween and tunnel_exit_tween.is_valid():
+		tunnel_exit_tween.kill()
+	if sun_flash_tween and sun_flash_tween.is_valid():
+		sun_flash_tween.kill()
+
+	tunnel_exit_active = true
+
+	# Capture initial values from inside the dark tunnel
+	var start_top: Color = procedural_sky_mat.sky_top_color if is_instance_valid(procedural_sky_mat) else Color("#0E1528")
+	var start_hor: Color = procedural_sky_mat.sky_horizon_color if is_instance_valid(procedural_sky_mat) else Color("#242B3D")
+	var start_gnd: Color = procedural_sky_mat.ground_horizon_color if is_instance_valid(procedural_sky_mat) else Color("#0E0B18")
+	var start_mid: Color = start_top.lerp(start_hor, 0.5)
+
+	var target_top: Color = b_data["sky_top"]
+	var target_mid: Color = b_data.get("sky_mid", target_top.lerp(b_data["sky_horizon"], 0.5))
+	var target_hor: Color = b_data["sky_horizon"]
+	var target_gnd: Color = b_data["ground_horizon"]
+
+	var start_fog_col: Color = world_env_resource.fog_light_color if is_instance_valid(world_env_resource) else Color("#10182C")
+	var start_fog_dens: float = world_env_resource.fog_density if is_instance_valid(world_env_resource) else 0.001
+	var target_fog_col: Color = b_data["fog_color"]
+	var target_fog_dens: float = b_data["fog_density"]
+
+	var start_amb_col: Color = world_env_resource.ambient_light_color if is_instance_valid(world_env_resource) else Color("#1A2238")
+	var start_amb_nrg: float = world_env_resource.ambient_light_energy if is_instance_valid(world_env_resource) else 0.20
+	var target_amb_col: Color = b_data["ambient_color"]
+	var target_amb_nrg: float = b_data["ambient_energy"]
+
+	var start_sun_col: Color = sun_light.light_color if is_instance_valid(sun_light) else Color("#6B8AFF")
+	var start_sun_nrg: float = 0.12 # tunnel exit low energy
+	var target_sun_col: Color = b_data["sun_color"]
+	var target_sun_nrg: float = b_data["sun_energy"]
+
+	if is_instance_valid(anime_sky_mat):
+		anime_sky_mat.set_shader_parameter("use_blend", true)
+		anime_sky_mat.set_shader_parameter("blend_top", start_top)
+		anime_sky_mat.set_shader_parameter("blend_mid", start_mid)
+		anime_sky_mat.set_shader_parameter("blend_hor", start_hor)
+
+	# 1. 1.5-Second Smooth Interpolation of Sky, Fog, Ambient, and Directional Light
+	tunnel_exit_tween = create_tween().set_parallel(true)
+	tunnel_exit_tween.tween_method(func(t: float):
+		var cur_top: Color = start_top.lerp(target_top, t)
+		var cur_mid: Color = start_mid.lerp(target_mid, t)
+		var cur_hor: Color = start_hor.lerp(target_hor, t)
+		var cur_gnd: Color = start_gnd.lerp(target_gnd, t)
+
+		if is_instance_valid(anime_sky_mat):
+			anime_sky_mat.set_shader_parameter("blend_top", cur_top)
+			anime_sky_mat.set_shader_parameter("blend_mid", cur_mid)
+			anime_sky_mat.set_shader_parameter("blend_hor", cur_hor)
+		if is_instance_valid(procedural_sky_mat):
+			procedural_sky_mat.sky_top_color = cur_top
+			procedural_sky_mat.sky_horizon_color = cur_hor
+			procedural_sky_mat.ground_horizon_color = cur_gnd
+
+		if is_instance_valid(world_env_resource):
+			world_env_resource.fog_light_color = start_fog_col.lerp(target_fog_col, t)
+			world_env_resource.fog_density = lerpf(start_fog_dens, target_fog_dens, t)
+			world_env_resource.ambient_light_color = start_amb_col.lerp(target_amb_col, t)
+			world_env_resource.ambient_light_energy = lerpf(start_amb_nrg, target_amb_nrg, t)
+
+		if is_instance_valid(sun_light):
+			sun_light.light_color = start_sun_col.lerp(target_sun_col, t)
+			sun_light.light_energy = lerpf(start_sun_nrg, target_sun_nrg, t)
+	, 0.0, 1.0, 1.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# 2. Smooth HorizonManager Silhouettes Transition
+	if is_instance_valid(horizon_manager):
+		horizon_manager.smooth_transition_to_biome(new_biome_id, 1.5)
+
+	# When 1.5s completes, lock final shader mode
+	tunnel_exit_tween.chain().tween_callback(func():
+		tunnel_exit_active = false
+		if is_instance_valid(anime_sky_mat):
+			var s_mode: int = 0
+			match new_biome_id:
+				"neo_shinjuku": s_mode = 1
+				"enoshima_coast": s_mode = 2
+				"hakone_snow": s_mode = 3
+				_: s_mode = 0
+			anime_sky_mat.set_shader_parameter("biome_mode", s_mode)
+			anime_sky_mat.set_shader_parameter("use_blend", false)
+	)
+
+	# 3. Subtle 0.6s Sunlight Bloom Flash when emerging into Hakone Dawn or Enoshima Coast
+	if new_biome_id in ["hakone_snow", "enoshima_coast"]:
+		var flash_color: Color = Color(0.95, 0.96, 1.0, 0.38) if new_biome_id == "hakone_snow" else Color(1.0, 0.94, 0.82, 0.42)
+		sun_flash_tween = create_tween().set_parallel(true)
+		if is_instance_valid(hud_tunnel_sun_flash):
+			hud_tunnel_sun_flash.color = flash_color
+			sun_flash_tween.tween_property(hud_tunnel_sun_flash, "color:a", 0.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		if is_instance_valid(world_env_resource):
+			sun_flash_tween.tween_property(world_env_resource, "tonemap_exposure", 1.0, 0.6).from(1.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			sun_flash_tween.tween_property(world_env_resource, "glow_bloom", 0.12, 0.6).from(0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			if is_instance_valid(leaf_particles):
+				leaf_particles.emitting = (new_biome_id == "shuto_dusk")
+				leaf_particles.visible = (new_biome_id == "shuto_dusk")
 			if is_instance_valid(hud_rain_overlay):
 				hud_rain_overlay.visible = false
 				hud_rain_overlay.modulate.a = 0.0
@@ -802,20 +990,104 @@ func _cycle_start_biome(dir: int) -> void:
 	cur_idx = (cur_idx + dir + discovered_biomes.size()) % discovered_biomes.size()
 	current_biome_id = discovered_biomes[cur_idx]
 	_apply_biome_transition(current_biome_id)
+	if is_instance_valid(horizon_manager):
+		horizon_manager.set_biome_style(current_biome_id)
+	if is_instance_valid(manga_comic_page):
+		manga_comic_page.set_current_biome(current_biome_id)
 	if is_instance_valid(hud_vibe_label):
 		hud_vibe_label.text = BIOMES[current_biome_id]["name"]
 	if current_state == GameState.START:
 		_rebuild_start_chunks()
 	_save_save_data()
 
+func _on_manga_page_flip(next_biome_id: String) -> void:
+	if current_biome_id != next_biome_id:
+		current_biome_id = next_biome_id
+		_apply_biome_transition(current_biome_id)
+		if is_instance_valid(horizon_manager):
+			horizon_manager.set_biome_style(current_biome_id)
+		if current_state == GameState.START:
+			_rebuild_start_chunks()
+		_play_proc_audio("page_flip")
+		_save_save_data()
+
+func _on_manga_panel_selected(biome_id: String) -> void:
+	_on_manga_page_flip(biome_id)
+
+func _on_manga_launch_requested(biome_id: String) -> void:
+	_launch_from_start_screen(biome_id)
+
+func _update_drive_button_state() -> void:
+	pass
+
 func _start_race() -> void:
 	if current_state != GameState.START:
 		return
+	_launch_from_start_screen(current_biome_id)
+
+func _launch_from_start_screen(_biome_id: String) -> void:
+	if current_state != GameState.START or is_launching_to_race:
+		return
+
+	is_launching_to_race = true
+	_play_proc_audio("page_flip")
+
+	# 1. Freeze-frame manga ink flash (0.06s)
+	if is_instance_valid(hud_ink_flash):
+		hud_ink_flash.visible = true
+		hud_ink_flash.color.a = 0.85
+		var tw_flash := create_tween()
+		tw_flash.tween_property(hud_ink_flash, "color:a", 0.0, 0.12).set_delay(0.06)
+		tw_flash.tween_callback(func():
+			if is_instance_valid(hud_ink_flash):
+				hud_ink_flash.visible = false
+		)
+
+	# 2. Fade in gameplay HUD (0.45s)
+	if is_instance_valid(hud_gameplay_container):
+		hud_gameplay_container.visible = true
+		hud_gameplay_container.modulate.a = 0.0
+		var tw_hud := create_tween()
+		tw_hud.tween_property(hud_gameplay_container, "modulate:a", 1.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	# 3. Smooth Camera Swoop (1.0 -> 0.0 over 0.50s)
+	var tw_cam := create_tween()
+	tw_cam.tween_property(self, "camera_title_blend", 0.0, 0.50).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+
+	# 4. Engine audio fade in (-80.0 dB -> -1.0 dB over 0.45s)
+	if is_instance_valid(engine_audio_player):
+		engine_audio_player.volume_db = -80.0
+		if not engine_audio_player.playing and stream_engine_loop:
+			engine_audio_player.play()
+		var tw_eng := create_tween()
+		tw_eng.tween_property(engine_audio_player, "volume_db", -1.0, 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+	# 5. Play Manga Comic Page Dive-In Transition (0.55s)
+	if is_instance_valid(manga_comic_page):
+		manga_comic_page.play_dive_in_transition(Callable(self, "_finish_launch_to_racing"))
+	else:
+		var seq := create_tween()
+		seq.tween_interval(0.55)
+		seq.tween_callback(Callable(self, "_finish_launch_to_racing"))
+
+func _finish_launch_to_racing() -> void:
 	current_state = GameState.RACING
+	is_launching_to_race = false
+	camera_title_blend = 0.0
 	if is_instance_valid(hud_start_screen):
 		hud_start_screen.visible = false
-	if is_instance_valid(engine_audio_player) and not engine_audio_player.playing:
-		engine_audio_player.play()
+	if is_instance_valid(hud_gameplay_container):
+		hud_gameplay_container.visible = true
+		hud_gameplay_container.modulate.a = 1.0
+
+	# Turn off auxiliary SubViewports during racing to free 100% GPU rendering overhead
+	if is_instance_valid(panorama_subviewport):
+		panorama_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if is_instance_valid(hero_subviewport):
+		hero_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	if is_instance_valid(wheel_subviewport):
+		wheel_subviewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
 	if is_instance_valid(rally_music_player) and not rally_music_player.playing:
 		_play_random_rally_track()
 	_trigger_radio_chatter("TACHIBANA SPOTTER", "Race started! Heading into " + BIOMES[current_biome_id]["name"] + "!", Color("#FFD700"))
@@ -840,6 +1112,13 @@ func _trigger_stage_badge(tier: int, kmh: int) -> void:
 	tw_seq.tween_callback(func(): if is_instance_valid(hud_stage_banner): hud_stage_banner.visible = false)
 
 func _ready() -> void:
+	if OS.get_name() in ["Windows", "macOS", "Linux"]:
+		var screen_rect := DisplayServer.screen_get_usable_rect()
+		var target_h: int = clampi(int(screen_rect.size.y * 0.85), 600, 820)
+		var target_w: int = int(target_h * (9.0 / 16.0))
+		DisplayServer.window_set_size(Vector2i(target_w, target_h))
+		var screen_center := screen_rect.position + (screen_rect.size - Vector2i(target_w, target_h)) / 2
+		DisplayServer.window_set_position(screen_center)
 	_load_save_data()
 	_setup_procedural_audio()
 	_setup_game_audio()
@@ -855,12 +1134,22 @@ func _ready() -> void:
 	_setup_traffic_pool()
 	_setup_rival_car()
 	_setup_camera()
+	_setup_manga_camera_rig()
 	_setup_hud()
 	current_state = GameState.START
+	_update_start_screen_cameras(0.016)
+	_update_camera(0.016)
 	if is_instance_valid(hud_start_screen):
 		hud_start_screen.visible = true
 	purge_outlines(self)
-	if OS.get_cmdline_args().has("--capture-biomes") or OS.get_cmdline_user_args().has("--capture-biomes"):
+	var do_capture: bool = false
+	for a in OS.get_cmdline_args():
+		if "capture-biomes" in str(a): do_capture = true
+	for a in OS.get_cmdline_user_args():
+		if "capture-biomes" in str(a): do_capture = true
+	if FileAccess.file_exists("res://capture_requested.tmp") or FileAccess.file_exists("capture_requested.tmp"):
+		do_capture = true
+	if do_capture:
 		_run_biome_captures()
 
 func _run_biome_captures() -> void:
@@ -868,23 +1157,43 @@ func _run_biome_captures() -> void:
 	DisplayServer.window_set_size(Vector2i(720, 1280))
 	get_viewport().size = Vector2i(720, 1280)
 
-	for f in range(30):
-		await get_tree().process_frame
+	for b_id in ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]:
+		current_biome_id = b_id
+		_apply_biome_transition(b_id)
+		if is_instance_valid(horizon_manager):
+			horizon_manager.set_biome_style(b_id)
+		if is_instance_valid(manga_comic_page):
+			manga_comic_page.set_current_biome(b_id)
+		_rebuild_start_chunks()
+		for f in range(15):
+			await get_tree().process_frame
+		var img_p := get_viewport().get_texture().get_image()
+		if img_p:
+			img_p.save_png(artifact_dir + "/capture_manga_page_" + b_id + ".png")
+			if b_id == "shuto_dusk":
+				img_p.save_png(artifact_dir + "/capture_manga_start_screen.png")
+			print("CAPTURED: manga page " + b_id)
 
-	var img_start := get_viewport().get_texture().get_image()
-	if img_start:
-		img_start.save_png(artifact_dir + "/capture_vibe_pill.png")
-		print("CAPTURED: vibe pill")
+	current_state = GameState.RACING
+	if is_instance_valid(hud_gameplay_container):
+		hud_gameplay_container.visible = false
+	if is_instance_valid(hud_start_screen):
+		hud_start_screen.visible = false
+	if is_instance_valid(hud_radio_chatter):
+		hud_radio_chatter.visible = false
 
-	_start_race()
-
-	var biomes_to_capture := ["shuto_dusk", "neo_shinjuku", "enoshima_coast", "hakone_snow"]
+	var biomes_to_capture := ["shuto_dusk", "neo_shinjuku", "hakone_snow", "enoshima_coast"]
 	for b_id in biomes_to_capture:
 		current_biome_id = b_id
 		last_sky_update_progress = -999.0
 		_apply_biome_transition(b_id)
 
 		# Force weather overlays to instant target values for capture
+		if is_instance_valid(leaf_particles):
+			leaf_particles.emitting = (b_id == "shuto_dusk")
+			leaf_particles.visible = (b_id == "shuto_dusk")
+			if b_id != "shuto_dusk":
+				leaf_particles.restart()
 		if is_instance_valid(hud_rain_overlay):
 			hud_rain_overlay.modulate.a = 1.0 if (b_id == "neo_shinjuku") else 0.0
 		if is_instance_valid(hud_snow_overlay):
@@ -906,19 +1215,20 @@ func _run_biome_captures() -> void:
 			car_root.visible = false
 		if is_instance_valid(smoke_left):
 			smoke_left.emitting = false
+			smoke_left.restart()
 			smoke_left.visible = false
 		if is_instance_valid(smoke_right):
 			smoke_right.emitting = false
+			smoke_right.restart()
 			smoke_right.visible = false
 		if is_instance_valid(cutin_container):
 			cutin_container.visible = false
 		if is_instance_valid(hud_hazard_banner):
 			hud_hazard_banner.visible = false
-		if is_instance_valid(hud_speed_label):
-			hud_speed_label.text = "166"
-		if is_instance_valid(hud_score_label):
-			hud_score_label.text = "SCORE: 599"
-		_trigger_radio_chatter("HIGHWAY DISPATCH", "Patrol Unit 1: Intercepting black sports car exceeding 200 km/h!", Color("#FF3344"), true)
+		if is_instance_valid(hud_gameplay_container):
+			hud_gameplay_container.visible = false
+		if is_instance_valid(hud_radio_chatter):
+			hud_radio_chatter.visible = false
 		if is_instance_valid(follow_cam):
 			follow_cam.position = Vector3(0.0, 2.05, -7.5)
 			follow_cam.rotation = Vector3(-0.035, 0.0, 0.0)
@@ -939,8 +1249,27 @@ func _run_biome_captures() -> void:
 		if img:
 			var out_file: String = artifact_dir + "/capture_" + b_id + ".png"
 			img.save_png(out_file)
+			img.save_png("res://assets/manga_panels/panel_" + b_id + ".png")
 			print("CAPTURED: ", b_id)
 
+		# Also capture player car visible in third-person view to verify paint, stripes & rim-light
+		if is_instance_valid(car_root):
+			car_root.visible = true
+			car_root.position = Vector3(0.0, 0.0, 0.0)
+			if is_instance_valid(follow_cam):
+				follow_cam.position = Vector3(0.0, 1.85, 4.6)
+				follow_cam.rotation = Vector3(-0.06, 0.0, 0.0)
+		for f in range(15):
+			await get_tree().process_frame
+
+		var img_car := get_viewport().get_texture().get_image()
+		if img_car:
+			var car_file: String = artifact_dir + "/capture_car_" + b_id + ".png"
+			img_car.save_png(car_file)
+			print("CAPTURED CAR: ", b_id)
+
+	if FileAccess.file_exists("res://capture_requested.tmp"):
+		DirAccess.remove_absolute("res://capture_requested.tmp")
 	get_tree().quit()
 
 func _setup_skid_pool() -> void:
@@ -1115,6 +1444,9 @@ func _setup_materials() -> void:
 	if not toon_flame_mat:
 		toon_flame_mat = ShaderMaterial.new()
 		toon_flame_mat.shader = toon_flame_shader
+		toon_flame_mat.set_shader_parameter("core_color", Color(1.0, 1.0, 1.0, 1.0))
+		toon_flame_mat.set_shader_parameter("mid_color", Color("#00E5FF"))
+		toon_flame_mat.set_shader_parameter("rim_color", Color(0.0, 0.4, 1.0, 1.0))
 	if not nitro_flame_mat and toon_flame_shader:
 		nitro_flame_mat = ShaderMaterial.new()
 		nitro_flame_mat.shader = toon_flame_shader
@@ -1324,14 +1656,29 @@ func _setup_materials() -> void:
 		sr_mat.next_pass = sr_out
 		snow_rock_mat = sr_mat
 
+	if not cedar_trunk_mat:
+		cedar_trunk_mat = _create_manga_env_mat(Color("#2B1E1A"), false, 0.035)
+		cedar_trunk_mat.set_shader_parameter("ink_color", Color("#0B0F17"))
+
 	if not snow_foliage_mat:
-		snow_foliage_mat = _create_manga_env_mat(Color("#122A1A"), false, 0.040)
+		snow_foliage_mat = _create_manga_env_mat(Color("#143627"), false, 0.035)
+		snow_foliage_mat.set_shader_parameter("ink_color", Color("#0B0F17"))
+
+	if not pine_snow_mat:
+		pine_snow_mat = _create_manga_env_mat(Color("#F8FAFC"), false, 0.035)
+		pine_snow_mat.set_shader_parameter("shadow_tint", Color("#BAE6FD"))
+		pine_snow_mat.set_shader_parameter("ink_color", Color("#0B0F17"))
+		pine_snow_mat.set_shader_parameter("rim_color", Color(1.0, 1.0, 1.0, 0.0))
 
 	if not snowbank_mat:
-		snowbank_mat = _create_manga_env_mat(Color("#F4F9FD"), false, 0.036)
+		snowbank_mat = _create_manga_env_mat(Color("#F1F5F9"), false, 0.036)
+		snowbank_mat.set_shader_parameter("shadow_tint", Color("#CBD5E1"))
+		snowbank_mat.set_shader_parameter("ink_color", Color("#08090D"))
+		snowbank_mat.set_shader_parameter("rim_color", Color(1.0, 1.0, 1.0, 0.0))
 
 	if not shinjuku_building_mat:
 		shinjuku_building_mat = _create_manga_env_mat(Color.WHITE, true, 0.046)
+		shinjuku_building_mat.set_shader_parameter("rim_color", Color(0.220, 0.255, 0.349, 0.70))
 
 	if not shinjuku_window_mat:
 		var w_mat := StandardMaterial3D.new()
@@ -1427,6 +1774,63 @@ func _setup_materials() -> void:
 		attenuator_mat = StandardMaterial3D.new()
 		attenuator_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		attenuator_mat.albedo_color = Color("#FFD000")
+
+	if not noise_barrier_mat:
+		noise_barrier_mat = _create_manga_env_mat(Color("#2C3440"), false, 0.036)
+
+	if not noise_barrier_glass_mat:
+		var nbg_mat := StandardMaterial3D.new()
+		nbg_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		nbg_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		nbg_mat.albedo_color = Color(0.35, 0.72, 0.75, 0.70) # Frosted translucent acrylic sound panel
+		nbg_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		noise_barrier_glass_mat = nbg_mat
+
+	if not spruce_foliage_mat:
+		spruce_foliage_mat = _create_manga_env_mat(Color("#143422"), false, 0.036)
+		spruce_foliage_mat.set_shader_parameter("ink_color", Color("#0B0F17"))
+
+	if not tetrapod_mat:
+		tetrapod_mat = _create_manga_env_mat(Color("#8E9AA8"), false, 0.038)
+		tetrapod_mat.set_shader_parameter("shadow_tint", Color("#5A6575"))
+
+	if not snow_pole_mat:
+		var sp_m := StandardMaterial3D.new()
+		sp_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sp_m.vertex_color_use_as_albedo = true
+		snow_pole_mat = sp_m
+
+	if not stone_guardpost_mat:
+		stone_guardpost_mat = _create_manga_env_mat(Color("#6B7280"), false, 0.038)
+		stone_guardpost_mat.set_shader_parameter("shadow_tint", Color("#374151"))
+
+	if not mountain_sign_mat:
+		mountain_sign_mat = _create_manga_env_mat(Color("#3D2817"), false, 0.038)
+
+	if not coastal_route_sign_mat:
+		var crs_m := StandardMaterial3D.new()
+		crs_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		crs_m.albedo_color = Color("#1D4ED8") # Japanese Route 134 Blue
+		coastal_route_sign_mat = crs_m
+
+	if not torii_red_mat:
+		torii_red_mat = _create_manga_env_mat(Color("#DC2626"), false, 0.042)
+		torii_red_mat.set_shader_parameter("shadow_tint", Color("#7F1D1D"))
+
+	if not wooden_boardwalk_mat:
+		wooden_boardwalk_mat = _create_manga_env_mat(Color("#8D6E63"), false, 0.035)
+
+	if not taxi_lantern_mat:
+		var tl_m := StandardMaterial3D.new()
+		tl_m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		tl_m.albedo_color = Color("#FFE066") # Warm glowing taxi roof lantern
+		taxi_lantern_mat = tl_m
+
+	if not truss_steel_mat:
+		truss_steel_mat = _create_manga_env_mat(Color("#26303E"), false, 0.036)
+
+	if not gantry_catwalk_mat:
+		gantry_catwalk_mat = _create_manga_env_mat(Color("#1A202A"), false, 0.032)
 
 	if not cliff_mat:
 		var cliff_sh: Shader = load("res://shaders/anime_cliff.gdshader")
@@ -2743,6 +3147,9 @@ func _create_road_chunk(start_z: float) -> Node3D:
 	var barrier_cap_st := SurfaceTool.new()
 	barrier_cap_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
+	var wbeam_st := SurfaceTool.new()
+	wbeam_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
 	# Biome-specific surface tools for batched draw calls
 	var sand_st := SurfaceTool.new()
 	var water_st := SurfaceTool.new()
@@ -2766,6 +3173,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		pine_foliage_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		pine_snow_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		trunk_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	elif current_biome_id == "neo_shinjuku":
 		bld_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 		win_st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -2775,16 +3183,34 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	var step_z: float = CHUNK_LENGTH / float(CHUNK_SEGMENTS)
 
-	# Pick candidate biomes for fork if approaching
+	# Chronological 24-Hour Forward Biome Progression for Fork Gantry
 	if is_fork_approach:
-		var candidates: Array[String] = []
-		for b in BIOMES.keys():
-			if b != current_biome_id:
-				candidates.append(b)
-		candidates.shuffle()
-		if candidates.size() >= 2:
-			fork_left_biome = candidates[0]
-			fork_right_biome = candidates[1]
+		match current_biome_id:
+			"shuto_dusk": # Sunset 18:30 -> advances to Midnight 00:30 or Dawn 06:30
+				fork_left_biome = "neo_shinjuku"
+				fork_right_biome = "hakone_snow"
+				fork_left_label = "NEO-SHINJUKU\n// MIDNIGHT"
+				fork_right_label = "HAKONE SNOW\n// DAWN PASS"
+			"neo_shinjuku": # Midnight 00:30 -> advances strictly to Alpine Dawn 06:30
+				fork_left_biome = "hakone_snow"
+				fork_right_biome = "hakone_snow"
+				fork_left_label = "HAKONE DAWN\n// ALPINE PASS"
+				fork_right_label = "HAKONE ALPINE PASS\n// TOUGE"
+			"hakone_snow": # Alpine Dawn 06:30 -> advances to Golden Afternoon 16:30
+				fork_left_biome = "enoshima_coast"
+				fork_right_biome = "enoshima_coast"
+				fork_left_label = "ENOSHIMA COAST\n// AFTERNOON"
+				fork_right_label = "ENOSHIMA BAY\n// PACIFIC"
+			"enoshima_coast": # Golden Afternoon 16:30 -> loops back into Sunset 18:30
+				fork_left_biome = "shuto_dusk"
+				fork_right_biome = "shuto_dusk"
+				fork_left_label = "SHUTO DUSK\n// SUNSET"
+				fork_right_label = "WANGAN TWILIGHT\n// SUNSET"
+			_:
+				fork_left_biome = "neo_shinjuku"
+				fork_right_biome = "neo_shinjuku"
+				fork_left_label = "NEXT STAGE"
+				fork_right_label = "EXPRESSWAY"
 
 	for i in range(CHUNK_SEGMENTS + 1):
 		var local_z: float = -float(i) * step_z
@@ -2796,9 +3222,9 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 		var half_w: float = ROAD_WIDTH * 0.5
 		if current_biome_id == "neo_shinjuku":
-			half_w = 5.2
+			half_w = 4.6
 		elif current_biome_id == "enoshima_coast":
-			half_w = 7.0
+			half_w = 9.0
 		elif current_biome_id == "hakone_snow":
 			half_w = 6.8
 
@@ -2818,10 +3244,12 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		# 1. Roadway Surface
 		road_st.set_normal(normal)
 		road_st.set_uv(Vector2(0.0, v_uv))
+		road_st.set_color(Color("#242834"))
 		road_st.add_vertex(left_pt)
 
 		road_st.set_normal(normal)
 		road_st.set_uv(Vector2(1.0, v_uv))
+		road_st.set_color(Color("#242834"))
 		road_st.add_vertex(right_pt)
 
 		# 2. Roadside Formations per Biome
@@ -2867,22 +3295,25 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				hillside_st.add_vertex(b["p1"])
 
 		elif current_biome_id == "enoshima_coast":
-			# LEFT: Stepped Sandstone Rock Cliff with jagged rocky crags & palm shelves (Ref Image 1)
+			# LEFT: Stepped Sandstone Rock Cliff with jagged rocky crags (Ref Image 1)
+			# Strictly outward slope (X <= -11.5m), zero overhang over road, minimum 2.5m concrete shoulder
 			var c_n1: float = sin(global_z * 0.018) * 3.8 + cos(global_z * 0.042) * 2.2
 			var c_n2: float = sin(global_z * 0.085) * 1.4 + cos(global_z * 0.18) * 0.7
 			var c_block: float = floor(global_z / 5.5)
 			var crag_x: float = sin(c_block * 19.3) * 2.2 + cos(c_block * 41.7) * 1.4
 			var crag_y: float = cos(c_block * 27.5) * 2.8
 
-			var pt0 := left_pt
-			var pt1 := left_pt - (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
-			var pt2 := left_pt - (right_vec * (1.2 + crag_x * 0.4 + c_n2 * 0.2)) + Vector3(0.0, 8.5 + crag_y * 0.6 + c_n1 * 0.8, 0.0) # Vertical rock wall 1
-			var pt3 := left_pt - (right_vec * (6.0 + crag_x * 0.8 + c_n1 * 0.5)) + Vector3(0.0, 10.5 + crag_y * 0.6 + c_n1 * 0.8, 0.0) # Lower terrace shelf
-			var pt4 := left_pt - (right_vec * (8.5 + crag_x * 0.9 + c_n1 * 0.6)) + Vector3(0.0, 24.0 + crag_y * 1.2 + c_n1 * 1.5, 0.0) # Vertical rock wall 2
-			var pt5 := left_pt - (right_vec * (17.5 + crag_x * 1.2 + c_n1 * 1.0)) + Vector3(0.0, 27.5 + crag_y * 1.2 + c_n1 * 1.5, 0.0) # Mid terrace shelf
-			var pt6 := left_pt - (right_vec * (22.5 + crag_x * 1.5 + c_n1 * 1.2)) + Vector3(0.0, 48.0 + crag_y * 2.0 + c_n1 * 2.8, 0.0) # Towering upper bluff
-			var pt7 := left_pt - (right_vec * (48.0 + c_n1 * 2.0)) + Vector3(0.0, 56.0 + c_n1 * 3.0, 0.0) # High cliff plateau
-			var pt8 := left_pt - (right_vec * (120.0 + c_n1 * 3.5)) + Vector3(0.0, 78.0 + c_n1 * 4.0, 0.0) # Mountain ridge crest
+			var pt0: Vector3 = left_pt
+			# Flat 2.5m concrete shoulder from road edge (-9.0m) to cliff base (-11.5m)
+			var pt1: Vector3 = left_pt - (right_vec * 2.5) + Vector3(0.0, 0.05, 0.0)
+			# Strictly increasing outward offsets (absf crag ensures zero inward leaning / overhang)
+			var pt2: Vector3 = left_pt - (right_vec * (3.8 + absf(crag_x) * 0.4 + absf(c_n2) * 0.2)) + Vector3(0.0, 8.5 + absf(crag_y) * 0.4 + absf(c_n1) * 0.5, 0.0) # Vertical rock wall 1
+			var pt3: Vector3 = left_pt - (right_vec * (7.2 + absf(crag_x) * 0.6 + absf(c_n1) * 0.4)) + Vector3(0.0, 11.5 + absf(crag_y) * 0.4 + absf(c_n1) * 0.5, 0.0) # Lower terrace shelf
+			var pt4: Vector3 = left_pt - (right_vec * (12.5 + absf(crag_x) * 0.8 + absf(c_n1) * 0.5)) + Vector3(0.0, 24.0 + absf(crag_y) * 0.8 + absf(c_n1) * 1.0, 0.0) # Vertical rock wall 2
+			var pt5: Vector3 = left_pt - (right_vec * (19.0 + absf(crag_x) * 1.0 + absf(c_n1) * 0.8)) + Vector3(0.0, 28.0 + absf(crag_y) * 0.8 + absf(c_n1) * 1.0, 0.0) # Mid terrace shelf
+			var pt6: Vector3 = left_pt - (right_vec * (28.0 + absf(crag_x) * 1.2 + absf(c_n1) * 1.0)) + Vector3(0.0, 48.0 + absf(crag_y) * 1.5 + absf(c_n1) * 2.0, 0.0) # Towering upper bluff
+			var pt7: Vector3 = left_pt - (right_vec * (52.0 + absf(c_n1) * 2.0)) + Vector3(0.0, 56.0 + absf(c_n1) * 2.5, 0.0) # High cliff plateau
+			var pt8: Vector3 = left_pt - (right_vec * (125.0 + absf(c_n1) * 3.5)) + Vector3(0.0, 78.0 + absf(c_n1) * 3.5, 0.0) # Mountain ridge crest
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
 			var bands: Array = [
@@ -2978,9 +3409,9 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			snow_st.set_normal(Vector3.UP); snow_st.set_uv(Vector2(1.0, float(i))); snow_st.add_vertex(s_pt4)
 
 		elif current_biome_id == "neo_shinjuku":
-			# Raised Japanese Concrete Sidewalk with light-grey curb edge #64748B and dark asphalt-concrete #282C37
+			# Raised Japanese Concrete Sidewalk with light-grey curb edge #64748B and dark asphalt-concrete #242834
 			var col_curb := Color("#64748B")
-			var col_walk := Color("#282C37")
+			var col_walk := Color("#242834")
 			var cur_h: float = 0.18
 			var walk_w: float = 1.6
 
@@ -3020,8 +3451,8 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 		# 3. Guardrails (Shuto, Enoshima, Hakone: Double-sided with posts; Shinjuku: Curbs only)
 		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"]:
-			# Right Guardrail (Vertices 0..3) - Lowered in Enoshima for panoramic ocean view
-			var r_guard_h: float = 0.52 if current_biome_id == "enoshima_coast" else 1.15
+			# Right Guardrail (Vertices 0..3) - Continuous W-beam metal barrier across all highway biomes
+			var r_guard_h: float = 1.15
 			var r_bar_inner_top := right_pt + Vector3(0.0, r_guard_h, 0.0)
 			var r_bar_outer_top := right_pt + (right_vec * 0.50) + Vector3(0.0, r_guard_h, 0.0)
 			var r_bar_outer_bottom := right_pt + (right_vec * 0.50) - Vector3(0.0, 3.5, 0.0)
@@ -3047,6 +3478,21 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(0.0, v_uv)); barrier_cap_st.add_vertex(l_bar_inner_top)
 			barrier_cap_st.set_normal(Vector3.UP); barrier_cap_st.set_uv(Vector2(1.0, v_uv)); barrier_cap_st.add_vertex(l_bar_outer_top)
 
+			# 3D Corrugated W-Beam Steel Rail Profile (3 horizontal ridges / 4 facets)
+			# Right W-Beam Rail (Vertices 0..4)
+			wbeam_st.set_uv(Vector2(0.0, v_uv)); wbeam_st.add_vertex(right_pt + Vector3(0.0, 0.38, 0.0))
+			wbeam_st.set_uv(Vector2(0.25, v_uv)); wbeam_st.add_vertex(right_pt + Vector3(0.0, 0.52, 0.0) - right_vec * 0.06)
+			wbeam_st.set_uv(Vector2(0.50, v_uv)); wbeam_st.add_vertex(right_pt + Vector3(0.0, 0.67, 0.0) + right_vec * 0.02)
+			wbeam_st.set_uv(Vector2(0.75, v_uv)); wbeam_st.add_vertex(right_pt + Vector3(0.0, 0.82, 0.0) - right_vec * 0.06)
+			wbeam_st.set_uv(Vector2(1.0, v_uv)); wbeam_st.add_vertex(right_pt + Vector3(0.0, 0.96, 0.0))
+
+			# Left W-Beam Rail (Vertices 5..9)
+			wbeam_st.set_uv(Vector2(0.0, v_uv)); wbeam_st.add_vertex(left_pt + Vector3(0.0, 0.38, 0.0))
+			wbeam_st.set_uv(Vector2(0.25, v_uv)); wbeam_st.add_vertex(left_pt + Vector3(0.0, 0.52, 0.0) + right_vec * 0.06)
+			wbeam_st.set_uv(Vector2(0.50, v_uv)); wbeam_st.add_vertex(left_pt + Vector3(0.0, 0.67, 0.0) - right_vec * 0.02)
+			wbeam_st.set_uv(Vector2(0.75, v_uv)); wbeam_st.add_vertex(left_pt + Vector3(0.0, 0.82, 0.0) + right_vec * 0.06)
+			wbeam_st.set_uv(Vector2(1.0, v_uv)); wbeam_st.add_vertex(left_pt + Vector3(0.0, 0.96, 0.0))
+
 	for i in range(CHUNK_SEGMENTS):
 		var i2: int = i * 2
 		road_st.add_index(i2)
@@ -3056,7 +3502,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		road_st.add_index(i2 + 3)
 		road_st.add_index(i2 + 2)
 
-		if current_biome_id in ["shuto_dusk", "enoshima_coast", "hakone_snow"] or is_fork_approach or is_twin_tunnel:
+		if current_biome_id in ["shuto_dusk", "enoshima_coast"] or is_fork_approach or is_twin_tunnel:
 			for b in range(8):
 				var idx_curr_bot: int = (i * 8 + b) * 2
 				var idx_curr_top: int = idx_curr_bot + 1
@@ -3121,11 +3567,14 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var seg_cx: float = _sample_road_x(seg_gz)
 		var seg_ba: float = _sample_road_bank(seg_gz)
 		var seg_rv: Vector3 = _sample_road_right(seg_gz)
+		var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
 		var seg_hw: float = ROAD_WIDTH * 0.5
 		var seg_left := Vector3(seg_cx, 0.0, seg_local_z) - (seg_rv * seg_hw) + Vector3(0.0, sin(seg_ba) * seg_hw, 0.0)
 		var seg_right := Vector3(seg_cx, 0.0, seg_local_z) + (seg_rv * seg_hw) - Vector3(0.0, sin(seg_ba) * seg_hw, 0.0)
 
 		if current_biome_id == "shuto_dusk" and not is_fork_approach and not is_twin_tunnel:
+			if i == 0 and chunk_spawn_count % 2 == 0:
+				_build_shuto_sound_barriers(chunk_root, start_z)
 			if i % 2 == 0:
 				var b_lat: float = 2.0 + seg_rnd * 3.5
 				var b_ground_y: float = _sample_hillside_height(seg_gz, b_lat)
@@ -3135,38 +3584,77 @@ func _create_road_chunk(start_z: float) -> Node3D:
 					var tr_lat: float = 3.6 + fposmod(seg_rnd * 6.7, 2.8)
 					var tr_ground_y: float = _sample_hillside_height(seg_gz, tr_lat)
 					var tr_pos := seg_left - (seg_rv * tr_lat) + Vector3(0.0, tr_ground_y, 0.0)
-					_add_3d_puffy_tree(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
+					_add_3d_shuto_spruce(foliage_st, tr_pos, 0.95 + fposmod(seg_rnd * 4.3, 0.45), seg_rnd)
 				else:
 					var pn_lat: float = 4.2 + fposmod(seg_rnd * 5.5, 2.4)
 					var pn_ground_y: float = _sample_hillside_height(seg_gz, pn_lat)
 					var pn_pos := seg_left - (seg_rv * pn_lat) + Vector3(0.0, pn_ground_y, 0.0)
-					_add_3d_pine_tree(foliage_st, pn_pos, 0.90 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
+					_add_3d_shuto_spruce(foliage_st, pn_pos, 1.10 + fposmod(seg_rnd * 3.8, 0.35), seg_rnd)
 			if i % 3 == 0:
 				var tr2_lat: float = 10.2 + fposmod(seg_rnd * 4.1, 7.8)
 				var tr2_ground_y: float = _sample_hillside_height(seg_gz, tr2_lat)
 				var tr2_pos := seg_left - (seg_rv * tr2_lat) + Vector3(0.0, tr2_ground_y, 0.0)
-				_add_3d_puffy_tree(foliage_st, tr2_pos, 1.25, seg_rnd)
+				_add_3d_shuto_spruce(foliage_st, tr2_pos, 1.25, seg_rnd)
 
 		elif current_biome_id == "enoshima_coast" and not is_fork_approach and not is_twin_tunnel:
-			# Coastal palm trees along left sandstone cliff shelves & right golden beach (Ref Image 1)
+			if i == 0:
+				_add_coastal_boardwalk_railing(chunk_root, start_z)
+			if i % 10 == 2:
+				_add_coastal_route_sign(chunk_root, seg_right + (seg_rv * 8.5), seg_tan)
+			if i % 4 == 0:
+				_add_3d_tetrapod(chunk_root, seg_right + (seg_rv * (17.5 + fposmod(seg_rnd * 5.1, 4.0))) + Vector3(0.0, -0.2, 0.0), 1.25, Vector3(fposmod(seg_rnd * 31.0, 40.0) - 20.0, fposmod(seg_rnd * 123.0, 360.0), fposmod(seg_rnd * 47.0, 40.0) - 20.0))
+				_add_3d_tetrapod(chunk_root, seg_right + (seg_rv * (20.5 + fposmod(seg_rnd * 7.3, 3.5))) + Vector3(0.0, -0.6, 0.0), 1.35, Vector3(fposmod(seg_rnd * 53.0, 40.0) - 20.0, fposmod(seg_rnd * 211.0, 360.0), fposmod(seg_rnd * 61.0, 40.0) - 20.0))
+			# Coastal palm trees strictly on flat beach sand (Y=0.0m) and high cliff-top plateau (Y>=56.0m)
 			if i % 3 == 0:
-				var cliff_palm := seg_left - (seg_rv * (5.5 + seg_rnd * 3.5)) + Vector3(0.0, 10.5, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, cliff_palm, 1.25 + seg_rnd * 0.45, seg_rnd)
+				# High flat cliff-top plateau at Y >= 56.0m (offset 54m+ from road, zero mid-cliff floating palms)
+				var plateau_palm := seg_left - (seg_rv * (54.0 + seg_rnd * 18.0)) + Vector3(0.0, 56.5 + seg_rnd * 1.5, 0.0)
+				_add_3d_palm_tree(trunk_st, foliage_st, plateau_palm, 1.35 + seg_rnd * 0.40, seg_rnd)
 			elif i % 4 == 1:
-				var beach_palm := seg_right + (seg_rv * (8.5 + seg_rnd * 7.0)) - Vector3(0.0, 0.45, 0.0)
-				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 1.10 + seg_rnd * 0.35, seg_rnd + 1.0)
+				# Right sandy beach strip at Y = 0.0m (X = +10.5m to +15.0m, offset 1.5m to 6.0m from right road edge)
+				var beach_palm := seg_right + (seg_rv * (1.5 + seg_rnd * 4.5))
+				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 1.15 + seg_rnd * 0.35, seg_rnd + 1.0)
 
 		elif current_biome_id == "hakone_snow" and not is_fork_approach and not is_twin_tunnel:
-			# Dense multi-tiered snow pines on left valley slope & right cliff crest (Ref Image 3)
+			if i % 6 == 0:
+				_add_snow_depth_marker_pole(chunk_root, seg_left - (seg_rv * 7.4), seg_tan)
+				_add_snow_depth_marker_pole(chunk_root, seg_right + (seg_rv * 7.4), seg_tan)
+			if i % 8 == 3:
+				_add_stone_guardpost(chunk_root, seg_left - (seg_rv * 7.6))
+				_add_stone_guardpost(chunk_root, seg_right + (seg_rv * 7.6))
+			if i == 18 and (chunk_spawn_count % 3 == 1):
+				_add_mountain_rest_hut_sign(chunk_root, seg_left - (seg_rv * 10.5), seg_tan)
+
+			# Multi-tiered compound manga snow pines strictly outside highway guardrails (X <= -10.5m left, X >= +11.0m right)
+			# Left roadside snow shoulder (X <= -10.5m, locked scale 0.85..1.35)
 			if i % 2 == 0:
-				var sp_l := seg_left - (seg_rv * (3.8 + seg_rnd * 2.5)) - Vector3(0.0, 0.4, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l, 1.65 + seg_rnd * 0.40, seg_rnd)
+				var sp_lat: float = 4.4 + fposmod(seg_rnd * 5.1, 3.2) # X = -6.8 - (4.4..7.6) = -11.2m .. -14.4m
+				var sp_l := seg_left - (seg_rv * sp_lat) - Vector3(0.0, 0.45 + fposmod(seg_rnd * 2.1, 0.5), 0.0)
+				var sc_l: float = clampf(0.95 + fposmod(seg_rnd * 3.3, 0.35), 0.85, 1.35)
+				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_l, sc_l, seg_rnd)
+				# Clustered grove pairing
+				if seg_rnd > 0.42:
+					var sp_l2 := sp_l - (seg_rv * 3.2) - (seg_tan * 2.2) - Vector3(0.0, 0.65, 0.0)
+					var sc_l2: float = clampf(0.85 + fposmod(seg_rnd * 6.7, 0.30), 0.85, 1.35)
+					_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_l2, sc_l2, seg_rnd + 1.8)
+
+			# Left mid/upper valley slope
 			if i % 3 == 1:
-				var sp_l_high := seg_left - (seg_rv * (14.0 + seg_rnd * 8.0)) - Vector3(0.0, 4.5, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_l_high, 1.80 + seg_rnd * 0.45, seg_rnd + 2.0)
+				var sp_lat_h: float = 14.5 + fposmod(seg_rnd * 8.5, 11.0) # X = -21.3m .. -32.3m
+				var sp_lh := seg_left - (seg_rv * sp_lat_h) - Vector3(0.0, 3.8 + fposmod(seg_rnd * 3.7, 2.2), 0.0)
+				var sc_lh: float = clampf(1.0 + fposmod(seg_rnd * 4.3, 0.30), 0.85, 1.35)
+				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_lh, sc_lh, seg_rnd + 3.1)
+
+			# Right craggy cliff ledges and crest (X >= +11.0m)
 			if i % 4 == 2:
-				var sp_r := seg_right + (seg_rv * (38.0 + seg_rnd * 6.0)) + Vector3(0.0, 58.0, 0.0)
-				_add_3d_snow_pine(pine_foliage_st, pine_snow_st, sp_r, 1.35 + seg_rnd * 0.35, seg_rnd + 1.0)
+				# Mid-cliff snow shelf (X = 6.8 + 6.0..10.0 = +12.8m .. +16.8m, Y ≈ 11.5m)
+				var sp_r_mid := seg_right + (seg_rv * (6.0 + fposmod(seg_rnd * 5.7, 4.0))) + Vector3(0.0, 11.5 + fposmod(seg_rnd * 3.1, 1.8), 0.0)
+				var sc_rm: float = clampf(0.90 + fposmod(seg_rnd * 2.9, 0.35), 0.85, 1.35)
+				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_mid, sc_rm, seg_rnd + 2.4)
+			elif i % 4 == 0:
+				# High cliff crest (X = 6.8 + 36.0..45.0 = +42.8m .. +51.8m, Y ≈ 58.0m)
+				var sp_r_high := seg_right + (seg_rv * (36.0 + fposmod(seg_rnd * 7.1, 9.0))) + Vector3(0.0, 58.0 + fposmod(seg_rnd * 3.8, 2.2), 0.0)
+				var sc_rh: float = clampf(1.05 + fposmod(seg_rnd * 4.9, 0.25), 0.85, 1.35)
+				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_high, sc_rh, seg_rnd + 4.7)
 
 		elif current_biome_id == "neo_shinjuku" and not is_fork_approach and not is_twin_tunnel:
 			# Continuous wall-to-wall Japanese urban apartment / storefront canyon (Ref Image 2)
@@ -3180,24 +3668,45 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				var bld_h_r: float = 24.0 + fposmod(seg_rnd * 3.7, 1.0) * 18.0
 				_add_shinjuku_building(chunk_root, bld_st, win_st, bld_pos_r, seg_rv, 14.0, bld_z_len, bld_h_r, seg_rnd + 1.0, i + 1)
 
+			# Japanese Sidewalk Guard Bollards along curb
+			if i % 3 == 0:
+				for b_side in [-1.0, 1.0]:
+					var b_pos: Vector3 = (seg_left if b_side < 0 else seg_right) + (seg_rv * (b_side * 0.28)) + Vector3(0.0, 0.38, 0.0)
+					var b_mesh := CylinderMesh.new()
+					b_mesh.top_radius = 0.06
+					b_mesh.bottom_radius = 0.07
+					b_mesh.height = 0.76
+					b_mesh.radial_segments = 8
+					var b_inst := MeshInstance3D.new()
+					b_inst.mesh = b_mesh
+					b_inst.material_override = attenuator_mat if attenuator_mat else barrier_material
+					b_inst.position = b_pos
+					b_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+					chunk_root.add_child(b_inst)
+
 			# 3D Japanese Vending Machines (Jidohanbaiki) with companion recycling bins
-			if i % 14 == 2:
-				_add_3d_vending_machine(vending_st, win_st, seg_left - (seg_rv * 1.05), 0.0, seg_rnd, true)
-			elif i % 14 == 9:
-				_add_3d_vending_machine(vending_st, win_st, seg_right + (seg_rv * 1.05), PI, seg_rnd + 1.0, false)
+			# Ref Image 2: Paired side-by-side machines (one Coca-Cola Red, one Electric Blue) facing camera!
+			if i % 12 == 2:
+				var vm_center := seg_left - (seg_rv * 0.95) + Vector3(0.0, 0.18, 0.0)
+				_add_3d_vending_machine(vending_st, win_st, vm_center - (seg_tan * 0.8), PI - 0.12, 0.0, true) # Red Coca-Cola
+				_add_3d_vending_machine(vending_st, win_st, vm_center + (seg_tan * 0.8), PI - 0.12, 1.0, true) # Blue Boss/Pocari
+			elif i % 12 == 8:
+				var vm_right := seg_right + (seg_rv * 0.95) + Vector3(0.0, 0.18, 0.0)
+				_add_3d_vending_machine(vending_st, win_st, vm_right, PI + 0.12, seg_rnd + 2.0, false)
 
 			# Diverse, Asymmetrical Japanese Neon Blade Signs
-			var seg_tan: Vector3 = _sample_road_tangent(seg_gz)
-			if i % 10 == 1 or i % 10 == 6:
-				var s_hash: int = abs(int(start_z * 0.05) * 7 + i * 3) % SHINJUKU_SIGNS.size()
-				var s_info: Dictionary = SHINJUKU_SIGNS[s_hash]
-				var sign_y: float = 7.0 + fposmod(seg_rnd * 13.7 + float(i), 3.5)
+			# Left: Prominent Magenta (#FF2A55) & Amber (#FFB703), starting with 東岸大寿司 (Ref Image 2)
+			# Right: Prominent Electric Cyan (#00E5FF) & Amber (#FFB703), starting with 電脳遊戯 (Ref Image 2)
+			if i % 8 == 1:
+				var s_hash_l: int = 0 if (i == 1 and start_z > -200.0) else ([0, 2, 4, 7, 8][abs(int(start_z * 0.05) * 5 + i * 2) % 5])
+				var s_info: Dictionary = SHINJUKU_SIGNS[s_hash_l]
+				var sign_y: float = 7.5 + fposmod(seg_rnd * 13.7 + float(i), 3.0)
 				var neon_pos_l := seg_left - (seg_rv * 0.70) + Vector3(0.0, sign_y, 0.0)
 				_add_3d_neon_sign(chunk_root, neon_pos_l, seg_tan, s_info["text"], s_info["light"], s_info["back"], s_info["w"], s_info["h"], s_info["bracket"])
-			elif i % 10 == 3 or i % 10 == 8:
-				var s_hash_r: int = abs(int(start_z * 0.05) * 7 + i * 3 + 5) % SHINJUKU_SIGNS.size()
+			elif i % 8 == 4:
+				var s_hash_r: int = 1 if (i == 4 and start_z > -200.0) else ([1, 3, 5, 6, 9][abs(int(start_z * 0.05) * 5 + i * 2) % 5])
 				var s_info_r: Dictionary = SHINJUKU_SIGNS[s_hash_r]
-				var sign_y_r: float = 7.0 + fposmod(seg_rnd * 17.3 + float(i), 3.5)
+				var sign_y_r: float = 7.5 + fposmod(seg_rnd * 17.3 + float(i), 3.0)
 				var neon_pos_r := seg_right + (seg_rv * 0.70) + Vector3(0.0, sign_y_r, 0.0)
 				_add_3d_neon_sign(chunk_root, neon_pos_r, seg_tan, s_info_r["text"], s_info_r["light"], s_info_r["back"], s_info_r["w"], s_info_r["h"], s_info_r["bracket"])
 
@@ -3207,6 +3716,11 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				var next_pole_pos := seg_left - (seg_rv * 0.35) - Vector3(0.0, 0.0, step_z * 6.0)
 				var cross_pos := seg_right + (seg_rv * 0.35)
 				_add_3d_power_pole(pole_st, line_st, pole_pos, next_pole_pos, cross_pos)
+
+			# Inked Steel Pedestrian Skybridge / Elevated Expressway Overpass every ~350m
+			var skybridge_dist: float = abs(seg_gz)
+			if int(skybridge_dist) % 350 < int(step_z + 0.5) and skybridge_dist > 140.0:
+				_add_overhead_skybridge(chunk_root, bld_st, win_st, seg_left, seg_right, seg_tan, seg_rv)
 
 		if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
 			var bi: int = i * 8
@@ -3230,12 +3744,26 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			barrier_cap_st.add_index(ci + 2); barrier_cap_st.add_index(ci + 3); barrier_cap_st.add_index(ci + 6)
 			barrier_cap_st.add_index(ci + 3); barrier_cap_st.add_index(ci + 7); barrier_cap_st.add_index(ci + 6)
 
+			# Corrugated W-Beam Rail indices (Right & Left)
+			var wi_r: int = i * 10
+			var nwi_r: int = (i + 1) * 10
+			for f in range(4):
+				wbeam_st.add_index(wi_r + f); wbeam_st.add_index(nwi_r + f); wbeam_st.add_index(wi_r + f + 1)
+				wbeam_st.add_index(wi_r + f + 1); wbeam_st.add_index(nwi_r + f); wbeam_st.add_index(nwi_r + f + 1)
+
+			var wi_l: int = i * 10 + 5
+			var nwi_l: int = (i + 1) * 10 + 5
+			for f in range(4):
+				wbeam_st.add_index(wi_l + f); wbeam_st.add_index(wi_l + f + 1); wbeam_st.add_index(nwi_l + f)
+				wbeam_st.add_index(wi_l + f + 1); wbeam_st.add_index(nwi_l + f + 1); wbeam_st.add_index(nwi_l + f)
+
 	var road_inst := MeshInstance3D.new()
 	road_inst.mesh = road_st.commit()
 	road_inst.material_override = road_shader_mat
 	chunk_root.add_child(road_inst)
 
-	hillside_st.generate_normals()
+	if current_biome_id in ["shuto_dusk", "enoshima_coast"] or is_fork_approach or is_twin_tunnel:
+		hillside_st.generate_normals()
 	var hillside_mesh := hillside_st.commit()
 	if is_instance_valid(hillside_mesh) and hillside_mesh.get_surface_count() > 0:
 		var hillside_inst := MeshInstance3D.new()
@@ -3311,9 +3839,17 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		if is_instance_valid(ps_mesh) and ps_mesh.get_surface_count() > 0:
 			var ps_inst := MeshInstance3D.new()
 			ps_inst.mesh = ps_mesh
-			ps_inst.material_override = snowbank_mat
+			ps_inst.material_override = pine_snow_mat
 			ps_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(ps_inst)
+		trunk_st.generate_normals()
+		var tr_mesh := trunk_st.commit()
+		if is_instance_valid(tr_mesh) and tr_mesh.get_surface_count() > 0:
+			var tr_inst := MeshInstance3D.new()
+			tr_inst.mesh = tr_mesh
+			tr_inst.material_override = cedar_trunk_mat
+			tr_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(tr_inst)
 	elif current_biome_id == "neo_shinjuku":
 		bld_st.generate_normals()
 		var b_mesh := bld_st.commit()
@@ -3369,7 +3905,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	if current_biome_id == "shuto_dusk":
 		var rock_mesh := rock_st.commit()
-		if rock_mesh.get_surface_count() > 0:
+		if is_instance_valid(rock_mesh) and rock_mesh.get_surface_count() > 0:
 			var rock_inst := MeshInstance3D.new()
 			rock_inst.name = "HillsideLayer1Rocks"
 			rock_inst.mesh = rock_mesh
@@ -3377,97 +3913,163 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			rock_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			chunk_root.add_child(rock_inst)
 
-	var barrier_inst := MeshInstance3D.new()
-	barrier_inst.mesh = barrier_st.commit()
-	if current_biome_id in ["hakone_snow", "enoshima_coast"]:
-		barrier_inst.material_override = steel_guardrail_mat
-	else:
-		barrier_inst.material_override = barrier_material
-	barrier_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunk_root.add_child(barrier_inst)
+	var barrier_mesh := barrier_st.commit()
+	if is_instance_valid(barrier_mesh) and barrier_mesh.get_surface_count() > 0:
+		var barrier_inst := MeshInstance3D.new()
+		barrier_inst.mesh = barrier_mesh
+		if current_biome_id in ["hakone_snow", "enoshima_coast"]:
+			barrier_inst.material_override = steel_guardrail_mat
+		else:
+			barrier_inst.material_override = barrier_material
+		barrier_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		chunk_root.add_child(barrier_inst)
 
-	var barrier_cap_inst := MeshInstance3D.new()
-	barrier_cap_inst.mesh = barrier_cap_st.commit()
-	if current_biome_id == "hakone_snow":
-		barrier_cap_inst.material_override = snowbank_mat
-	elif current_biome_id == "enoshima_coast":
-		barrier_cap_inst.material_override = steel_guardrail_mat
-	else:
-		barrier_cap_inst.material_override = barrier_cap_material
-	barrier_cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	chunk_root.add_child(barrier_cap_inst)
+	var barrier_cap_mesh := barrier_cap_st.commit()
+	if is_instance_valid(barrier_cap_mesh) and barrier_cap_mesh.get_surface_count() > 0:
+		var barrier_cap_inst := MeshInstance3D.new()
+		barrier_cap_inst.mesh = barrier_cap_mesh
+		if current_biome_id == "hakone_snow":
+			barrier_cap_inst.material_override = snowbank_mat
+		elif current_biome_id == "enoshima_coast":
+			barrier_cap_inst.material_override = steel_guardrail_mat
+		else:
+			barrier_cap_inst.material_override = barrier_cap_material
+		barrier_cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		chunk_root.add_child(barrier_cap_inst)
+
+	if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
+		wbeam_st.generate_normals()
+		var wbeam_mesh := wbeam_st.commit()
+		if is_instance_valid(wbeam_mesh) and wbeam_mesh.get_surface_count() > 0:
+			var wbeam_inst := MeshInstance3D.new()
+			wbeam_inst.mesh = wbeam_mesh
+			wbeam_inst.material_override = steel_guardrail_mat if steel_guardrail_mat else barrier_material
+			wbeam_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			chunk_root.add_child(wbeam_inst)
 
 	if current_biome_id in ["shuto_dusk", "hakone_snow", "enoshima_coast"]:
 		var p_hw: float = ROAD_WIDTH * 0.5
 		if current_biome_id == "enoshima_coast":
-			p_hw = 7.0
+			p_hw = 9.0
 		elif current_biome_id == "hakone_snow":
 			p_hw = 6.8
 		elif current_biome_id == "neo_shinjuku":
 			p_hw = 5.2
 
 		var p_mat: Material = steel_guardrail_mat if current_biome_id in ["hakone_snow", "enoshima_coast"] else barrier_material
-		for p_idx in range(0, CHUNK_SEGMENTS, 3):
+
+		# Reusable I-Beam Post Meshes
+		var web_mesh := BoxMesh.new()
+		web_mesh.size = Vector3(0.04, 1.25, 0.14)
+
+		var flange_mesh := BoxMesh.new()
+		flange_mesh.size = Vector3(0.14, 1.25, 0.04)
+
+		# Retro-reflective Delineator Tabs
+		var delin_mesh := BoxMesh.new()
+		delin_mesh.size = Vector3(0.08, 0.14, 0.04)
+
+		var delin_amber_mat := StandardMaterial3D.new()
+		delin_amber_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		delin_amber_mat.albedo_color = Color("#FF9500")
+
+		var delin_white_mat := StandardMaterial3D.new()
+		delin_white_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		delin_white_mat.albedo_color = Color("#F8FAFC")
+
+		for p_idx in range(0, CHUNK_SEGMENTS, 1):
 			var p_gz: float = start_z - float(p_idx) * step_z
 			var p_cx: float = _sample_road_x(p_gz)
 			var p_rv: Vector3 = _sample_road_right(p_gz)
+			var p_tan: Vector3 = _sample_road_tangent(p_gz)
+			var p_basis := Basis.looking_at(p_tan, Vector3.UP)
 
-			var r_post_h: float = 0.60 if current_biome_id == "enoshima_coast" else 1.25
-			var r_post_y: float = 0.25 if current_biome_id == "enoshima_coast" else 0.50
-			var p_mesh_r := BoxMesh.new()
-			p_mesh_r.size = Vector3(0.16, r_post_h, 0.16)
+			# --- Right Post (I-Beam + Amber Delineator Tab) ---
+			var r_post := Node3D.new()
+			r_post.position = Vector3(p_cx, 0.50, -float(p_idx) * step_z) + (p_rv * (p_hw + 0.15))
+			r_post.transform.basis = p_basis
 
-			var post_r := MeshInstance3D.new()
-			post_r.mesh = p_mesh_r
-			post_r.position = Vector3(p_cx, r_post_y, -float(p_idx) * step_z) + (p_rv * (p_hw + 0.15))
-			post_r.material_override = p_mat
-			chunk_root.add_child(post_r)
+			var r_web := MeshInstance3D.new()
+			r_web.mesh = web_mesh
+			r_web.material_override = p_mat
+			r_web.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			r_post.add_child(r_web)
 
-			var p_mesh_l := BoxMesh.new()
-			p_mesh_l.size = Vector3(0.16, 1.25, 0.16)
-			var post_l := MeshInstance3D.new()
-			post_l.mesh = p_mesh_l
-			post_l.position = Vector3(p_cx, 0.50, -float(p_idx) * step_z) - (p_rv * (p_hw + 0.15))
-			post_l.material_override = p_mat
-			chunk_root.add_child(post_l)
+			for fx in [-0.05, 0.05]:
+				var r_flange := MeshInstance3D.new()
+				r_flange.mesh = flange_mesh
+				r_flange.material_override = p_mat
+				r_flange.position = Vector3(fx, 0.0, 0.0)
+				r_flange.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				r_post.add_child(r_flange)
 
-	for joint_step in [0.0, 40.0, 80.0]:
-		var j_rel_z: float = -joint_step
-		var j_gz: float = start_z + j_rel_z
-		var j_cx: float = _sample_road_x(j_gz)
-		var j_tan: Vector3 = _sample_road_tangent(j_gz)
-		var j_bank: float = _sample_road_bank(j_gz)
+			var r_delin := MeshInstance3D.new()
+			r_delin.mesh = delin_mesh
+			r_delin.material_override = delin_amber_mat
+			r_delin.position = Vector3(-0.06, 0.48, 0.0)
+			r_delin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			r_post.add_child(r_delin)
+			chunk_root.add_child(r_post)
 
-		var joint_node := Node3D.new()
-		joint_node.position = Vector3(j_cx, 0.025, j_rel_z)
-		joint_node.transform.basis = Basis.looking_at(j_tan, Vector3.UP)
-		joint_node.rotate_object_local(Vector3(0, 0, 1), j_bank)
+			# --- Left Post (I-Beam + White Delineator Tab) ---
+			var l_post := Node3D.new()
+			l_post.position = Vector3(p_cx, 0.50, -float(p_idx) * step_z) - (p_rv * (p_hw + 0.15))
+			l_post.transform.basis = p_basis
 
-		var joint_w: float = ROAD_WIDTH
-		if current_biome_id == "enoshima_coast":
-			joint_w = 14.0
-		elif current_biome_id == "hakone_snow":
-			joint_w = 13.6
-		elif current_biome_id == "neo_shinjuku":
-			joint_w = 10.4
+			var l_web := MeshInstance3D.new()
+			l_web.mesh = web_mesh
+			l_web.material_override = p_mat
+			l_web.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			l_post.add_child(l_web)
 
-		var r_mesh := BoxMesh.new()
-		r_mesh.size = Vector3(joint_w, 0.02, 0.38)
-		var r_inst := MeshInstance3D.new()
-		r_inst.mesh = r_mesh
-		r_inst.material_override = expansion_rubber_mat
-		joint_node.add_child(r_inst)
+			for fx in [-0.05, 0.05]:
+				var l_flange := MeshInstance3D.new()
+				l_flange.mesh = flange_mesh
+				l_flange.material_override = p_mat
+				l_flange.position = Vector3(fx, 0.0, 0.0)
+				l_flange.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				l_post.add_child(l_flange)
 
-		var t_mesh := BoxMesh.new()
-		t_mesh.size = Vector3(joint_w, 0.025, 0.08)
-		for t_side in [-0.20, 0.20]:
-			var t_inst := MeshInstance3D.new()
-			t_inst.mesh = t_mesh
-			t_inst.position = Vector3(0.0, 0.005, t_side)
-			t_inst.material_override = expansion_steel_mat
-			joint_node.add_child(t_inst)
+			var l_delin := MeshInstance3D.new()
+			l_delin.mesh = delin_mesh
+			l_delin.material_override = delin_white_mat
+			l_delin.position = Vector3(0.06, 0.48, 0.0)
+			l_delin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			l_post.add_child(l_delin)
+			chunk_root.add_child(l_post)
 
-		chunk_root.add_child(joint_node)
+	if current_biome_id == "shuto_dusk":
+		for joint_step in [0.0, 40.0, 80.0]:
+			var j_rel_z: float = -joint_step
+			var j_gz: float = start_z + j_rel_z
+			var j_cx: float = _sample_road_x(j_gz)
+			var j_tan: Vector3 = _sample_road_tangent(j_gz)
+			var j_bank: float = _sample_road_bank(j_gz)
+
+			var joint_node := Node3D.new()
+			joint_node.position = Vector3(j_cx, 0.025, j_rel_z)
+			joint_node.transform.basis = Basis.looking_at(j_tan, Vector3.UP)
+			joint_node.rotate_object_local(Vector3(0, 0, 1), j_bank)
+
+			var joint_w: float = ROAD_WIDTH
+
+			var r_mesh := BoxMesh.new()
+			r_mesh.size = Vector3(joint_w, 0.02, 0.38)
+			var r_inst := MeshInstance3D.new()
+			r_inst.mesh = r_mesh
+			r_inst.material_override = expansion_rubber_mat
+			joint_node.add_child(r_inst)
+
+			var t_mesh := BoxMesh.new()
+			t_mesh.size = Vector3(joint_w, 0.025, 0.08)
+			for t_side in [-0.20, 0.20]:
+				var t_inst := MeshInstance3D.new()
+				t_inst.mesh = t_mesh
+				t_inst.position = Vector3(0.0, 0.005, t_side)
+				t_inst.material_override = expansion_steel_mat
+				joint_node.add_child(t_inst)
+
+			chunk_root.add_child(joint_node)
 
 	_spawn_chunk_speed_props(chunk_root, start_z, is_tunnel)
 
@@ -3479,7 +4081,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		fork_active = true
 		fork_transition_done = false
 	elif is_fork_approach:
-		_build_fork_gantry(chunk_root, start_z, BIOMES[fork_left_biome]["name"], BIOMES[fork_right_biome]["name"])
+		_build_fork_gantry(chunk_root, start_z, fork_left_label, fork_right_label)
 	elif is_tunnel:
 		_build_tunnel_module(chunk_root, start_z)
 		active_tunnel_intervals.append(Vector2(start_z - 30.0, start_z - 90.0))
@@ -3489,6 +4091,8 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				_build_toll_plaza(chunk_root, start_z)
 			elif chunk_spawn_count % 5 == 2:
 				_build_construction_squeeze(chunk_root, start_z)
+		else:
+			_spawn_biome_custom_obstacles(chunk_root, start_z)
 
 	if is_raining:
 		_spawn_chunk_puddles(chunk_root, start_z)
@@ -3607,82 +4211,7 @@ func _spawn_chunk_speed_props(chunk: Node3D, start_z: float, is_tunnel: bool = f
 
 	# Japanese Expressway Overhead Gantry Signs on alternating chunks (Only on Shuto Dusk)
 	if not is_tunnel and current_biome_id == "shuto_dusk" and int(abs(start_z) / 120.0) % 2 == 1:
-		var gantry_z: float = -60.0
-		var gz: float = start_z + gantry_z
-		var g_center_x: float = _sample_road_x(gz)
-		var _g_right: Vector3 = _sample_road_right(gz)
-		var g_tan: Vector3 = _sample_road_tangent(gz)
-
-		var gantry := Node3D.new()
-		gantry.position = Vector3(g_center_x, 0.0, gantry_z)
-		gantry.transform.basis = Basis.looking_at(g_tan, Vector3.UP)
-
-		var p_mesh := BoxMesh.new()
-		p_mesh.size = Vector3(0.35, 7.5, 0.35)
-		for side in [-1.0, 1.0]:
-			var col := MeshInstance3D.new()
-			col.mesh = p_mesh
-			col.position = Vector3(side * 10.2, 3.75, 0.0)
-			col.material_override = barrier_material
-			gantry.add_child(col)
-
-		var beam := MeshInstance3D.new()
-		var b_mesh := BoxMesh.new()
-		b_mesh.size = Vector3(20.8, 0.45, 0.45)
-		beam.mesh = b_mesh
-		beam.position = Vector3(0.0, 7.3, 0.0)
-		beam.material_override = barrier_material
-		gantry.add_child(beam)
-
-		var sign_mat := _get_expressway_sign_material()
-
-		var sign_board := MeshInstance3D.new()
-		var sb_mesh := BoxMesh.new()
-		sb_mesh.size = Vector3(8.2, 2.4, 0.15)
-		sign_board.mesh = sb_mesh
-		sign_board.material_override = sign_mat
-		sign_board.position = Vector3(1.2, 6.2, 0.0)
-		gantry.add_child(sign_board)
-
-		var sign_frame := MeshInstance3D.new()
-		var sf_mesh := BoxMesh.new()
-		sf_mesh.size = Vector3(8.35, 2.55, 0.08)
-		sign_frame.mesh = sf_mesh
-		var sf_mat := StandardMaterial3D.new()
-		sf_mat.albedo_color = Color("#98A0B2")
-		sign_frame.material_override = sf_mat
-		sign_frame.position = Vector3(1.2, 6.2, -0.04)
-		gantry.add_child(sign_frame)
-
-		# Downward warm-yellow SpotLight3D pooling light over asphalt under each gantry
-		var gantry_spot := SpotLight3D.new()
-		gantry_spot.light_color = Color("#FFF4D0")
-		gantry_spot.light_energy = 3.6
-		gantry_spot.spot_range = 12.0
-		gantry_spot.spot_angle = 45.0
-		gantry_spot.spot_attenuation = 1.0
-		gantry_spot.rotation_degrees = Vector3(-90.0, 0.0, 0.0) # Downward facing
-		gantry_spot.position = Vector3(0.0, 7.2, 0.0)
-		gantry_spot.shadow_enabled = false
-		gantry.add_child(gantry_spot)
-
-		# Warm yellow asphalt light pool beneath gantry
-		var gantry_pool := MeshInstance3D.new()
-		var gp_mesh := PlaneMesh.new()
-		gp_mesh.size = Vector2(14.0, 7.5)
-		gp_mesh.orientation = PlaneMesh.FACE_Y
-		gantry_pool.mesh = gp_mesh
-		var gp_mat := StandardMaterial3D.new()
-		gp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		gp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		gp_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		gp_mat.albedo_color = Color(1.0, 0.95, 0.80, 0.18)
-		gp_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		gantry_pool.material_override = gp_mat
-		gantry_pool.position = Vector3(0.0, 0.03, 0.0)
-		gantry.add_child(gantry_pool)
-
-		chunk.add_child(gantry)
+		_build_compound_lattice_gantry(chunk, start_z, false)
 
 # ==============================================================================
 # 5. PROCEDURAL COVERED TUNNEL & OVERPASS MODULE (60M ENCLOSED INDUSTRIAL TUBE)
@@ -3909,6 +4438,144 @@ func _build_construction_squeeze(chunk: Node3D, start_z: float) -> void:
 		cd.global_x = sc_offset_x
 		active_traffic_cones.append(cd)
 
+func _spawn_biome_custom_obstacles(chunk: Node3D, start_z: float) -> void:
+	match current_biome_id:
+		"neo_shinjuku":
+			# Alternating between Double-Parked Kei Delivery Van and Steam Manhole Grates
+			if chunk_spawn_count % 2 == 1:
+				var side_sign: float = -1.0 if (chunk_spawn_count % 4 < 2) else 1.0
+				var van_rel_z: float = -50.0
+				var van_gz: float = start_z + van_rel_z
+				var van_cx: float = _sample_road_x(van_gz)
+				var van_tan: Vector3 = _sample_road_tangent(van_gz)
+				var van_right: Vector3 = _sample_road_right(van_gz)
+				var van_bank: float = _sample_road_bank(van_gz)
+				var van_lane_x: float = side_sign * 3.85
+				var van_y: float = -sin(van_bank) * van_lane_x
+
+				var van := BiomeAssetFactory.build_shinjuku_obstacle_kei_van(0.0, 0.0)
+				van.position = Vector3(van_cx, van_y, van_rel_z) + (van_right * van_lane_x)
+				van.transform.basis = Basis.looking_at(van_tan, Vector3.UP)
+				van.rotate_object_local(Vector3(0, 0, 1), van_bank)
+				chunk.add_child(van)
+
+				var obs := BiomeCustomObstacleData.new()
+				obs.node = van
+				obs.global_z = van_gz
+				obs.global_x = van_lane_x
+				obs.type = "kei_van"
+				obs.half_w = 0.95
+				obs.half_l = 2.0
+				for child in van.get_children():
+					if child.name.begins_with("HazardLight"):
+						obs.light_nodes.append(child)
+				active_custom_obstacles.append(obs)
+			else:
+				var mh_rel_z: float = -65.0
+				var mh_gz: float = start_z + mh_rel_z
+				var mh_cx: float = _sample_road_x(mh_gz)
+				var mh_tan: Vector3 = _sample_road_tangent(mh_gz)
+				var mh_right: Vector3 = _sample_road_right(mh_gz)
+				var mh_bank: float = _sample_road_bank(mh_gz)
+				var mh_lane_x: float = 1.6 if (chunk_spawn_count % 4 == 0) else -1.6
+				var mh_y: float = -sin(mh_bank) * mh_lane_x + 0.02
+
+				var mh := BiomeAssetFactory.build_steam_manhole()
+				mh.position = Vector3(mh_cx, mh_y, mh_rel_z) + (mh_right * mh_lane_x)
+				mh.transform.basis = Basis.looking_at(mh_tan, Vector3.UP)
+				mh.rotate_object_local(Vector3(0, 0, 1), mh_bank)
+				chunk.add_child(mh)
+
+				var mh_obs := BiomeCustomObstacleData.new()
+				mh_obs.node = mh
+				mh_obs.global_z = mh_gz
+				mh_obs.global_x = mh_lane_x
+				mh_obs.type = "manhole"
+				mh_obs.half_w = 0.65
+				mh_obs.half_l = 0.65
+				active_custom_obstacles.append(mh_obs)
+
+		"hakone_snow":
+			# Alternating between Black-Ice Apex Patches and Plowed Snowbanks
+			if chunk_spawn_count % 2 == 1:
+				var ice_rel_z: float = -45.0
+				var ice_gz: float = start_z + ice_rel_z
+				var ice_cx: float = _sample_road_x(ice_gz)
+				var ice_tan: Vector3 = _sample_road_tangent(ice_gz)
+				var ice_right: Vector3 = _sample_road_right(ice_gz)
+				var ice_bank: float = _sample_road_bank(ice_gz)
+				var ice_lane_x: float = -2.0 if (ice_cx < 0.0) else 2.0
+				var ice_y: float = -sin(ice_bank) * ice_lane_x + 0.02
+
+				var ice := BiomeAssetFactory.build_black_ice_patch(22.0, 3.4)
+				ice.position = Vector3(ice_cx, ice_y, ice_rel_z) + (ice_right * ice_lane_x)
+				ice.transform.basis = Basis.looking_at(ice_tan, Vector3.UP)
+				ice.rotate_object_local(Vector3(0, 0, 1), ice_bank)
+				chunk.add_child(ice)
+
+				var ice_obs := BiomeCustomObstacleData.new()
+				ice_obs.node = ice
+				ice_obs.global_z = ice_gz
+				ice_obs.global_x = ice_lane_x
+				ice_obs.type = "black_ice"
+				ice_obs.half_w = 1.7
+				ice_obs.half_l = 11.0
+				active_custom_obstacles.append(ice_obs)
+			else:
+				var sn_rel_z: float = -60.0
+				var sn_gz: float = start_z + sn_rel_z
+				var sn_cx: float = _sample_road_x(sn_gz)
+				var sn_tan: Vector3 = _sample_road_tangent(sn_gz)
+				var sn_right: Vector3 = _sample_road_right(sn_gz)
+				var sn_bank: float = _sample_road_bank(sn_gz)
+				var sn_side: float = 1.0 if (chunk_spawn_count % 4 == 0) else -1.0
+				var sn_lane_x: float = sn_side * 5.6
+				var sn_y: float = -sin(sn_bank) * sn_lane_x
+
+				var snowbank := BiomeAssetFactory.build_plowed_snowbank(18.0)
+				snowbank.position = Vector3(sn_cx, sn_y, sn_rel_z) + (sn_right * sn_lane_x)
+				snowbank.transform.basis = Basis.looking_at(sn_tan, Vector3.UP)
+				snowbank.rotate_object_local(Vector3(0, 0, 1), sn_bank)
+				if sn_side < 0.0:
+					snowbank.scale.x = -1.0
+				chunk.add_child(snowbank)
+
+				var sn_obs := BiomeCustomObstacleData.new()
+				sn_obs.node = snowbank
+				sn_obs.global_z = sn_gz
+				sn_obs.global_x = sn_lane_x
+				sn_obs.type = "snowbank"
+				sn_obs.half_w = 1.2
+				sn_obs.half_l = 9.0
+				active_custom_obstacles.append(sn_obs)
+
+		"enoshima_coast":
+			# Windblown Beach Sand Drift encroaching from ocean side (X >= +4.4m)
+			if chunk_spawn_count % 2 == 1:
+				var sd_rel_z: float = -55.0
+				var sd_gz: float = start_z + sd_rel_z
+				var sd_cx: float = _sample_road_x(sd_gz)
+				var sd_tan: Vector3 = _sample_road_tangent(sd_gz)
+				var sd_right: Vector3 = _sample_road_right(sd_gz)
+				var sd_bank: float = _sample_road_bank(sd_gz)
+				var sd_lane_x: float = 4.4
+				var sd_y: float = -sin(sd_bank) * sd_lane_x + 0.02
+
+				var sand := BiomeAssetFactory.build_beach_sand_drift(16.0, 1.4)
+				sand.position = Vector3(sd_cx, sd_y, sd_rel_z) + (sd_right * sd_lane_x)
+				sand.transform.basis = Basis.looking_at(sd_tan, Vector3.UP)
+				sand.rotate_object_local(Vector3(0, 0, 1), sd_bank)
+				chunk.add_child(sand)
+
+				var sand_obs := BiomeCustomObstacleData.new()
+				sand_obs.node = sand
+				sand_obs.global_z = sd_gz
+				sand_obs.global_x = sd_lane_x
+				sand_obs.type = "sand_drift"
+				sand_obs.half_w = 1.2
+				sand_obs.half_l = 8.0
+				active_custom_obstacles.append(sand_obs)
+
 func _build_toll_plaza(chunk: Node3D, start_z: float) -> void:
 	var plaza_z: float = -60.0
 	var p_gz: float = start_z + plaza_z
@@ -4002,95 +4669,235 @@ func _build_toll_plaza(chunk: Node3D, start_z: float) -> void:
 # OUTRUN HIGHWAY FORKS & 4-BIOME 3D PROP BUILDERS
 # ==============================================================================
 func _build_fork_gantry(chunk: Node3D, start_z: float, left_name: String, right_name: String) -> void:
-	var g_rel_z: float = -45.0
+	_build_compound_lattice_gantry(chunk, start_z, true, left_name, right_name)
+
+func _build_compound_lattice_gantry(chunk: Node3D, start_z: float, is_fork: bool, left_name: String = "", right_name: String = "") -> void:
+	var g_rel_z: float = -45.0 if is_fork else -60.0
 	var g_gz: float = start_z + g_rel_z
 	var g_cx: float = _sample_road_x(g_gz)
 	var g_tan: Vector3 = _sample_road_tangent(g_gz)
 
 	var gantry_root := Node3D.new()
-	gantry_root.name = "ForkGantry"
+	gantry_root.name = "ForkGantry" if is_fork else "LatticeGantry"
 	gantry_root.position = Vector3(g_cx, 0.0, g_rel_z)
 	gantry_root.transform.basis = Basis.looking_at(g_tan, Vector3.UP)
 
-	# 1. Industrial Steel Posts on Left & Right Highway Edges
-	var post_mesh := BoxMesh.new()
-	post_mesh.size = Vector3(0.9, 9.2, 0.9)
-	for side in [-15.2, 15.2]:
-		var post := MeshInstance3D.new()
-		post.mesh = post_mesh
-		post.material_override = barrier_material
-		post.position = Vector3(side, 4.6, 0.0)
-		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		gantry_root.add_child(post)
+	var span_w: float = 31.5 if is_fork else 22.0
+	var col_x: float = 15.2 if is_fork else 10.5
+	var g_mat: Material = truss_steel_mat if truss_steel_mat else barrier_material
 
-	# 2. Heavy Double Lattice Cross-Truss
-	var truss_mesh := BoxMesh.new()
-	truss_mesh.size = Vector3(31.5, 1.2, 1.4)
-	for ty in [7.2, 8.8]:
-		var truss := MeshInstance3D.new()
-		truss.mesh = truss_mesh
-		truss.material_override = barrier_material
-		truss.position = Vector3(0.0, ty, 0.0)
-		truss.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		gantry_root.add_child(truss)
+	# 1. Structural Lattice Towers on Left & Right Highway Edges
+	var foot_mesh := BoxMesh.new()
+	foot_mesh.size = Vector3(1.1, 0.3, 1.1)
 
-	# 3. Dual Unshaded Neon Destination Billboards
-	# Left Billboard: [ ⬸ LEFT // HAKONE SNOW ]
-	var left_sign_bg := MeshInstance3D.new()
-	var bg_mesh_l := BoxMesh.new()
-	bg_mesh_l.size = Vector3(10.5, 2.8, 0.25)
-	left_sign_bg.mesh = bg_mesh_l
-	left_sign_bg.position = Vector3(-7.2, 8.0, 0.8)
-	left_sign_bg.material_override = expansion_rubber_mat
-	left_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	gantry_root.add_child(left_sign_bg)
+	var leg_mesh := BoxMesh.new()
+	leg_mesh.size = Vector3(0.24, 8.4, 0.24)
 
-	var left_lbl := Label3D.new()
-	left_lbl.text = "⬸ LEFT LANE //\n" + left_name
-	left_lbl.font_size = 46
-	left_lbl.modulate = Color("#00E5FF")
-	left_lbl.outline_modulate = Color("#002838")
-	left_lbl.outline_size = 12
-	left_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left_lbl.position = Vector3(-7.2, 8.0, 0.95)
-	left_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	left_lbl.no_depth_test = false
-	left_lbl.render_priority = 2
-	gantry_root.add_child(left_lbl)
+	var brace_mesh := BoxMesh.new()
+	brace_mesh.size = Vector3(0.12, 0.12, 0.9)
 
-	# Right Billboard: [ ENOSHIMA COAST // RIGHT ⤑ ]
-	var right_sign_bg := MeshInstance3D.new()
-	var bg_mesh_r := BoxMesh.new()
-	bg_mesh_r.size = Vector3(10.5, 2.8, 0.25)
-	right_sign_bg.mesh = bg_mesh_r
-	right_sign_bg.position = Vector3(7.2, 8.0, 0.8)
-	right_sign_bg.material_override = expansion_rubber_mat
-	right_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	gantry_root.add_child(right_sign_bg)
+	for side in [-col_x, col_x]:
+		# Concrete & Steel Foundation Footing
+		var foot := MeshInstance3D.new()
+		foot.mesh = foot_mesh
+		foot.material_override = barrier_material
+		foot.position = Vector3(side, 0.15, 0.0)
+		foot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(foot)
 
-	var right_lbl := Label3D.new()
-	right_lbl.text = right_name + "\n// RIGHT LANE ⤑"
-	right_lbl.font_size = 46
-	right_lbl.modulate = Color("#FF2A55")
-	right_lbl.outline_modulate = Color("#440018")
-	right_lbl.outline_size = 12
-	right_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	right_lbl.position = Vector3(7.2, 8.0, 0.95)
-	right_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	right_lbl.no_depth_test = false
-	right_lbl.render_priority = 2
-	gantry_root.add_child(right_lbl)
+		# 2 Main Vertical Columns (Front & Back leg)
+		for leg_z in [-0.42, 0.42]:
+			var leg := MeshInstance3D.new()
+			leg.mesh = leg_mesh
+			leg.material_override = g_mat
+			leg.position = Vector3(side, 4.3, leg_z)
+			leg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			gantry_root.add_child(leg)
 
-	# 4. Overhead Spotlight Illuminating Signs
-	var g_spot := SpotLight3D.new()
-	g_spot.light_color = Color("#FFFFFF")
-	g_spot.light_energy = 4.0
-	g_spot.spot_range = 18.0
-	g_spot.spot_angle = 65.0
-	g_spot.position = Vector3(0.0, 9.5, 2.5)
-	g_spot.rotation_degrees = Vector3(-35.0, 0.0, 0.0)
-	g_spot.shadow_enabled = false
-	gantry_root.add_child(g_spot)
+		# Horizontal & Diagonal Ladder Braces between the 2 legs
+		for by in [1.8, 3.4, 5.0, 6.6]:
+			var brace := MeshInstance3D.new()
+			brace.mesh = brace_mesh
+			brace.material_override = g_mat
+			brace.position = Vector3(side, by, 0.0)
+			brace.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			gantry_root.add_child(brace)
+
+	# 2. Heavy 3D Box Lattice Truss Cross-Span (4 Continuous Chord Tubes)
+	var chord_mesh := BoxMesh.new()
+	chord_mesh.size = Vector3(span_w, 0.18, 0.18)
+	var chord_coords: Array[Vector2] = [
+		Vector2(7.3, -0.55), # Bottom Back
+		Vector2(7.3, 0.55),  # Bottom Front
+		Vector2(8.8, -0.55), # Top Back
+		Vector2(8.8, 0.55)   # Top Front
+	]
+	for cc in chord_coords:
+		var ch := MeshInstance3D.new()
+		ch.mesh = chord_mesh
+		ch.material_override = g_mat
+		ch.position = Vector3(0.0, cc.x, cc.y)
+		ch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(ch)
+
+	# Cross-braces connecting the chords along the span
+	var x_strut_mesh := BoxMesh.new()
+	x_strut_mesh.size = Vector3(0.12, 1.45, 0.12)
+	var num_panels: int = int(span_w / 3.0)
+	for p in range(num_panels + 1):
+		var px: float = -span_w * 0.5 + float(p) * (span_w / float(num_panels))
+		# Front vertical connector
+		var f_strut := MeshInstance3D.new()
+		f_strut.mesh = x_strut_mesh
+		f_strut.material_override = g_mat
+		f_strut.position = Vector3(px, 8.05, 0.55)
+		f_strut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(f_strut)
+		# Back vertical connector
+		var b_strut := MeshInstance3D.new()
+		b_strut.mesh = x_strut_mesh
+		b_strut.material_override = g_mat
+		b_strut.position = Vector3(px, 8.05, -0.55)
+		b_strut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(b_strut)
+
+	# 3. Maintenance Catwalk with Safety Railings
+	var catwalk_mesh := BoxMesh.new()
+	catwalk_mesh.size = Vector3(span_w - 2.0, 0.08, 0.85)
+	var catwalk := MeshInstance3D.new()
+	catwalk.mesh = catwalk_mesh
+	catwalk.material_override = gantry_catwalk_mat if gantry_catwalk_mat else barrier_material
+	catwalk.position = Vector3(0.0, 7.32, 0.0)
+	catwalk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gantry_root.add_child(catwalk)
+
+	# Safety handrail along rear of catwalk
+	var rail_mesh := BoxMesh.new()
+	rail_mesh.size = Vector3(span_w - 2.0, 0.06, 0.06)
+	for ry in [7.75, 8.25]:
+		var r_bar := MeshInstance3D.new()
+		r_bar.mesh = rail_mesh
+		r_bar.material_override = g_mat
+		r_bar.position = Vector3(0.0, ry, -0.42)
+		r_bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(r_bar)
+
+	# 4. Signboards & Illumination
+	if is_fork:
+		# Dual Backlit Billboards (Left & Right destination branches)
+		# Left Billboard
+		var left_sign_bg := MeshInstance3D.new()
+		var bg_mesh_l := BoxMesh.new()
+		bg_mesh_l.size = Vector3(10.5, 2.8, 0.25)
+		left_sign_bg.mesh = bg_mesh_l
+		left_sign_bg.position = Vector3(-7.2, 8.0, 0.85)
+		left_sign_bg.material_override = expansion_rubber_mat
+		left_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(left_sign_bg)
+
+		var left_lbl := Label3D.new()
+		left_lbl.text = "⬸ LEFT LANE //\n" + left_name
+		left_lbl.font_size = 46
+		left_lbl.modulate = Color("#00E5FF")
+		left_lbl.outline_modulate = Color("#002838")
+		left_lbl.outline_size = 12
+		left_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		left_lbl.position = Vector3(-7.2, 8.0, 1.0)
+		left_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		left_lbl.no_depth_test = false
+		left_lbl.render_priority = 2
+		gantry_root.add_child(left_lbl)
+
+		# Right Billboard
+		var right_sign_bg := MeshInstance3D.new()
+		var bg_mesh_r := BoxMesh.new()
+		bg_mesh_r.size = Vector3(10.5, 2.8, 0.25)
+		right_sign_bg.mesh = bg_mesh_r
+		right_sign_bg.position = Vector3(7.2, 8.0, 0.85)
+		right_sign_bg.material_override = expansion_rubber_mat
+		right_sign_bg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		gantry_root.add_child(right_sign_bg)
+
+		var right_lbl := Label3D.new()
+		right_lbl.text = right_name + "\n// RIGHT LANE ⤑"
+		right_lbl.font_size = 46
+		right_lbl.modulate = Color("#FF2A55")
+		right_lbl.outline_modulate = Color("#440018")
+		right_lbl.outline_size = 12
+		right_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		right_lbl.position = Vector3(7.2, 8.0, 1.0)
+		right_lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		right_lbl.no_depth_test = false
+		right_lbl.render_priority = 2
+		gantry_root.add_child(right_lbl)
+
+		# Overhead SpotLight
+		var g_spot := SpotLight3D.new()
+		g_spot.light_color = Color("#FFFFFF")
+		g_spot.light_energy = 4.0
+		g_spot.spot_range = 18.0
+		g_spot.spot_angle = 65.0
+		g_spot.position = Vector3(0.0, 9.5, 2.5)
+		g_spot.rotation_degrees = Vector3(-35.0, 0.0, 0.0)
+		g_spot.shadow_enabled = false
+		gantry_root.add_child(g_spot)
+	else:
+		# Standard Shuto Expressway Highway Signboard
+		var sign_mat: Material = _get_expressway_sign_material()
+		var sign_board := MeshInstance3D.new()
+		var sb_mesh := BoxMesh.new()
+		sb_mesh.size = Vector3(9.2, 2.6, 0.18)
+		sign_board.mesh = sb_mesh
+		sign_board.material_override = sign_mat
+		sign_board.position = Vector3(1.0, 6.8, 0.82)
+		gantry_root.add_child(sign_board)
+
+		var sign_frame := MeshInstance3D.new()
+		var sf_mesh := BoxMesh.new()
+		sf_mesh.size = Vector3(9.38, 2.78, 0.08)
+		sign_frame.mesh = sf_mesh
+		var sf_mat := StandardMaterial3D.new()
+		sf_mat.albedo_color = Color("#98A0B2")
+		sign_frame.material_override = sf_mat
+		sign_frame.position = Vector3(1.0, 6.8, 0.72)
+		gantry_root.add_child(sign_frame)
+
+		# Vertical drop hangers connecting sign to truss
+		var hanger_mesh := BoxMesh.new()
+		hanger_mesh.size = Vector3(0.10, 1.6, 0.10)
+		for hx in [-2.5, 1.0, 4.5]:
+			var hg := MeshInstance3D.new()
+			hg.mesh = hanger_mesh
+			hg.material_override = g_mat
+			hg.position = Vector3(hx, 8.0, 0.75)
+			gantry_root.add_child(hg)
+
+		# Downward warm spotlight
+		var gantry_spot := SpotLight3D.new()
+		gantry_spot.light_color = Color("#FFF4D0")
+		gantry_spot.light_energy = 3.6
+		gantry_spot.spot_range = 14.0
+		gantry_spot.spot_angle = 50.0
+		gantry_spot.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+		gantry_spot.position = Vector3(1.0, 7.4, 0.8)
+		gantry_spot.shadow_enabled = false
+		gantry_root.add_child(gantry_spot)
+
+		# Warm yellow asphalt light pool
+		var gantry_pool := MeshInstance3D.new()
+		var gp_mesh := PlaneMesh.new()
+		gp_mesh.size = Vector2(14.0, 7.5)
+		gp_mesh.orientation = PlaneMesh.FACE_Y
+		gantry_pool.mesh = gp_mesh
+		var gp_mat := StandardMaterial3D.new()
+		gp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		gp_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		gp_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		gp_mat.albedo_color = Color(1.0, 0.95, 0.80, 0.18)
+		gp_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		gantry_pool.material_override = gp_mat
+		gantry_pool.position = Vector3(0.0, 0.03, 0.0)
+		gantry_root.add_child(gantry_pool)
 
 	chunk.add_child(gantry_root)
 
@@ -4291,37 +5098,686 @@ func _add_3d_palm_tree(trunk_st: SurfaceTool, frond_st: SurfaceTool, ground_pos:
 		frond_st.add_vertex(apex); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_mid + f_side)
 		frond_st.add_vertex(f_mid + f_side); frond_st.add_vertex(f_mid - f_side); frond_st.add_vertex(f_tip)
 
-func _add_3d_snow_pine(foliage_st: SurfaceTool, snow_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
-	var total_h: float = 12.0 * scale_f
+func _add_3d_snow_pine(trunk_st: SurfaceTool, foliage_st: SurfaceTool, snow_st: SurfaceTool, ground_pos: Vector3, scale_f: float, seed_val: float) -> void:
+	# Clamped strictly between 0.85 and 1.35 (total tree height between 6.0m and 9.0m)
+	var sc: float = clampf(scale_f, 0.85, 1.35)
+
+	# 1. Tapered dark cedar trunk (#2B1E1A)
+	var trunk_h: float = 2.2 * sc
+	var trunk_r: float = 0.28 * sc
+	var trunk_r_top: float = 0.19 * sc
+	var trunk_col := Color("#2B1E1A")
+	trunk_st.set_color(trunk_col)
+	for s in range(6):
+		var a0: float = float(s) * TAU / 6.0
+		var a1: float = float(s + 1) * TAU / 6.0
+		var tb0 := Vector3(ground_pos.x + cos(a0) * trunk_r, ground_pos.y, ground_pos.z + sin(a0) * trunk_r)
+		var tb1 := Vector3(ground_pos.x + cos(a1) * trunk_r, ground_pos.y, ground_pos.z + sin(a1) * trunk_r)
+		var tt0 := Vector3(ground_pos.x + cos(a0) * trunk_r_top, ground_pos.y + trunk_h, ground_pos.z + sin(a0) * trunk_r_top)
+		var tt1 := Vector3(ground_pos.x + cos(a1) * trunk_r_top, ground_pos.y + trunk_h, ground_pos.z + sin(a1) * trunk_r_top)
+		trunk_st.add_vertex(tb0); trunk_st.add_vertex(tt0); trunk_st.add_vertex(tb1)
+		trunk_st.add_vertex(tb1); trunk_st.add_vertex(tt0); trunk_st.add_vertex(tt1)
+		trunk_st.add_vertex(tb0); trunk_st.add_vertex(tb1); trunk_st.add_vertex(tt0)
+		trunk_st.add_vertex(tb1); trunk_st.add_vertex(tt1); trunk_st.add_vertex(tt0)
+
+	# 2. Five stacked, overlapping, rotated multi-pointed star bough tiers
 	var tiers: int = 5
+	var num_pts: int = 8
+	var needle_col := Color("#143627")
+	var snow_col := Color("#F8FAFC")
+
 	for t in range(tiers):
-		var t_ratio: float = float(t) / float(tiers)
-		var y_base: float = ground_pos.y + (t_ratio * total_h * 0.72) + (1.2 * scale_f)
-		var y_top: float = y_base + (3.0 * scale_f)
-		var r_base: float = (5.2 - t_ratio * 3.4) * scale_f
+		var t_ratio: float = float(t) / float(tiers - 1)
+		# Radii taper upward from 2.4m base down to 0.40m top
+		var r_tier: float = lerpf(2.4, 0.40, t_ratio) * sc
+		var y_base: float = ground_pos.y + (1.35 + float(t) * 1.05) * sc
+		var y_top: float = y_base + (2.1 - t_ratio * 0.70) * sc
+		var tier_rot: float = fposmod(seed_val * 4.31 + float(t) * 1.57 + float(t * t) * 0.42, TAU)
 
-		# 6-sided 3D conical evergreen foliage tier (Double-sided)
-		for s in range(6):
-			var a0: float = float(s) * TAU / 6.0
-			var a1: float = float(s + 1) * TAU / 6.0
-			var v0 := Vector3(ground_pos.x + cos(a0) * r_base, y_base, ground_pos.z + sin(a0) * r_base)
-			var v1 := Vector3(ground_pos.x + cos(a1) * r_base, y_base, ground_pos.z + sin(a1) * r_base)
-			var vt := Vector3(ground_pos.x, y_top, ground_pos.z)
-			foliage_st.add_vertex(v0); foliage_st.add_vertex(v1); foliage_st.add_vertex(vt)
-			foliage_st.add_vertex(v0); foliage_st.add_vertex(vt); foliage_st.add_vertex(v1)
+		# Build irregular star skirt vertices
+		var v_skirt: Array[Vector3] = []
+		var v_snow: Array[Vector3] = []
+		var v_snow_lip: Array[Vector3] = []
+		var apex := Vector3(ground_pos.x, y_top, ground_pos.z)
+		var trunk_center := Vector3(ground_pos.x, y_base + 0.15 * sc, ground_pos.z)
 
-		# Puffy rounded snow cap on UPPER 65% of the tier, leaving dark green foliage skirts exposed! (Ref Image 3)
-		var y_snow_base: float = y_base + (1.05 * scale_f)
-		var y_snow_top: float = y_top + (0.35 * scale_f)
-		var r_snow: float = r_base * 0.82
-		for s in range(6):
-			var a0: float = float(s) * TAU / 6.0
-			var a1: float = float(s + 1) * TAU / 6.0
-			var sv0 := Vector3(ground_pos.x + cos(a0) * r_snow, y_snow_base, ground_pos.z + sin(a0) * r_snow)
-			var sv1 := Vector3(ground_pos.x + cos(a1) * r_snow, y_snow_base, ground_pos.z + sin(a1) * r_snow)
-			var svt := Vector3(ground_pos.x, y_snow_top, ground_pos.z)
-			snow_st.add_vertex(sv0); snow_st.add_vertex(sv1); snow_st.add_vertex(svt)
-			snow_st.add_vertex(sv0); snow_st.add_vertex(svt); snow_st.add_vertex(sv1)
+		for k in range(num_pts):
+			var ang: float = float(k) * TAU / float(num_pts) + tier_rot
+			var is_outer: bool = (k % 2 == 0)
+			var r_fac: float = 1.0 if is_outer else 0.62
+			var jitter: float = fposmod(seed_val * 7.19 + float(t * 8 + k) * 3.11, 0.18)
+			var cur_r: float = r_tier * (r_fac + jitter)
+			var cur_y: float = y_base - (0.16 * sc if is_outer else -0.04 * sc)
+
+			var pt_skirt := Vector3(ground_pos.x + cos(ang) * cur_r, cur_y, ground_pos.z + sin(ang) * cur_r)
+			v_skirt.append(pt_skirt)
+
+			# Upper 65% covered in pillowy snow cap
+			var pt_snow := apex.lerp(pt_skirt, 0.65) + Vector3(0.0, 0.08 * sc, 0.0)
+			var pt_snow_lip := pt_snow - Vector3(0.0, 0.07 * sc, 0.0)
+			v_snow.append(pt_snow)
+			v_snow_lip.append(pt_snow_lip)
+
+		# Tessellate star skirt
+		snow_st.set_color(snow_col)
+		foliage_st.set_color(needle_col)
+		for k in range(num_pts):
+			var kn: int = (k + 1) % num_pts
+			var sk0 := v_skirt[k]
+			var sk1 := v_skirt[kn]
+			var sn0 := v_snow[k]
+			var sn1 := v_snow[kn]
+			var lip0 := v_snow_lip[k]
+			var lip1 := v_snow_lip[kn]
+
+			# Snow cap (upper slope)
+			snow_st.add_vertex(apex); snow_st.add_vertex(sn0); snow_st.add_vertex(sn1)
+			snow_st.add_vertex(apex); snow_st.add_vertex(sn1); snow_st.add_vertex(sn0)
+			# Snow vertical edge/lip (creates 3D thickness)
+			snow_st.add_vertex(sn0); snow_st.add_vertex(lip0); snow_st.add_vertex(sn1)
+			snow_st.add_vertex(sn1); snow_st.add_vertex(lip0); snow_st.add_vertex(lip1)
+			snow_st.add_vertex(sn0); snow_st.add_vertex(sn1); snow_st.add_vertex(lip0)
+			snow_st.add_vertex(sn1); snow_st.add_vertex(lip1); snow_st.add_vertex(lip0)
+
+			# Pine needles (lower exposed skirt overhang)
+			foliage_st.add_vertex(lip0); foliage_st.add_vertex(sk0); foliage_st.add_vertex(lip1)
+			foliage_st.add_vertex(lip1); foliage_st.add_vertex(sk0); foliage_st.add_vertex(sk1)
+			foliage_st.add_vertex(lip0); foliage_st.add_vertex(lip1); foliage_st.add_vertex(sk0)
+			foliage_st.add_vertex(lip1); foliage_st.add_vertex(sk1); foliage_st.add_vertex(sk0)
+
+			# Underside of boughs (viewed from below)
+			foliage_st.add_vertex(sk0); foliage_st.add_vertex(trunk_center); foliage_st.add_vertex(sk1)
+			foliage_st.add_vertex(sk0); foliage_st.add_vertex(sk1); foliage_st.add_vertex(trunk_center)
+
+func _add_3d_shuto_spruce(st_foliage: SurfaceTool, ground_pos: Vector3, sc: float, seed_val: float) -> void:
+	# Cedar trunk
+	var trunk_h: float = 2.2 * sc
+	var trunk_r: float = 0.25 * sc
+	var trunk_r_top: float = 0.16 * sc
+	var trunk_col := Color("#221815")
+	st_foliage.set_color(trunk_col)
+	for s in range(6):
+		var a0: float = float(s) * TAU / 6.0
+		var a1: float = float(s + 1) * TAU / 6.0
+		var tb0 := Vector3(ground_pos.x + cos(a0) * trunk_r, ground_pos.y, ground_pos.z + sin(a0) * trunk_r)
+		var tb1 := Vector3(ground_pos.x + cos(a1) * trunk_r, ground_pos.y, ground_pos.z + sin(a1) * trunk_r)
+		var tt0 := Vector3(ground_pos.x + cos(a0) * trunk_r_top, ground_pos.y + trunk_h, ground_pos.z + sin(a0) * trunk_r_top)
+		var tt1 := Vector3(ground_pos.x + cos(a1) * trunk_r_top, ground_pos.y + trunk_h, ground_pos.z + sin(a1) * trunk_r_top)
+		st_foliage.add_vertex(tb0); st_foliage.add_vertex(tt0); st_foliage.add_vertex(tb1)
+		st_foliage.add_vertex(tb1); st_foliage.add_vertex(tt0); st_foliage.add_vertex(tt1)
+		st_foliage.add_vertex(tb0); st_foliage.add_vertex(tb1); st_foliage.add_vertex(tt0)
+		st_foliage.add_vertex(tb1); st_foliage.add_vertex(tt1); st_foliage.add_vertex(tt0)
+
+	# 4 Stacked, overlapping, irregular star bough tiers in deep Japanese spruce green
+	var tiers: int = 4
+	var num_pts: int = 8
+	var needle_col := Color("#143422")
+	st_foliage.set_color(needle_col)
+
+	for t in range(tiers):
+		var t_ratio: float = float(t) / float(tiers - 1)
+		var r_tier: float = lerpf(2.2, 0.55, t_ratio) * sc
+		var y_base: float = ground_pos.y + (1.2 + float(t) * 1.1) * sc
+		var y_top: float = y_base + (2.0 - t_ratio * 0.6) * sc
+		var tier_rot: float = fposmod(seed_val * 5.17 + float(t) * 1.63, TAU)
+
+		var v_skirt: Array[Vector3] = []
+		var apex := Vector3(ground_pos.x, y_top, ground_pos.z)
+		var trunk_center := Vector3(ground_pos.x, y_base + 0.15 * sc, ground_pos.z)
+
+		for k in range(num_pts):
+			var ang: float = float(k) * TAU / float(num_pts) + tier_rot
+			var is_outer: bool = (k % 2 == 0)
+			var r_fac: float = 1.0 if is_outer else 0.60
+			var jitter: float = fposmod(seed_val * 6.3 + float(t * 8 + k) * 2.7, 0.16)
+			var cur_r: float = r_tier * (r_fac + jitter)
+			var cur_y: float = y_base - (0.15 * sc if is_outer else -0.05 * sc)
+			v_skirt.append(Vector3(ground_pos.x + cos(ang) * cur_r, cur_y, ground_pos.z + sin(ang) * cur_r))
+
+		for k in range(num_pts):
+			var kn: int = (k + 1) % num_pts
+			var sk0 := v_skirt[k]
+			var sk1 := v_skirt[kn]
+			# Bough upper face
+			st_foliage.add_vertex(apex); st_foliage.add_vertex(sk0); st_foliage.add_vertex(sk1)
+			st_foliage.add_vertex(apex); st_foliage.add_vertex(sk1); st_foliage.add_vertex(sk0)
+			# Bough underside
+			st_foliage.add_vertex(sk0); st_foliage.add_vertex(trunk_center); st_foliage.add_vertex(sk1)
+			st_foliage.add_vertex(sk0); st_foliage.add_vertex(sk1); st_foliage.add_vertex(trunk_center)
+
+func _build_shuto_sound_barriers(chunk: Node3D, start_z: float) -> void:
+	var barrier_root := Node3D.new()
+	barrier_root.name = "ShutoSoundBarriers"
+	chunk.add_child(barrier_root)
+
+	var wall_mat: Material = noise_barrier_mat if noise_barrier_mat else barrier_material
+	var glass_mat: Material = noise_barrier_glass_mat if noise_barrier_glass_mat else barrier_material
+	var steel_mat: Material = truss_steel_mat if truss_steel_mat else barrier_material
+
+	# Steps every 3.0m along chunk (42m stretch)
+	var num_steps: int = 14
+	var base_box := BoxMesh.new()
+	base_box.size = Vector3(0.24, 0.75, 3.05)
+
+	var glass_box := BoxMesh.new()
+	glass_box.size = Vector3(0.08, 1.80, 2.92)
+
+	var deflector_box := BoxMesh.new()
+	deflector_box.size = Vector3(0.08, 0.55, 2.92)
+
+	var post_box := BoxMesh.new()
+	post_box.size = Vector3(0.28, 3.10, 0.18)
+
+	for s in range(num_steps):
+		var rel_z: float = -15.0 - float(s) * 3.0
+		var gz: float = start_z + rel_z
+		var cx: float = _sample_road_x(gz)
+		var rv: Vector3 = _sample_road_right(gz)
+		var tan_v: Vector3 = _sample_road_tangent(gz)
+		var look_b := Basis.looking_at(tan_v, Vector3.UP)
+
+		# Build along left elevated edge
+		var pos_l := Vector3(cx, 0.0, rel_z) - (rv * 10.8)
+		var node_l := Node3D.new()
+		node_l.position = pos_l
+		node_l.transform.basis = look_b
+		barrier_root.add_child(node_l)
+
+		# Lower concrete parapet base
+		var b_inst := MeshInstance3D.new()
+		b_inst.mesh = base_box
+		b_inst.material_override = wall_mat
+		b_inst.position = Vector3(0.0, 0.38, 0.0)
+		b_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node_l.add_child(b_inst)
+
+		# Translucent frosted acrylic panel
+		var g_inst := MeshInstance3D.new()
+		g_inst.mesh = glass_box
+		g_inst.material_override = glass_mat
+		g_inst.position = Vector3(0.0, 1.65, 0.0)
+		g_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node_l.add_child(g_inst)
+
+		# Inward angled top deflector lip
+		var d_inst := MeshInstance3D.new()
+		d_inst.mesh = deflector_box
+		d_inst.material_override = wall_mat
+		d_inst.position = Vector3(0.12, 2.78, 0.0)
+		d_inst.rotation_degrees = Vector3(0.0, 0.0, -25.0)
+		d_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node_l.add_child(d_inst)
+
+		# Vertical steel H-beam stanchion
+		var p_inst := MeshInstance3D.new()
+		p_inst.mesh = post_box
+		p_inst.material_override = steel_mat
+		p_inst.position = Vector3(0.0, 1.55, 1.46)
+		p_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node_l.add_child(p_inst)
+
+func _add_snow_depth_marker_pole(chunk: Node3D, pos: Vector3, facing_dir: Vector3) -> void:
+	var pole_node := Node3D.new()
+	pole_node.position = pos
+	pole_node.transform.basis = Basis.looking_at(facing_dir, Vector3.UP)
+
+	# 10 Alternating 0.34m striped segments (Red #DC2626 & White #F8FAFC)
+	var seg_mesh := CylinderMesh.new()
+	seg_mesh.top_radius = 0.05
+	seg_mesh.bottom_radius = 0.05
+	seg_mesh.height = 0.34
+	seg_mesh.radial_segments = 6
+
+	var red_mat := StandardMaterial3D.new()
+	red_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	red_mat.albedo_color = Color("#DC2626")
+
+	var white_mat := StandardMaterial3D.new()
+	white_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	white_mat.albedo_color = Color("#F8FAFC")
+
+	for s in range(10):
+		var inst := MeshInstance3D.new()
+		inst.mesh = seg_mesh
+		inst.material_override = red_mat if (s % 2 == 0) else white_mat
+		inst.position = Vector3(0.0, 0.17 + float(s) * 0.34, 0.0)
+		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pole_node.add_child(inst)
+
+	# Top chevron arrow pointing inward toward the road
+	var arrow_mesh := BoxMesh.new()
+	arrow_mesh.size = Vector3(0.48, 0.12, 0.04)
+	var arrow := MeshInstance3D.new()
+	arrow.mesh = arrow_mesh
+	arrow.material_override = red_mat
+	arrow.position = Vector3(0.20, 3.48, 0.0)
+	arrow.rotation_degrees = Vector3(0.0, 0.0, 25.0)
+	arrow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pole_node.add_child(arrow)
+
+	chunk.add_child(pole_node)
+
+func _add_stone_guardpost(chunk: Node3D, pos: Vector3) -> void:
+	var gp_node := Node3D.new()
+	gp_node.position = pos
+
+	var post_mesh := BoxMesh.new()
+	post_mesh.size = Vector3(0.36, 0.82, 0.36)
+	var p_inst := MeshInstance3D.new()
+	p_inst.mesh = post_mesh
+	p_inst.material_override = stone_guardpost_mat if stone_guardpost_mat else barrier_material
+	p_inst.position = Vector3(0.0, 0.41, 0.0)
+	p_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gp_node.add_child(p_inst)
+
+	# Pyramid top cap
+	var cap_st := SurfaceTool.new()
+	cap_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tip := Vector3(0.0, 1.02, 0.0)
+	var c0 := Vector3(-0.18, 0.82, -0.18)
+	var c1 := Vector3(0.18, 0.82, -0.18)
+	var c2 := Vector3(0.18, 0.82, 0.18)
+	var c3 := Vector3(-0.18, 0.82, 0.18)
+	cap_st.add_vertex(tip); cap_st.add_vertex(c0); cap_st.add_vertex(c1)
+	cap_st.add_vertex(tip); cap_st.add_vertex(c1); cap_st.add_vertex(c2)
+	cap_st.add_vertex(tip); cap_st.add_vertex(c2); cap_st.add_vertex(c3)
+	cap_st.add_vertex(tip); cap_st.add_vertex(c3); cap_st.add_vertex(c0)
+	cap_st.generate_normals()
+	var cap_inst := MeshInstance3D.new()
+	cap_inst.mesh = cap_st.commit()
+	cap_inst.material_override = stone_guardpost_mat if stone_guardpost_mat else barrier_material
+	cap_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	gp_node.add_child(cap_inst)
+
+	chunk.add_child(gp_node)
+
+func _add_mountain_rest_hut_sign(chunk: Node3D, pos: Vector3, tan_dir: Vector3) -> void:
+	var sign_node := Node3D.new()
+	sign_node.position = pos
+	sign_node.transform.basis = Basis.looking_at(tan_dir, Vector3.UP)
+
+	var wood_mat: Material = mountain_sign_mat if mountain_sign_mat else barrier_material
+
+	# Heavy timber gallows posts
+	var post_mesh := BoxMesh.new()
+	post_mesh.size = Vector3(0.24, 3.2, 0.24)
+	for px in [-1.4, 1.4]:
+		var post := MeshInstance3D.new()
+		post.mesh = post_mesh
+		post.material_override = wood_mat
+		post.position = Vector3(px, 1.6, 0.0)
+		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sign_node.add_child(post)
+
+	# Gabled timber roof
+	var roof_mesh := BoxMesh.new()
+	roof_mesh.size = Vector3(3.6, 0.14, 1.2)
+	var roof_l := MeshInstance3D.new()
+	roof_l.mesh = roof_mesh
+	roof_l.material_override = wood_mat
+	roof_l.position = Vector3(0.0, 3.35, -0.28)
+	roof_l.rotation_degrees = Vector3(22.0, 0.0, 0.0)
+	sign_node.add_child(roof_l)
+
+	var roof_r := MeshInstance3D.new()
+	roof_r.mesh = roof_mesh
+	roof_r.material_override = wood_mat
+	roof_r.position = Vector3(0.0, 3.35, 0.28)
+	roof_r.rotation_degrees = Vector3(-22.0, 0.0, 0.0)
+	sign_node.add_child(roof_r)
+
+	# Snow layer on roof
+	var snow_mesh := BoxMesh.new()
+	snow_mesh.size = Vector3(3.65, 0.16, 0.65)
+	var snow_l := MeshInstance3D.new()
+	snow_l.mesh = snow_mesh
+	snow_l.material_override = snowbank_mat if snowbank_mat else wood_mat
+	snow_l.position = Vector3(0.0, 3.46, -0.28)
+	snow_l.rotation_degrees = Vector3(22.0, 0.0, 0.0)
+	sign_node.add_child(snow_l)
+
+	# Backlit warm amber kanji sign panel
+	var panel_mesh := BoxMesh.new()
+	panel_mesh.size = Vector3(2.6, 1.4, 0.12)
+	var panel := MeshInstance3D.new()
+	panel.mesh = panel_mesh
+	var p_mat := StandardMaterial3D.new()
+	p_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	p_mat.albedo_color = Color("#FFB703") # Warm glowing amber
+	panel.material_override = p_mat
+	panel.position = Vector3(0.0, 2.2, 0.0)
+	sign_node.add_child(panel)
+
+	var lbl := Label3D.new()
+	lbl.text = "峠の茶屋\n展望台"
+	lbl.font_size = 48
+	lbl.modulate = Color("#1E1A22")
+	lbl.outline_modulate = Color("#FFD000")
+	lbl.outline_size = 8
+	lbl.position = Vector3(0.0, 2.2, 0.08)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	lbl.render_priority = 2
+	sign_node.add_child(lbl)
+
+	chunk.add_child(sign_node)
+
+static var tetrapod_shared_mesh: ArrayMesh
+
+func _get_or_create_tetrapod_mesh() -> ArrayMesh:
+	if tetrapod_shared_mesh:
+		return tetrapod_shared_mesh
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var dirs: Array[Vector3] = [
+		Vector3(1.0, 1.0, 1.0).normalized(),
+		Vector3(1.0, -1.0, -1.0).normalized(),
+		Vector3(-1.0, 1.0, -1.0).normalized(),
+		Vector3(-1.0, -1.0, 1.0).normalized()
+	]
+	var leg_len: float = 1.35
+	var r_base: float = 0.52
+	var r_tip: float = 0.32
+	var segs: int = 6
+
+	for d in dirs:
+		var tip_center: Vector3 = d * leg_len
+		var perp := d.cross(Vector3.UP).normalized()
+		if perp.length_squared() < 0.01:
+			perp = d.cross(Vector3.RIGHT).normalized()
+		var bi_norm := d.cross(perp).normalized()
+
+		for s in range(segs):
+			var a0: float = float(s) * TAU / float(segs)
+			var a1: float = float(s + 1) * TAU / float(segs)
+			var b0: Vector3 = (perp * cos(a0) + bi_norm * sin(a0)) * r_base
+			var b1: Vector3 = (perp * cos(a1) + bi_norm * sin(a1)) * r_base
+			var t0: Vector3 = tip_center + (perp * cos(a0) + bi_norm * sin(a0)) * r_tip
+			var t1: Vector3 = tip_center + (perp * cos(a1) + bi_norm * sin(a1)) * r_tip
+
+			# Leg cylinder quads
+			st.add_vertex(b0); st.add_vertex(t0); st.add_vertex(t1)
+			st.add_vertex(b0); st.add_vertex(t1); st.add_vertex(b1)
+			# Tip cap
+			st.add_vertex(tip_center); st.add_vertex(t0); st.add_vertex(t1)
+
+	st.generate_normals()
+	tetrapod_shared_mesh = st.commit()
+	return tetrapod_shared_mesh
+
+func _add_3d_tetrapod(chunk: Node3D, pos: Vector3, sc: float, rot_euler: Vector3) -> void:
+	var m := _get_or_create_tetrapod_mesh()
+	var inst := MeshInstance3D.new()
+	inst.mesh = m
+	inst.material_override = tetrapod_mat if tetrapod_mat else barrier_material
+	inst.position = pos
+	inst.rotation_degrees = rot_euler
+	inst.scale = Vector3(sc, sc, sc)
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	chunk.add_child(inst)
+
+func _add_coastal_boardwalk_railing(chunk: Node3D, start_z: float) -> void:
+	var rail_root := Node3D.new()
+	rail_root.name = "BoardwalkRailing"
+	chunk.add_child(rail_root)
+
+	var wood_mat: Material = wooden_boardwalk_mat if wooden_boardwalk_mat else barrier_material
+	var post_mesh := BoxMesh.new()
+	post_mesh.size = Vector3(0.14, 1.10, 0.14)
+
+	var bar_mesh := BoxMesh.new()
+	bar_mesh.size = Vector3(0.08, 0.12, 3.05)
+
+	for s in range(14):
+		var rel_z: float = -float(s) * 3.0
+		var gz: float = start_z + rel_z
+		var cx: float = _sample_road_x(gz)
+		var rv: Vector3 = _sample_road_right(gz)
+		var tan_v: Vector3 = _sample_road_tangent(gz)
+		var look_b := Basis.looking_at(tan_v, Vector3.UP)
+
+		var pos := Vector3(cx, 0.0, rel_z) + (rv * 9.4)
+		var post := MeshInstance3D.new()
+		post.mesh = post_mesh
+		post.material_override = wood_mat
+		post.position = pos + Vector3(0.0, 0.55, 0.0)
+		post.transform.basis = look_b
+		post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rail_root.add_child(post)
+
+		# 2 Horizontal rails
+		for ry in [0.50, 0.95]:
+			var bar := MeshInstance3D.new()
+			bar.mesh = bar_mesh
+			bar.material_override = wood_mat
+			bar.position = pos + Vector3(0.0, ry, -1.5)
+			bar.transform.basis = look_b
+			bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			rail_root.add_child(bar)
+
+func _add_coastal_route_sign(chunk: Node3D, pos: Vector3, tan_dir: Vector3) -> void:
+	var sign_node := Node3D.new()
+	sign_node.position = pos
+	sign_node.transform.basis = Basis.looking_at(tan_dir, Vector3.UP)
+
+	# Galvanized steel post
+	var post_mesh := CylinderMesh.new()
+	post_mesh.top_radius = 0.06
+	post_mesh.bottom_radius = 0.06
+	post_mesh.height = 2.6
+	post_mesh.radial_segments = 8
+	var post := MeshInstance3D.new()
+	post.mesh = post_mesh
+	post.material_override = barrier_material
+	post.position = Vector3(0.0, 1.3, 0.0)
+	post.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sign_node.add_child(post)
+
+	# Blue Japanese Route 134 Shield
+	var shield_mesh := BoxMesh.new()
+	shield_mesh.size = Vector3(0.95, 0.95, 0.08)
+	var shield := MeshInstance3D.new()
+	shield.mesh = shield_mesh
+	shield.material_override = coastal_route_sign_mat if coastal_route_sign_mat else barrier_material
+	shield.position = Vector3(0.0, 2.45, 0.0)
+	sign_node.add_child(shield)
+
+	var lbl := Label3D.new()
+	lbl.text = "国道\n134\nROUTE"
+	lbl.font_size = 32
+	lbl.modulate = Color.WHITE
+	lbl.outline_modulate = Color("#1D4ED8")
+	lbl.outline_size = 8
+	lbl.position = Vector3(0.0, 2.45, 0.05)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	lbl.render_priority = 2
+	sign_node.add_child(lbl)
+
+	chunk.add_child(sign_node)
+
+func _decorate_tokyo_taxi(v_root: Node3D, _td: TrafficVehicleData) -> void:
+	var deco := Node3D.new()
+	deco.name = "TokyoTaxiDeco"
+	v_root.add_child(deco)
+
+	var dark_base_mat := StandardMaterial3D.new()
+	dark_base_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dark_base_mat.albedo_color = Color("#1E222D")
+
+	# 1. Aerodynamic Japanese Taxi Roof Lantern ("行灯" Andon)
+	var base_mesh := BoxMesh.new()
+	base_mesh.size = Vector3(0.55, 0.08, 0.28)
+	var base_inst := MeshInstance3D.new()
+	base_inst.mesh = base_mesh
+	base_inst.material_override = dark_base_mat
+	base_inst.position = Vector3(0.0, 1.48, 0.05)
+	deco.add_child(base_inst)
+
+	var dome_mesh := CylinderMesh.new()
+	dome_mesh.top_radius = 0.18
+	dome_mesh.bottom_radius = 0.24
+	dome_mesh.height = 0.22
+	dome_mesh.radial_segments = 8
+	var dome_inst := MeshInstance3D.new()
+	dome_inst.mesh = dome_mesh
+	dome_inst.material_override = taxi_lantern_mat if taxi_lantern_mat else dark_base_mat
+	dome_inst.position = Vector3(0.0, 1.60, 0.05)
+	deco.add_child(dome_inst)
+
+	# Warm amber taxi light omni
+	var taxi_light := OmniLight3D.new()
+	taxi_light.light_color = Color("#FFB703")
+	taxi_light.light_energy = 0.8
+	taxi_light.omni_range = 3.5
+	taxi_light.position = Vector3(0.0, 1.65, 0.05)
+	taxi_light.shadow_enabled = false
+	deco.add_child(taxi_light)
+
+	# 2. Classic Japanese Fender Mirrors
+	var mirror_stem := CylinderMesh.new()
+	mirror_stem.top_radius = 0.015
+	mirror_stem.bottom_radius = 0.018
+	mirror_stem.height = 0.22
+	for mx in [-0.85, 0.85]:
+		var stem := MeshInstance3D.new()
+		stem.mesh = mirror_stem
+		stem.material_override = dark_base_mat
+		stem.position = Vector3(mx, 0.95, -1.35)
+		stem.rotation_degrees = Vector3(15.0, 0.0, -10.0 if mx < 0 else 10.0)
+		deco.add_child(stem)
+
+		var head := MeshInstance3D.new()
+		var h_box := BoxMesh.new()
+		h_box.size = Vector3(0.12, 0.09, 0.06)
+		head.mesh = h_box
+		head.material_override = dark_base_mat
+		head.position = Vector3(mx * 1.05, 1.06, -1.38)
+		deco.add_child(head)
+
+func _decorate_flatbed_truck(v_root: Node3D, _td: TrafficVehicleData) -> void:
+	var deco := Node3D.new()
+	deco.name = "FlatbedDeco"
+	v_root.add_child(deco)
+
+	var wood_mat: Material = wooden_boardwalk_mat if wooden_boardwalk_mat else barrier_material
+
+	# Wooden flatbed sideboards
+	var sb_mesh := BoxMesh.new()
+	sb_mesh.size = Vector3(0.08, 0.55, 2.6)
+	for sx in [-1.18, 1.18]:
+		var sb := MeshInstance3D.new()
+		sb.mesh = sb_mesh
+		sb.material_override = wood_mat
+		sb.position = Vector3(sx, 1.15, 0.8)
+		deco.add_child(sb)
+
+	# Tailgate
+	var tg_mesh := BoxMesh.new()
+	tg_mesh.size = Vector3(2.36, 0.55, 0.08)
+	var tg := MeshInstance3D.new()
+	tg.mesh = tg_mesh
+	tg.material_override = wood_mat
+	tg.position = Vector3(0.0, 1.15, 2.1)
+	deco.add_child(tg)
+
+	# Blue Industrial Cargo Tarp
+	var tarp_mesh := BoxMesh.new()
+	tarp_mesh.size = Vector3(2.2, 0.75, 2.4)
+	var tarp_mat := StandardMaterial3D.new()
+	tarp_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tarp_mat.albedo_color = Color("#1E3A8A") # Classic Japanese blue tarp
+	var tarp := MeshInstance3D.new()
+	tarp.mesh = tarp_mesh
+	tarp.material_override = tarp_mat
+	tarp.position = Vector3(0.0, 1.25, 0.75)
+	deco.add_child(tarp)
+
+	# Rear rubber mudflaps with safety reflectors
+	var mf_mesh := BoxMesh.new()
+	mf_mesh.size = Vector3(0.55, 0.45, 0.03)
+	var flap_mat := StandardMaterial3D.new()
+	flap_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	flap_mat.albedo_color = Color("#0F172A")
+	for mfx in [-0.85, 0.85]:
+		var mf := MeshInstance3D.new()
+		mf.mesh = mf_mesh
+		mf.material_override = flap_mat
+		mf.position = Vector3(mfx, 0.42, 2.15)
+		deco.add_child(mf)
+
+		var refl := MeshInstance3D.new()
+		var r_box := BoxMesh.new()
+		r_box.size = Vector3(0.45, 0.06, 0.04)
+		refl.mesh = r_box
+		var r_mat := StandardMaterial3D.new()
+		r_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		r_mat.albedo_color = Color("#DC2626")
+		refl.material_override = r_mat
+		refl.position = Vector3(mfx, 0.32, 2.16)
+		deco.add_child(refl)
+
+func _build_compound_manga_traffic_car(v_root: Node3D, v_type: String, car_color: Color, td: TrafficVehicleData) -> void:
+	var model_root := Node3D.new()
+	model_root.name = "MangaTrafficCompound"
+	v_root.add_child(model_root)
+	td.mesh_root = model_root
+
+	var b_mat := _create_manga_env_mat(car_color, false, 0.035)
+	var glass_mat := StandardMaterial3D.new()
+	glass_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glass_mat.albedo_color = Color("#182030") # Dark tinted glass
+
+	# Lower Body
+	var body_mesh := BoxMesh.new()
+	body_mesh.size = Vector3(td.half_w * 2.0, 0.65, td.half_l * 2.0)
+	var body_inst := MeshInstance3D.new()
+	body_inst.mesh = body_mesh
+	body_inst.material_override = b_mat
+	body_inst.position = Vector3(0.0, 0.55, 0.0)
+	model_root.add_child(body_inst)
+
+	# Cabin Greenhouse
+	var cab_mesh := BoxMesh.new()
+	cab_mesh.size = Vector3(td.half_w * 1.7, 0.60, td.half_l * 1.1)
+	var cab_inst := MeshInstance3D.new()
+	cab_inst.mesh = cab_mesh
+	cab_inst.material_override = glass_mat
+	cab_inst.position = Vector3(0.0, 1.15, 0.1)
+	model_root.add_child(cab_inst)
+
+	# Taillights
+	var tail_mesh := BoxMesh.new()
+	tail_mesh.size = Vector3(0.45, 0.18, 0.08)
+	var tail_mat := StandardMaterial3D.new()
+	tail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tail_mat.albedo_color = Color("#FF2A55")
+	for tx in [-td.half_w * 0.7, td.half_w * 0.7]:
+		var tl := MeshInstance3D.new()
+		tl.mesh = tail_mesh
+		tl.material_override = tail_mat
+		tl.position = Vector3(tx, 0.62, td.half_l)
+		model_root.add_child(tl)
+
+	# 4 3D Manga Wheels
+	var wheel_mesh := CylinderMesh.new()
+	wheel_mesh.top_radius = 0.32
+	wheel_mesh.bottom_radius = 0.32
+	wheel_mesh.height = 0.24
+	wheel_mesh.radial_segments = 12
+	var tire_mat := StandardMaterial3D.new()
+	tire_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	tire_mat.albedo_color = Color("#151820")
+	for wx in [-td.half_w * 0.95, td.half_w * 0.95]:
+		for wz in [-td.half_l * 0.65, td.half_l * 0.65]:
+			var wh := MeshInstance3D.new()
+			wh.mesh = wheel_mesh
+			wh.material_override = tire_mat
+			wh.rotation_degrees = Vector3(0.0, 0.0, 90.0)
+			wh.position = Vector3(wx, 0.32, wz)
+			model_root.add_child(wh)
+			td.wheels.append(wh)
+	if v_type in ["suv", "van"]:
+		BiomeAssetFactory.decorate_surf_camper(model_root, false)
 
 func _st_add_oriented_box(st: SurfaceTool, center: Vector3, out_dir: Vector3, up_dir: Vector3, fwd_dir: Vector3, size_out: float, size_up: float, size_fwd: float, col: Color) -> void:
 	st.set_color(col)
@@ -4382,7 +5838,29 @@ func _st_add_oriented_quad(st: SurfaceTool, center: Vector3, up_dir: Vector3, fw
 	st.add_vertex(q0); st.add_vertex(q2); st.add_vertex(q1)
 	st.add_vertex(q0); st.add_vertex(q3); st.add_vertex(q2)
 
-func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, origin: Vector3, face_dir: Vector3, depth: float, z_len: float, height: float, seed_val: float, b_idx: int) -> void:
+func _add_storefront_display_window(bld_st: SurfaceTool, win_st: SurfaceTool, center: Vector3, out_d: Vector3, up_d: Vector3, fwd_d: Vector3, h: float, w: float, warm_interior: bool = true) -> void:
+	var frame_col := Color("#161920") # Dark steel frame
+	var mullion_col := Color("#101217") # Inked black mullions
+	var glass_col := Color("#FDE68A") if warm_interior else Color("#5290A6") # Warm interior amber/peach #FDE68A
+	var shelf_col := Color("#181B22") # Dark shelf silhouettes inside
+
+	# Outer window frame surround
+	_st_add_oriented_box(bld_st, center + (out_d * 0.04), out_d, up_d, fwd_d, 0.12, h + 0.16, w + 0.16, frame_col)
+
+	# Warm interior backing glass
+	_st_add_oriented_quad(win_st, center + (out_d * 0.08), up_d, fwd_d, h, w, glass_col)
+
+	# 2 Dark interior shelf silhouettes across the window width
+	for s_idx in [0.35, 0.65]:
+		var s_h: float = float(s_idx)
+		_st_add_oriented_box(bld_st, center + (up_d * ((s_h - 0.5) * h)) + (out_d * 0.09), out_d, up_d, fwd_d, 0.06, 0.08, w * 0.94, shelf_col)
+
+	# 3 vertical divided panes (2 vertical mullions)
+	for m_idx in [-0.33, 0.33]:
+		var m_f: float = float(m_idx)
+		_st_add_oriented_box(bld_st, center + (fwd_d * (m_f * w * 0.5)) + (out_d * 0.11), out_d, up_d, fwd_d, 0.08, h, 0.08, mullion_col)
+
+func _add_shinjuku_building(_chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, origin: Vector3, face_dir: Vector3, depth: float, z_len: float, height: float, seed_val: float, b_idx: int) -> void:
 	var out_dir: Vector3 = -face_dir.normalized()
 	var up_dir: Vector3 = Vector3.UP
 	var fwd_dir: Vector3 = Vector3(0.0, 0.0, -1.0)
@@ -4396,19 +5874,19 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 	match arch_type:
 		0: # Yokocho Izakaya / Ramen Tavern (2 stories)
 			bld_h = clampf(height * 0.55, 13.0, 16.5)
-			wall_col = Color("#32241A") if (b_idx % 2 == 0) else Color("#2A1E16")
+			wall_col = Color("#26202A") if (b_idx % 2 == 0) else Color("#1E1A22")
 		1: # Tokyo Apartment Mansion with Exterior Fire Escape (4-5 stories)
 			bld_h = clampf(height * 0.85, 21.0, 27.0)
-			wall_col = Color("#262C38") if (b_idx % 2 == 0) else Color("#202530")
+			wall_col = Color("#181C28") if (b_idx % 2 == 0) else Color("#1C202E")
 		2: # Commercial Entertainment Tower (Tall skyscraper)
 			bld_h = maxf(height * 1.30, 32.0)
-			wall_col = Color("#161920") if (b_idx % 2 == 0) else Color("#1C2028")
+			wall_col = Color("#151922") if (b_idx % 2 == 0) else Color("#1A1E2A")
 		3: # Multi-Tenant Snack Bar & Karaoke Club (3-4 stories)
 			bld_h = clampf(height * 0.70, 17.0, 22.0)
-			wall_col = Color("#2A1E27") if (b_idx % 2 == 0) else Color("#241822")
+			wall_col = Color("#221C26") if (b_idx % 2 == 0) else Color("#1E1724")
 		_: # Keio Workshop & Shutter House (2-3 stories)
 			bld_h = clampf(height * 0.60, 14.0, 18.5)
-			wall_col = Color("#343C48") if (b_idx % 2 == 0) else Color("#2B333E")
+			wall_col = Color("#242A36") if (b_idx % 2 == 0) else Color("#202532")
 
 	var p00: Vector3 = origin
 	var p10: Vector3 = origin + (fwd_dir * z_len)
@@ -4443,6 +5921,18 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 	bld_st.add_vertex(p10); bld_st.add_vertex(p11); bld_st.add_vertex(r1)
 	bld_st.add_vertex(p10); bld_st.add_vertex(b10); bld_st.add_vertex(r1)
 	bld_st.add_vertex(p10); bld_st.add_vertex(r1); bld_st.add_vertex(p11)
+
+	# Architectural top-edge rim highlight ledge (#384159)
+	var rim_mid: Vector3 = (p01 + p11) * 0.5 + (out_dir * 0.16) + (up_dir * 0.16)
+	_st_add_oriented_box(bld_st, rim_mid, out_dir, up_dir, fwd_dir, 0.42, 0.32, z_len + 0.1, Color("#384159"))
+
+	# Japanese sidewalk metal guard bollards along curb edge with yellow reflective stripe
+	if b_idx % 2 == 0:
+		for bz_slot in [0.22, 0.78]:
+			var bz: float = float(bz_slot) * z_len
+			var bol_pos: Vector3 = p00 + (fwd_dir * bz) + (up_dir * 0.45) + (out_dir * 1.45)
+			_st_add_oriented_box(bld_st, bol_pos, out_dir, up_dir, fwd_dir, 0.14, 0.75, 0.14, Color("#8A94A6"))
+			_st_add_oriented_box(bld_st, bol_pos + (up_dir * 0.22), out_dir, up_dir, fwd_dir, 0.15, 0.12, 0.15, Color("#EAB308"))
 
 	# Archetype-specific geometry details:
 	match arch_type:
@@ -4497,14 +5987,18 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 				_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * wz_f)) + (up_dir * 5.4) + (out_dir * 0.04), up_dir, fwd_dir, 1.4, 1.8, Color("#FFBA42"))
 
 		1: # --- ARCHETYPE 1: TOKYO APARTMENT MANSION & EXTERIOR FIRE ESCAPE ---
-			# Ground floor entrance and mailboxes
-			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * 1.5) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 0.16, 2.8, 1.8, Color("#1E222A"))
-			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * 1.5) + (out_dir * 0.17), up_dir, fwd_dir, 2.2, 1.4, Color("#7CE0FF"))
+			# Ground floor entrance and storefront display window (warm interior, 3-pane mullions)
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.28)) + (up_dir * 1.5) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 2.8, 2.8, Color("#3E4656"))
+			_add_storefront_display_window(bld_st, win_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * 1.5) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 2.4, 2.0, true)
 
 			# Blue Japanese recycling bins on sidewalk
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 0.48) + (out_dir * 0.60), out_dir, up_dir, fwd_dir, 0.55, 0.95, 0.65, Color("#1B5299"))
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 0.98) + (out_dir * 0.60), out_dir, up_dir, fwd_dir, 0.57, 0.08, 0.67, Color("#3B4350"))
+
+			# Yellow A-frame caution sign on sidewalk (Ref Image 2)
+			var warn_pos := p00 + (fwd_dir * (z_len * 0.45)) + (up_dir * 0.42) + (out_dir * 0.75)
+			_st_add_oriented_box(bld_st, warn_pos, out_dir, up_dir, fwd_dir, 0.28, 0.76, 0.48, Color("#EAB308"))
+			_st_add_oriented_quad(bld_st, warn_pos + (out_dir * 0.15), up_dir, fwd_dir, 0.35, 0.30, Color("#14161C"))
 
 			# Zigzagging steel fire escape stairwell (Floors 1 through 4)
 			var num_fl: int = int((bld_h - 4.0) / 3.8)
@@ -4541,15 +6035,22 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 					_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.74)) + (up_dir * (fl_y + 1.4)) + (out_dir * 0.04), up_dir, fwd_dir, 1.5, 1.8, Color("#FFB438"))
 
 		2: # --- ARCHETYPE 2: COMMERCIAL NEON & ENTERTAINMENT TOWER ---
-			# Tall 2-story glass lobby entrance
-			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.8) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.22, 5.4, z_len * 0.80, Color("#222834"))
-			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.8) + (out_dir * 0.24), up_dir, fwd_dir, 5.0, z_len * 0.72, Color("#7CE0FF"))
+			# Ground floor commercial storefront display with divided mullions & warm interior
+			_add_storefront_display_window(bld_st, win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.6) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 4.6, z_len * 0.74, true)
 
-			# Vertical window ribbon columns
+			# Balcony ledges with black metal railings every 2 floors & AC compressor units
 			var num_tower_fl: int = int((bld_h - 7.0) / 3.6)
 			for fl in range(1, num_tower_fl + 1):
 				var fl_y: float = 6.5 + float(fl - 1) * 3.6
-				for wz_val in [0.25, 0.50, 0.75]:
+				if fl % 2 == 1 and fl < num_tower_fl:
+					var b_pos: Vector3 = p00 + (fwd_dir * (z_len * 0.75)) + (up_dir * fl_y) + (out_dir * 0.65)
+					_st_add_oriented_box(bld_st, b_pos, out_dir, up_dir, fwd_dir, 1.25, 0.16, 2.4, Color("#1A1F2B"))
+					_st_add_oriented_box(bld_st, b_pos + (out_dir * 0.58) + (up_dir * 0.45), out_dir, up_dir, fwd_dir, 0.06, 0.85, 2.4, Color("#12141A"))
+					var ac_pos: Vector3 = b_pos - (fwd_dir * 0.6) + (up_dir * 0.42) - (out_dir * 0.25)
+					_st_add_oriented_box(bld_st, ac_pos, out_dir, up_dir, fwd_dir, 0.40, 0.52, 0.72, Color("#D8DEE9"))
+					_st_add_oriented_quad(bld_st, ac_pos + (out_dir * 0.21), up_dir, fwd_dir, 0.40, 0.40, Color("#2B303A"))
+
+				for wz_val in [0.25, 0.50]:
 					var wz_f: float = float(wz_val)
 					var is_lit: bool = fposmod(seed_val * 11.3 + float(fl) * 3.7 + wz_f * 17.0, 1.0) < 0.55
 					var w_col: Color = Color("#FFB844") if (fl % 2 == 0) else Color("#68D0FF")
@@ -4558,6 +6059,7 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 
 			# Vertical drainage downspout pipe along building corner (full height)
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * 0.25) + (up_dir * (bld_h * 0.5)) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.18, bld_h, 0.18, Color("#505C6E"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.72)) + (up_dir * (bld_h * 0.5)) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.08, bld_h, 0.08, Color("#485262"))
 
 			# Rooftop architecture: elevated cooling water tower on stilts
 			var tank_pos: Vector3 = p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * (bld_h + 1.2)) - (out_dir * 4.0)
@@ -4574,11 +6076,21 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 			_st_add_oriented_box(win_st, tank_pos + (up_dir * 10.4), out_dir, up_dir, fwd_dir, 0.35, 0.35, 0.35, Color("#FF2233"))
 
 		3: # --- ARCHETYPE 3: MULTI-TENANT SNACK BAR & KARAOKE CLUB ---
-			# Half-open corrugated shutter revealing bar entrance
-			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.3) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 1.8, z_len * 0.88, Color("#3E4654"))
+			# Ribbed corrugated metal roll-up shutter (grey metal #333A4A with dark ink grooves)
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 2.3) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 1.8, z_len * 0.88, Color("#333A4A"))
+			for s_idx in range(5):
+				var sy: float = 1.55 + float(s_idx) * 0.35
+				_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * sy) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.05, 0.08, z_len * 0.86, Color("#222732"))
+
 			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 0.7) - (out_dir * 0.10), up_dir, fwd_dir, 1.4, z_len * 0.80, Color("#FFAA20"))
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.35) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.12, 0.65, 2.4, Color("#1E1420"))
 			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.35) + (out_dir * 0.19), up_dir, fwd_dir, 0.55, 2.2, Color("#FFAA00"))
+
+			# Wall-mounted AC condenser unit on 2nd floor & vertical drainage pipe
+			var ac_pos3: Vector3 = p00 + (fwd_dir * (z_len * 0.82)) + (up_dir * 4.6) + (out_dir * 0.25)
+			_st_add_oriented_box(bld_st, ac_pos3, out_dir, up_dir, fwd_dir, 0.40, 0.52, 0.72, Color("#D8DEE9"))
+			_st_add_oriented_quad(bld_st, ac_pos3 + (out_dir * 0.21), up_dir, fwd_dir, 0.40, 0.40, Color("#2B303A"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.82)) + (up_dir * 2.3) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.08, 4.6, 0.08, Color("#505C6E"))
 
 			# Staggered projecting acrylic lightboxes on upper floors
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.25)) + (up_dir * 5.8) + (out_dir * 0.45), out_dir, up_dir, fwd_dir, 0.85, 1.4, 0.35, Color("#1A0C22"))
@@ -4599,23 +6111,72 @@ func _add_shinjuku_building(chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceT
 
 		_: # --- ARCHETYPE 4: KEIO WORKSHOP & SHUTTER HOUSE ---
 			# Wide industrial roll-up garage door with yellow/black hazard warning stripes
-			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.42)) + (up_dir * 1.6) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 3.2, z_len * 0.70, Color("#444E5E"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.42)) + (up_dir * 1.6) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.12, 3.2, z_len * 0.70, Color("#333A4A"))
+			for s_idx in range(7):
+				var sy4: float = 0.45 + float(s_idx) * 0.40
+				_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.42)) + (up_dir * sy4) + (out_dir * 0.12), out_dir, up_dir, fwd_dir, 0.04, 0.08, z_len * 0.68, Color("#202530"))
 			# Hazard warning stripe beam along bottom
 			for hz in range(6):
 				var h_col: Color = Color("#E6B800") if hz % 2 == 0 else Color("#181A20")
 				_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * (0.12 + float(hz) * 0.10))) + (up_dir * 0.18) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 0.10, 0.35, z_len * 0.10, h_col)
 
-			# Pedestrian side access door
+			# Pedestrian side access door with small divided warm display window
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 1.4) + (out_dir * 0.05), out_dir, up_dir, fwd_dir, 0.08, 2.8, 1.2, Color("#262C38"))
-			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 1.8) + (out_dir * 0.10), up_dir, fwd_dir, 1.0, 0.5, Color("#60B8E0"))
+			_add_storefront_display_window(bld_st, win_st, p00 + (fwd_dir * (z_len * 0.88)) + (up_dir * 1.7) + (out_dir * 0.08), out_dir, up_dir, fwd_dir, 1.2, 0.85, true)
 
 			# Retractable fabric shop awning
 			var awn_col: Color = Color("#8C2028") if b_idx % 2 == 0 else Color("#1A4880")
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 3.3) + (out_dir * 0.65), out_dir, up_dir, fwd_dir, 1.3, 0.25, z_len * 0.94, awn_col)
 
+			# Upper floor AC compressor unit and drainage downpipe
+			var ac_pos4: Vector3 = p00 + (fwd_dir * (z_len * 0.18)) + (up_dir * 4.8) + (out_dir * 0.24)
+			_st_add_oriented_box(bld_st, ac_pos4, out_dir, up_dir, fwd_dir, 0.40, 0.52, 0.72, Color("#D8DEE9"))
+			_st_add_oriented_quad(bld_st, ac_pos4 + (out_dir * 0.21), up_dir, fwd_dir, 0.40, 0.40, Color("#2B303A"))
+			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.18)) + (up_dir * 2.4) + (out_dir * 0.06), out_dir, up_dir, fwd_dir, 0.08, 4.8, 0.08, Color("#505C6E"))
+
 			# Upper floor wide ribbon window
 			_st_add_oriented_quad(win_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 5.6) + (out_dir * 0.04), up_dir, fwd_dir, 1.4, z_len * 0.78, Color("#FFBA42"))
 			_st_add_oriented_box(bld_st, p00 + (fwd_dir * (z_len * 0.50)) + (up_dir * 5.6) + (out_dir * 0.07), out_dir, up_dir, fwd_dir, 0.04, 1.45, z_len * 0.80, Color("#222834"))
+
+func _add_overhead_skybridge(_chunk: Node3D, bld_st: SurfaceTool, win_st: SurfaceTool, seg_left: Vector3, seg_right: Vector3, seg_tan: Vector3, seg_rv: Vector3) -> void:
+	var span_vec: Vector3 = seg_right - seg_left
+	var bridge_w: float = span_vec.length() + 3.8
+	var bridge_center: Vector3 = (seg_left + seg_right) * 0.5 + Vector3(0.0, 10.8, 0.0)
+	var fwd_d: Vector3 = seg_tan.normalized()
+	var right_d: Vector3 = seg_rv.normalized()
+	var up_d: Vector3 = Vector3.UP
+
+	# 1. Main Structural Lower Steel Box Girder (#161A24 with dark ink outlines)
+	_st_add_oriented_box(bld_st, bridge_center, right_d, up_d, fwd_d, bridge_w, 1.2, 4.2, Color("#161A24"))
+	_st_add_oriented_box(bld_st, bridge_center - (up_d * 0.65), right_d, up_d, fwd_d, bridge_w + 0.4, 0.18, 4.4, Color("#0F121A"))
+	_st_add_oriented_box(bld_st, bridge_center + (up_d * 0.65), right_d, up_d, fwd_d, bridge_w + 0.4, 0.18, 4.4, Color("#0F121A"))
+
+	# 2. Glazed Pedestrian Walkway Corridor on Top (Y = 10.8 + 0.65 + 1.25 = 12.7m)
+	var walkway_center: Vector3 = bridge_center + (up_d * 1.85)
+	_st_add_oriented_box(bld_st, walkway_center, right_d, up_d, fwd_d, bridge_w, 2.3, 3.4, Color("#1D222E"))
+	_st_add_oriented_box(bld_st, walkway_center + (up_d * 1.25), right_d, up_d, fwd_d, bridge_w + 0.3, 0.22, 3.8, Color("#384159")) # Top coping rim highlight
+
+	# Glazed window bands (warm interior glow facing incoming traffic)
+	_st_add_oriented_quad(win_st, walkway_center + (fwd_d * 1.72), up_d, right_d, 1.4, bridge_w * 0.85, Color("#FDE68A"))
+	_st_add_oriented_quad(win_st, walkway_center - (fwd_d * 1.72), up_d, right_d, 1.4, bridge_w * 0.85, Color("#68D0FF"))
+
+	# Dark steel vertical window mullions across bridge glass
+	for m_idx in range(-5, 6):
+		var mx: float = float(m_idx) * (bridge_w * 0.08)
+		_st_add_oriented_box(bld_st, walkway_center + (right_d * mx) + (fwd_d * 1.74), right_d, up_d, fwd_d, 0.12, 1.45, 0.12, Color("#101218"))
+		_st_add_oriented_box(bld_st, walkway_center + (right_d * mx) - (fwd_d * 1.74), right_d, up_d, fwd_d, 0.12, 1.45, 0.12, Color("#101218"))
+
+	# 3. Japanese Highway Overhead Signboard mounted on front girder face
+	var sign_pos: Vector3 = bridge_center + (fwd_d * 2.18) + (up_d * 0.15)
+	_st_add_oriented_box(bld_st, sign_pos, right_d, up_d, fwd_d, 5.2, 1.35, 0.15, Color("#0E6238")) # Japanese Highway Green
+	_st_add_oriented_box(bld_st, sign_pos + (fwd_d * 0.08), right_d, up_d, fwd_d, 5.0, 1.20, 0.04, Color("#FFFFFF"))
+	_st_add_oriented_box(bld_st, sign_pos + (fwd_d * 0.10), right_d, up_d, fwd_d, 4.8, 1.05, 0.04, Color("#0E6238"))
+
+	# 4. Under-Deck Glowing Sodium Downlights (#FF9E00 at emission = 1.25)
+	for slot_x in [-3.2, -1.1, 1.1, 3.2]:
+		var lamp_pos: Vector3 = bridge_center - (up_d * 0.72) + (right_d * float(slot_x))
+		_st_add_oriented_box(bld_st, lamp_pos, right_d, up_d, fwd_d, 0.55, 0.16, 0.55, Color("#14161E"))
+		_st_add_oriented_quad(win_st, lamp_pos - (up_d * 0.09), fwd_d, right_d, 0.44, 0.44, Color("#FF9E00"))
 
 func _add_3d_vending_machine(v_body_st: SurfaceTool, v_glass_st: SurfaceTool, pos: Vector3, rot_y: float, seed_val: float, is_left: bool = false) -> void:
 	var w: float = 1.35
@@ -4694,15 +6255,15 @@ func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3
 
 	# 3. Cylindrical Step-Down Transformer
 	var ty: float = 6.8
-	var tr: float = 0.36
+	var trans_r: float = 0.36
 	var th: float = 1.2
 	for f in range(6):
 		var a0: float = float(f) * TAU / 6.0
 		var a1: float = float(f + 1) * TAU / 6.0
-		var tv0: Vector3 = pos + Vector3(0.35 + cos(a0) * tr, ty, sin(a0) * tr)
-		var tv1: Vector3 = pos + Vector3(0.35 + cos(a1) * tr, ty, sin(a1) * tr)
-		var tv2: Vector3 = pos + Vector3(0.35 + cos(a1) * tr, ty + th, sin(a1) * tr)
-		var tv3: Vector3 = pos + Vector3(0.35 + cos(a0) * tr, ty + th, sin(a0) * tr)
+		var tv0: Vector3 = pos + Vector3(0.35 + cos(a0) * trans_r, ty, sin(a0) * trans_r)
+		var tv1: Vector3 = pos + Vector3(0.35 + cos(a1) * trans_r, ty, sin(a1) * trans_r)
+		var tv2: Vector3 = pos + Vector3(0.35 + cos(a1) * trans_r, ty + th, sin(a1) * trans_r)
+		var tv3: Vector3 = pos + Vector3(0.35 + cos(a0) * trans_r, ty + th, sin(a0) * trans_r)
 		pole_st.add_vertex(tv0); pole_st.add_vertex(tv1); pole_st.add_vertex(tv2)
 		pole_st.add_vertex(tv0); pole_st.add_vertex(tv2); pole_st.add_vertex(tv3)
 
@@ -4718,13 +6279,24 @@ func _add_3d_power_pole(pole_st: SurfaceTool, line_st: SurfaceTool, pos: Vector3
 
 	# 5. Overhead Street-Crossing Cables (Dense Tokyo wire tangle - Ref Image 2)
 	if street_cross_pos != Vector3.ZERO:
-		for y_off_val in [7.6, 8.2, 9.0]:
+		for y_off_val in [7.2, 7.8, 8.4, 9.0, 9.6]:
 			var y_off: float = float(y_off_val)
 			var cA: Vector3 = pos + Vector3(0.0, y_off, 0.0)
-			var cB: Vector3 = street_cross_pos + Vector3(0.0, y_off + 0.4, 0.0)
-			var cMid: Vector3 = (cA + cB) * 0.5 - Vector3(0.0, 0.85 + (y_off - 7.6) * 0.2, 0.0)
+			var cB: Vector3 = street_cross_pos + Vector3(0.0, y_off + 0.35, 0.0)
+			var sag: float = 0.85 + (y_off - 7.2) * 0.22
+			var cMid: Vector3 = (cA + cB) * 0.5 - Vector3(0.0, sag, 0.0)
 			_add_cable_strip(line_st, cA, cMid)
 			_add_cable_strip(line_st, cMid, cB)
+
+		# Diagonal criss-crossing cables across street (Dense Tokyo web)
+		for d_idx in range(3):
+			var dy: float = 7.5 + float(d_idx) * 0.8
+			var p_orig := pos + Vector3(0.0, dy, 0.0)
+			var p_diag := street_cross_pos + Vector3(0.0, dy + 0.4, (float(d_idx) - 1.0) * 14.0)
+			var d_sag: float = 1.35 + float(d_idx) * 0.35
+			var p_mid := (p_orig + p_diag) * 0.5 - Vector3(0.0, d_sag, 0.0)
+			_add_cable_strip(line_st, p_orig, p_mid)
+			_add_cable_strip(line_st, p_mid, p_diag)
 
 func _add_cable_strip(line_st: SurfaceTool, p0: Vector3, p1: Vector3) -> void:
 	var w: Vector3 = Vector3(0.0, 0.065, 0.0)
@@ -4925,7 +6497,7 @@ func _spawn_flying_cone(pos: Vector3) -> void:
 	active_flying_cones.append(flying)
 
 func _spawn_tire_slap_puffs() -> void:
-	if not is_instance_valid(car_root):
+	if not is_instance_valid(car_root) or not car_root.visible:
 		return
 	var car_trans := car_root.global_transform
 	var right_dir := car_trans.basis.x.normalized()
@@ -4970,6 +6542,8 @@ func _play_proc_audio(sound_type: String) -> void:
 		frames_to_push = int(0.32 * 22050.0)
 	elif sound_type == "splash":
 		frames_to_push = int(0.18 * 22050.0)
+	elif sound_type == "page_flip" or sound_type == "whoosh":
+		frames_to_push = int(0.28 * 22050.0)
 
 	var avail: int = proc_audio_playback.get_frames_available()
 	var to_write: int = mini(avail, frames_to_push)
@@ -5010,6 +6584,13 @@ func _play_proc_audio(sound_type: String) -> void:
 		elif sound_type == "splash":
 			var env: float = sin(float(i) / float(to_write) * PI)
 			sample = (randf() * 2.0 - 1.0) * 0.45 * env
+		elif sound_type == "page_flip" or sound_type == "whoosh":
+			var env: float = sin(float(i) / float(to_write) * PI)
+			var noise_val := (randf() * 2.0 - 1.0)
+			var snap: float = (sin(t * 1400.0 * TAU) * 0.45) if (t < 0.035) else 0.0
+			var sweep_freq: float = lerp(520.0, 160.0, float(i) / float(to_write))
+			phase += sweep_freq / 22050.0 * TAU
+			sample = (sin(phase) * 0.35 + noise_val * 0.45 + snap) * env * 0.85
 
 		proc_audio_playback.push_frame(Vector2(sample, sample))
 
@@ -5132,8 +6713,9 @@ func _setup_game_audio() -> void:
 		AudioServer.set_bus_mute(0, true)
 	else:
 		_audio_unlocked = true
-		if is_instance_valid(engine_audio_player):
-			engine_audio_player.play()
+		if current_state != GameState.START:
+			if is_instance_valid(engine_audio_player):
+				engine_audio_player.play()
 		_play_random_rally_track()
 
 func _play_random_rally_track() -> void:
@@ -5141,11 +6723,11 @@ func _play_random_rally_track() -> void:
 		return
 	if OS.has_feature("web"):
 		current_rally_track_idx = 0
-		var track: Dictionary = RALLY_TRACKS[0]
-		current_rally_track_end = float(track["end"])
+		var web_track: Dictionary = RALLY_TRACKS[0]
+		current_rally_track_end = float(web_track["end"])
 		rally_music_player.volume_db = linear_to_db(playlist_volume)
 		rally_music_player.play(0.0)
-		_show_music_track_popup(str(track["title"]))
+		_show_music_track_popup(str(web_track["title"]))
 		return
 
 	var available_indices: Array[int] = []
@@ -5191,6 +6773,18 @@ func _process_audio_mixing(delta: float) -> void:
 			var cur_pos: float = rally_music_player.get_playback_position()
 			if cur_pos >= current_rally_track_end:
 				_play_random_rally_track()
+
+	# Start Screen Audio Isolation: Future Funk BGM ONLY, completely silence vehicle engine, tire drift & exhaust
+	if current_state == GameState.START and not is_launching_to_race:
+		if is_instance_valid(engine_audio_player):
+			engine_audio_player.volume_db = -80.0
+			if engine_audio_player.playing:
+				engine_audio_player.stop()
+		if is_instance_valid(drift_audio_player):
+			drift_audio_player.volume_db = -80.0
+			if drift_audio_player.playing:
+				drift_audio_player.stop()
+		return
 
 	# 2. Authentic Sports Car Engine Volume & Speed Feedback
 	if is_instance_valid(engine_audio_player):
@@ -5532,12 +7126,12 @@ func _setup_player_car() -> void:
 			# 1. Base Body Material: Solid-State Comic Ink Shader
 			var ink_mat := ShaderMaterial.new()
 			ink_mat.shader = preload("res://shaders/comic_ink_car.gdshader")
-			ink_mat.set_shader_parameter("paper_white", Color("#F59E0B"))
+			ink_mat.set_shader_parameter("paper_white", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
 			ink_mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-			ink_mat.set_shader_parameter("stripe_blue", Color("#003C9E"))
-			ink_mat.set_shader_parameter("navy_diffuser", Color("#1F3861"))
+			ink_mat.set_shader_parameter("stripe_blue", Color("#111827")) # Dark charcoal/navy #111827
+			ink_mat.set_shader_parameter("navy_diffuser", Color("#111827")) # Dark charcoal/navy #111827
 			ink_mat.set_shader_parameter("ink_black", Color("#0A0914"))
-			ink_mat.set_shader_parameter("shadow_tint", Color("#1E202B"))
+			ink_mat.set_shader_parameter("shadow_tint", Color("#94A3B8")) # Cool-slate manga shadow #94A3B8
 			ink_mat.set_shader_parameter("shadow_cut", 0.32)
 			ink_mat.set_shader_parameter("is_two_tone", true)
 			ink_mat.set_shader_parameter("has_stripes", true)
@@ -5562,7 +7156,7 @@ func _setup_player_car() -> void:
 
 			# Apply MaterialFailsafe to protect taillights & glass, while applying comic ink to body
 			var sun_fwd := -sun_light.global_transform.basis.z if is_instance_valid(sun_light) else Vector3(-0.5, -0.8, -0.3)
-			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#F59E0B"), sun_fwd, true)
+			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#F5F7FA"), sun_fwd, true)
 
 			# 3D Auto Modellista GT Racing Wing (Trunk Elevated GT Spoiler)
 			var gt_wing := _create_gt_racing_wing()
@@ -5650,6 +7244,9 @@ func _setup_player_car() -> void:
 	if not toon_flame_mat:
 		toon_flame_mat = ShaderMaterial.new()
 		toon_flame_mat.shader = toon_flame_shader
+		toon_flame_mat.set_shader_parameter("core_color", Color(1.0, 1.0, 1.0, 1.0))
+		toon_flame_mat.set_shader_parameter("mid_color", Color("#00E5FF"))
+		toon_flame_mat.set_shader_parameter("rim_color", Color(0.0, 0.4, 1.0, 1.0))
 	if not nitro_flame_mat and toon_flame_shader:
 		nitro_flame_mat = ShaderMaterial.new()
 		nitro_flame_mat.shader = toon_flame_shader
@@ -5658,15 +7255,15 @@ func _setup_player_car() -> void:
 		nitro_flame_mat.set_shader_parameter("rim_color", Color(0.0, 0.4, 1.0, 1.0))
 
 	var flame_cyl := CylinderMesh.new()
-	flame_cyl.top_radius = 0.0     # Pointed cone tip
-	flame_cyl.bottom_radius = 0.09 # Exhaust pipe base
-	flame_cyl.height = 0.55
-	flame_cyl.radial_segments = 12
+	flame_cyl.top_radius = 0.005    # Pointed cone tip (pointing rearward away from car)
+	flame_cyl.bottom_radius = 0.14 # Exhaust pipe base at bumper
+	flame_cyl.height = 1.6
+	flame_cyl.radial_segments = 16
 
 	exhaust_flame_l = MeshInstance3D.new()
 	exhaust_flame_l.mesh = flame_cyl
 	exhaust_flame_l.material_override = toon_flame_mat
-	exhaust_flame_l.position = Vector3(-0.42, 0.28, 2.05)
+	exhaust_flame_l.position = Vector3(-0.42, 0.28, 2.85)
 	exhaust_flame_l.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 	exhaust_flame_l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	exhaust_flame_l.visible = false
@@ -5675,7 +7272,7 @@ func _setup_player_car() -> void:
 	exhaust_flame_r = MeshInstance3D.new()
 	exhaust_flame_r.mesh = flame_cyl
 	exhaust_flame_r.material_override = toon_flame_mat
-	exhaust_flame_r.position = Vector3(0.42, 0.28, 2.05)
+	exhaust_flame_r.position = Vector3(0.42, 0.28, 2.85)
 	exhaust_flame_r.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 	exhaust_flame_r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	exhaust_flame_r.visible = false
@@ -5741,17 +7338,17 @@ func generate_decal_livery_texture() -> ImageTexture:
 	var img := Image.create(width, height, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0.0, 0.0, 0.0, 0.0)) # Transparent background
 
-	# 1. Two bold Royal Blue racing stripes down the center (#0047AB) - hood and roof only, stops before rear taillights
+	# 1. Two bold dark charcoal/navy racing stripes down the center (#111827) - hood and roof only, stops before rear taillights
 	var stripe_w: int = 36
 	var half_gap: int = 11
 	var center: int = int(width * 0.5)
 	for y in range(0, 360): # Stops at 360 (does not spill over rear taillight fascia)
 		# Left stripe
 		for x in range(center - half_gap - stripe_w, center - half_gap):
-			img.set_pixel(x, y, Color("#0047AB"))
+			img.set_pixel(x, y, Color("#111827"))
 		# Right stripe
 		for x in range(center + half_gap, center + half_gap + stripe_w):
-			img.set_pixel(x, y, Color("#0047AB"))
+			img.set_pixel(x, y, Color("#111827"))
 
 	return ImageTexture.create_from_image(img)
 
@@ -5763,14 +7360,14 @@ func _create_gt_racing_wing() -> Node3D:
 
 	var white_mat := ShaderMaterial.new()
 	white_mat.shader = spoiler_sh
-	white_mat.set_shader_parameter("base_color", Color("#EAE6DF"))
+	white_mat.set_shader_parameter("base_color", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
 	white_mat.set_shader_parameter("ink_shadow", Color(0.08, 0.08, 0.14, 1.0))
 	white_mat.set_shader_parameter("shadow_cut", 0.38)
 	white_mat.set_shader_parameter("hatch_base_spacing", 3.6)
 
 	var blue_mat := ShaderMaterial.new()
 	blue_mat.shader = spoiler_sh
-	blue_mat.set_shader_parameter("base_color", Color("#0057E0"))
+	blue_mat.set_shader_parameter("base_color", Color("#111827")) # Dark charcoal/navy #111827
 	blue_mat.set_shader_parameter("ink_shadow", Color(0.03, 0.06, 0.18, 1.0))
 	blue_mat.set_shader_parameter("shadow_cut", 0.38)
 	blue_mat.set_shader_parameter("hatch_base_spacing", 3.6)
@@ -6205,6 +7802,10 @@ func _reset_race() -> void:
 		if is_instance_valid(pud.node):
 			pud.node.queue_free()
 	active_puddles.clear()
+	for obs in active_custom_obstacles:
+		if is_instance_valid(obs.node):
+			obs.node.queue_free()
+	active_custom_obstacles.clear()
 	patrol_evasion_active = false
 	patrol_evasion_timer = 0.0
 	patrol_evaded_cars = 0
@@ -6282,6 +7883,10 @@ func _reset_race() -> void:
 		hud_combo_label.text = ""
 	if is_instance_valid(hud_combo_bar):
 		hud_combo_bar.visible = false
+	if is_instance_valid(hud_gameplay_container):
+		hud_gameplay_container.visible = true
+		hud_gameplay_container.modulate.a = 1.0
+	camera_title_blend = 0.0
 
 	rival_active = false
 	rival_spawn_cooldown = 120.0
@@ -6390,6 +7995,14 @@ func _setup_traffic_pool() -> void:
 				_collect_wheels(m_inst, td.wheels)
 				if v_type == "dekotora":
 					_decorate_dekotora_truck(v_root, td)
+				elif v_type == "sedan" and (i % 3 == 0):
+					_decorate_tokyo_taxi(v_root, td)
+				elif v_type == "truck":
+					_decorate_flatbed_truck(v_root, td)
+				elif (v_type in ["suv", "van"] or i % 4 == 2):
+					BiomeAssetFactory.decorate_surf_camper(v_root, (i % 2 == 1))
+		else:
+			_build_compound_manga_traffic_car(v_root, v_type, MaterialFailsafe.TRAFFIC_PALETTE[i % MaterialFailsafe.TRAFFIC_PALETTE.size()], td)
 
 		traffic_pool.append(td)
 		_snap_traffic_to_road(td)
@@ -6601,7 +8214,7 @@ func _process_rival_ai(delta: float) -> void:
 	# Direct Collision / Graze between Player and Rival (if player catches up)
 	var dz_hero: float = abs(rival_z - player_z)
 	var dx_hero: float = abs(rival_lane_x - player_lane_x)
-	var fatal_w: float = (HERO_HALF_W - 0.12) + RIVAL_HALF_W
+	var fatal_w: float = (HERO_HALF_W - 0.05) + RIVAL_HALF_W
 	var side_rub_w: float = HERO_HALF_W + RIVAL_HALF_W
 	var crash_l: float = HERO_HALF_L + RIVAL_HALF_L
 
@@ -6610,22 +8223,35 @@ func _process_rival_ai(delta: float) -> void:
 		_trigger_manga_cutin("⚡ RIVAL INTERCEPTOR!")
 
 	if dz_hero < crash_l and dx_hero < side_rub_w:
-		if dx_hero >= fatal_w:
-			var side_r: float = sign(player_lane_x - rival_lane_x)
-			if side_r == 0.0: side_r = 1.0
-			player_lat_velocity = side_r * 4.0
-			player_lane_x += side_r * 0.08
-			screen_shake = max(screen_shake, 0.18)
-			_emit_guardrail_sparks(side_r, delta)
-			_play_scrape_sound()
-		else:
+		# Direct rear-end impact into rival is 100% fatal!
+		if dx_hero < fatal_w:
 			_trigger_crash(null, "WRECKED BY RIVAL!")
 			return
-	elif not rival_grazed and dz_hero < (crash_l + 0.60) and dx_hero < (side_rub_w + 0.60):
+		else:
+			# High-speed horizontal door-to-door scrape with rival!
+			var side_r: float = sign(player_lane_x - rival_lane_x)
+			if side_r == 0.0: side_r = 1.0
+			player_lat_velocity = side_r * 9.0
+			player_lane_x += side_r * 0.14
+			player_speed = max(player_speed * 0.80, _get_stage_cruise_speed() * 0.60)
+			graze_speed_kick_timer = 0.0
+			if nitro_active:
+				nitro_active = false
+				nitro_speed_mult = 1.0
+				_show_nitro_flames(false)
+			scrape_destabilize_timer = 0.70
+			scrape_destabilize_dir = side_r
+			scrape_destabilize_yaw = -side_r * deg_to_rad(18.0)
+			screen_shake = max(screen_shake, 0.32)
+			_emit_guardrail_sparks(side_r, delta * 2.0)
+			_play_scrape_sound()
+			if is_instance_valid(rival_root):
+				_spawn_floating_comic_text(rival_root.global_position + Vector3(0.0, 2.0, 0.0), "RIVAL SCRAPE!!", Color("#FF3344"), Color("#000000"), 38)
+	elif not rival_grazed and dx_hero >= (fatal_w * 0.85) and dz_hero < (crash_l + 0.22) and dx_hero < (side_rub_w + 0.20):
 		rival_grazed = true
 		near_miss_count += 1
 		combo_multiplier = mini(combo_multiplier + 1, 4)
-		combo_timer = 2.5
+		combo_timer = 2.0
 		var pts: int = 500 * combo_multiplier
 		score += pts
 		hud_combo_label.text = "RIVAL GRAZE! x" + str(combo_multiplier)
@@ -6633,16 +8259,16 @@ func _process_rival_ai(delta: float) -> void:
 		_trigger_graze_microfreeze()
 		_spawn_floating_graze_badge(rival_root.global_position, pts)
 
-		# High-reward graze payoffs
-		var graze_boost_r: float = 50.0 if drift_active else 30.0
+		# Tuned graze payoffs
+		var graze_boost_r: float = 24.0 if drift_active else 14.0
 		nitro_charge = min(100.0, nitro_charge + graze_boost_r)
 		drift_charge = min(100.0, drift_charge + graze_boost_r)
-		graze_speed_kick_timer = 0.4
-		player_speed += player_speed * 0.04
-		cam_fov_punch = 2.0
-		cam_fov_punch_timer = 0.15
+		graze_speed_kick_timer = 0.22
+		player_speed += player_speed * 0.018
+		cam_fov_punch = 1.5
+		cam_fov_punch_timer = 0.12
 		_play_graze_chime()
-		var g_text: String = "DRIFT GRAZE! +50%" if drift_active else "GRAZE! +30% BOOST"
+		var g_text: String = "DRIFT GRAZE! +24%" if drift_active else "GRAZE! +14% BOOST"
 		_spawn_floating_comic_text(rival_root.global_position + Vector3(0.0, 2.0, 0.0), g_text, Color("#FFF01F"), Color("#000000"), 36)
 
 	_snap_rival_to_road()
@@ -6720,13 +8346,118 @@ func _snap_rival_to_road() -> void:
 # ==============================================================================
 func _setup_camera() -> void:
 	follow_cam = Camera3D.new()
-	follow_cam.fov = 68.0
+	follow_cam.fov = 61.0
 	follow_cam.near = 0.8
 	follow_cam.far = 3800.0
 	follow_cam.current = true
 	add_child(follow_cam)
 	if is_instance_valid(horizon_manager):
 		horizon_manager.player_camera = follow_cam
+
+func _setup_manga_camera_rig() -> void:
+	var w3d: World3D = get_world_3d()
+
+	# 1. Top Panorama SubViewport (Live 3D Vista & Skyline)
+	panorama_subviewport = SubViewport.new()
+	panorama_subviewport.name = "PanoramaSubViewport"
+	panorama_subviewport.size = Vector2i(768, 322)
+	panorama_subviewport.own_world_3d = false
+	if is_instance_valid(w3d):
+		panorama_subviewport.world_3d = w3d
+	panorama_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(panorama_subviewport)
+
+	panorama_cam = Camera3D.new()
+	panorama_cam.fov = 68.0
+	panorama_cam.near = 0.8
+	panorama_cam.far = 3800.0
+	panorama_cam.current = true
+	panorama_subviewport.add_child(panorama_cam)
+
+	# 2. Hero Chase SubViewport (Live 3D Player Car Manga Chase)
+	hero_subviewport = SubViewport.new()
+	hero_subviewport.name = "HeroSubViewport"
+	hero_subviewport.size = Vector2i(768, 570)
+	hero_subviewport.own_world_3d = false
+	if is_instance_valid(w3d):
+		hero_subviewport.world_3d = w3d
+	hero_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(hero_subviewport)
+
+	hero_chase_cam = Camera3D.new()
+	hero_chase_cam.fov = 62.0
+	hero_chase_cam.near = 0.8
+	hero_chase_cam.far = 3800.0
+	hero_chase_cam.current = true
+	hero_subviewport.add_child(hero_chase_cam)
+
+	# 3. Wheel Close-Up SubViewport (Live 3D Rear Quarter-Panel, Diffuser & Wheel)
+	wheel_subviewport = SubViewport.new()
+	wheel_subviewport.name = "WheelSubViewport"
+	wheel_subviewport.size = Vector2i(384, 330)
+	wheel_subviewport.own_world_3d = false
+	if is_instance_valid(w3d):
+		wheel_subviewport.world_3d = w3d
+	wheel_subviewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(wheel_subviewport)
+
+	wheel_close_cam = Camera3D.new()
+	wheel_close_cam.fov = 72.0
+	wheel_close_cam.near = 0.5
+	wheel_close_cam.far = 2000.0
+	wheel_close_cam.current = true
+	wheel_subviewport.add_child(wheel_close_cam)
+
+func _update_start_screen_cameras(delta: float) -> void:
+	# Idle highway cruise for live manga comic spread
+	player_speed = CRUISE_SPEED
+	player_z -= player_speed * delta
+	_update_car_transform()
+	_process_road_recycler()
+
+	# Spin player wheels to match road speed
+	var player_spin: float = (player_speed / TIRE_RADIUS) * delta
+	for w in player_wheels:
+		if is_instance_valid(w):
+			w.rotate_x(player_spin)
+
+	if not is_instance_valid(car_root):
+		return
+
+	var car_trans: Transform3D = car_root.global_transform
+	var car_pos: Vector3 = car_trans.origin
+	var car_basis: Basis = car_trans.basis
+
+	# Keep weather particles centered around player car on start screen
+	if is_instance_valid(leaf_particles):
+		leaf_particles.global_position = car_pos + Vector3(0.0, 2.5, -14.0)
+	if is_instance_valid(snow_layer_near):
+		snow_layer_near.global_position = car_pos + Vector3(0.0, 3.5, -28.0)
+	if is_instance_valid(snow_layer_mid):
+		snow_layer_mid.global_position = car_pos + Vector3(0.0, 8.0, -75.0)
+	if is_instance_valid(snow_layer_far):
+		snow_layer_far.global_position = car_pos + Vector3(0.0, 18.0, -170.0)
+
+	# 1. Top Establishing Panel: Live 3D PanoramaCam (Vista looking down highway toward skyline)
+	if is_instance_valid(panorama_cam):
+		var pano_pos := car_pos + Vector3(0.0, 5.8, 0.0) + (car_basis.z * 2.0)
+		var pano_target := car_pos - (car_basis.z * 50.0) + Vector3(0.0, 8.5, 0.0)
+		panorama_cam.global_position = pano_pos
+		panorama_cam.look_at(pano_target, Vector3.UP)
+
+	# 2. Center Hero Action Panel: Live 3D MainChaseCam (Player car cruising highway)
+	if is_instance_valid(hero_chase_cam):
+		var hero_pos := car_pos + (car_basis.z * 5.6) + (car_basis.x * 1.5) + Vector3(0.0, 2.1, 0.0)
+		var hero_target := car_pos - (car_basis.z * 16.0) + (car_basis.x * 0.3) + Vector3(0.0, 0.95, 0.0)
+		hero_chase_cam.global_position = hero_pos
+		hero_chase_cam.look_at(hero_target, Vector3.UP)
+
+	# 3. Bottom-Right Cut-In Panel: Live 3D WheelCloseCam (Rear tire, diffuser & tarmac spray)
+	if is_instance_valid(wheel_close_cam):
+		var wheel_pos := car_pos + (car_basis.x * 1.55) + (car_basis.z * 1.1) + Vector3(0.0, 0.42, 0.0)
+		var wheel_target := car_pos + (car_basis.x * 0.65) - (car_basis.z * 0.8) + Vector3(0.0, 0.32, 0.0)
+		wheel_close_cam.global_position = wheel_pos
+		wheel_close_cam.look_at(wheel_target, Vector3.UP)
 
 func _update_camera(delta: float) -> void:
 	if current_state == GameState.CRASHED and crash_orbit_active:
@@ -6745,11 +8476,15 @@ func _update_camera(delta: float) -> void:
 	# Dynamic Staging: Smoothly lerp camera distance from 4.2m at 80 km/h to 5.3m at 200 km/h
 	var speed_kmh: float = player_speed * 3.6
 	var speed_t: float = clamp((speed_kmh - 80.0) / (200.0 - 80.0), 0.0, 1.0)
-	var cam_dist: float = lerp(4.2, 5.3, speed_t)
+	var chase_cam_dist: float = lerp(4.2, 5.3, speed_t)
+	var chase_cam_height: float = 1.88 - (speed_t * 0.18)
 
-	# Pitch/Height Adjustment: Elevated camera Y-position so traffic ahead is clearly visible over the roof
-	var cam_height: float = 1.88 - (speed_t * 0.18)
-	var cam_pos: Vector3 = car_root.global_position + (car_basis.z * cam_dist) + Vector3(0.0, cam_height, 0.0)
+	# Title showcase wide camera blend (camera_title_blend: 1.0 on start screen -> 0.0 racing)
+	var cam_dist: float = lerp(chase_cam_dist, 5.9, camera_title_blend)
+	var cam_height: float = lerp(chase_cam_height, 2.15, camera_title_blend)
+	var cam_lateral: float = lerp(0.0, 1.6, camera_title_blend)
+
+	var cam_pos: Vector3 = car_root.global_position + (car_basis.z * cam_dist) + (car_basis.x * cam_lateral) + Vector3(0.0, cam_height, 0.0)
 
 	# Dynamic lateral shift on drift
 	if drift_active:
@@ -6766,7 +8501,10 @@ func _update_camera(delta: float) -> void:
 	if is_scraping_guardrail:
 		cam_pos += Vector3(randf_range(-0.02, 0.02), randf_range(-0.02, 0.02), 0.0)
 
-	follow_cam.global_position = follow_cam.global_position.lerp(cam_pos, 16.0 * delta)
+	if current_state == GameState.START and not is_launching_to_race:
+		follow_cam.global_position = cam_pos
+	else:
+		follow_cam.global_position = follow_cam.global_position.lerp(cam_pos, 16.0 * delta)
 
 	# Synchronous Background Rig anchoring (Zero frame phase jitter with camera; tracks road curvature without lateral steering twitch)
 	if is_instance_valid(background_rig):
@@ -6774,9 +8512,13 @@ func _update_camera(delta: float) -> void:
 		background_rig.global_position.x = _sample_road_x(follow_cam.global_position.z)
 		background_rig.global_position.y = 0.0
 
-	var look_target: Vector3 = car_root.global_position - (car_basis.z * 24.0) + Vector3(0.0, 1.25, 0.0)
+	var target_look_z: float = lerp(24.0, 18.0, camera_title_blend)
+	var target_look_y: float = lerp(1.25, 0.95, camera_title_blend)
+	var target_look_x: float = lerp(0.0, 0.35, camera_title_blend)
+	var look_target: Vector3 = car_root.global_position - (car_basis.z * target_look_z) + (car_basis.x * target_look_x) + Vector3(0.0, target_look_y, 0.0)
 	follow_cam.look_at(look_target, Vector3.UP)
-	follow_cam.rotate_object_local(Vector3(1, 0, 0), deg_to_rad(10.0))
+	var base_pitch_deg: float = lerp(10.0, 7.5, camera_title_blend)
+	follow_cam.rotate_object_local(Vector3(1, 0, 0), deg_to_rad(base_pitch_deg))
 
 	# Expansion Joint camera pitch kick (micro-kick downward springs back to horizon)
 	camera_pitch_kick = lerp(camera_pitch_kick, 0.0, 24.0 * delta)
@@ -6794,7 +8536,7 @@ func _update_camera(delta: float) -> void:
 		follow_cam.rotate_object_local(Vector3(0, 0, 1), current_cam_roll)
 
 	# Dynamic FOV: Smoothly lerp Camera3D FOV between 68° (cruise) and 74° (drift active) using delta * 8.0
-	var target_fov: float = 68.0
+	var target_fov: float = lerp(68.0, 61.0, camera_title_blend)
 	if drift_active:
 		target_fov = 74.0
 	elif boost_active:
@@ -6826,6 +8568,22 @@ func _setup_hud() -> void:
 	hud_crash_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	control.add_child(hud_crash_flash)
 
+	hud_ink_flash = ColorRect.new()
+	hud_ink_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_ink_flash.color = Color(0.04, 0.05, 0.08, 0.0)
+	hud_ink_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_ink_flash.visible = false
+	hud_ink_flash.z_index = 100
+	control.add_child(hud_ink_flash)
+
+	# Screen-space Tunnel Sunlight Bloom Flash (Subtle 0.6s eye-adaptation flash)
+	hud_tunnel_sun_flash = ColorRect.new()
+	hud_tunnel_sun_flash.name = "TunnelSunFlash"
+	hud_tunnel_sun_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_tunnel_sun_flash.color = Color(1.0, 0.95, 0.88, 0.0)
+	hud_tunnel_sun_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	control.add_child(hud_tunnel_sun_flash)
+
 	# Screen-space Comic Rain Overlay (Anime Monsoon)
 	hud_rain_overlay = ColorRect.new()
 	hud_rain_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -6851,6 +8609,14 @@ func _setup_hud() -> void:
 	hud_speedlines.visible = false
 	control.add_child(hud_speedlines)
 
+	# Gameplay HUD Container (Tachometer, Speed, Mode Button - Hidden on Start Screen)
+	hud_gameplay_container = Control.new()
+	hud_gameplay_container.name = "GameplayHUDContainer"
+	hud_gameplay_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hud_gameplay_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud_gameplay_container.visible = (current_state == GameState.RACING or current_state == GameState.CRASHED)
+	control.add_child(hud_gameplay_container)
+
 	# Day/Night Time-Of-Day HUD Button
 	hud_tod_toggle_btn = Button.new()
 	hud_tod_toggle_btn.text = "☀️ AUTO"
@@ -6859,7 +8625,7 @@ func _setup_hud() -> void:
 	hud_tod_toggle_btn.add_theme_font_size_override("font_size", 16)
 	hud_tod_toggle_btn.add_theme_color_override("font_color", Color("#FFFFFF"))
 	hud_tod_toggle_btn.pressed.connect(_on_tod_btn_pressed)
-	control.add_child(hud_tod_toggle_btn)
+	hud_gameplay_container.add_child(hud_tod_toggle_btn)
 
 	# Dynamic Manga Comic Cut-In Panel
 	cutin_container = Control.new()
@@ -6867,7 +8633,7 @@ func _setup_hud() -> void:
 	cutin_container.position = Vector2(1120, 260)
 	cutin_container.rotation_degrees = -3.5
 	cutin_container.visible = false
-	control.add_child(cutin_container)
+	hud_gameplay_container.add_child(cutin_container)
 
 	var cutin_shadow := ColorRect.new()
 	cutin_shadow.size = Vector2(360, 210)
@@ -6920,7 +8686,7 @@ func _setup_hud() -> void:
 	var speedo_cluster := Control.new()
 	speedo_cluster.position = Vector2(28, 42)
 	speedo_cluster.rotation_degrees = -4.0
-	control.add_child(speedo_cluster)
+	hud_gameplay_container.add_child(speedo_cluster)
 
 	# Dark bracket backplate with cyan comic accent border
 	var cluster_bg := ColorRect.new()
@@ -7483,112 +9249,25 @@ func _setup_hud() -> void:
 	hud_retry_btn.pressed.connect(func(): _reset_race())
 	book.add_child(hud_retry_btn)
 
-	# START SCREEN HUD OVERLAY WITH VIBE PILL
+	# START SCREEN FULL-SCREEN FLIPPABLE MANGA SPREAD
 	hud_start_screen = Control.new()
 	hud_start_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud_start_screen.visible = (current_state == GameState.START)
 	control.add_child(hud_start_screen)
 
-	var start_bg_btn := Button.new()
-	start_bg_btn.set_anchors_preset(Control.PRESET_FULL_RECT)
-	start_bg_btn.flat = true
-	start_bg_btn.focus_mode = Control.FOCUS_NONE
-	start_bg_btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	start_bg_btn.pressed.connect(func(): _start_race())
-	hud_start_screen.add_child(start_bg_btn)
+	manga_comic_page = MangaComicPage.new()
+	manga_comic_page.set_current_biome(current_biome_id)
+	manga_comic_page.page_flip_requested.connect(_on_manga_page_flip)
+	manga_comic_page.launch_requested.connect(_on_manga_launch_requested)
+	hud_start_screen.add_child(manga_comic_page)
 
-	var title_lbl := Label.new()
-	title_lbl.text = "FLOWSTATE // 湾岸"
-	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_lbl.position = Vector2(0, 260)
-	title_lbl.size = Vector2(1080, 110)
-	title_lbl.add_theme_font_size_override("font_size", 68)
-	title_lbl.add_theme_color_override("font_color", Color("#FFFFFF"))
-	title_lbl.add_theme_color_override("font_shadow_color", Color("#080811"))
-	title_lbl.add_theme_constant_override("shadow_offset_x", 4)
-	title_lbl.add_theme_constant_override("shadow_offset_y", 6)
-	hud_start_screen.add_child(title_lbl)
-
-	var sub_lbl := Label.new()
-	sub_lbl.text = "— OUTRUN HIGHWAY ARCADE —"
-	sub_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub_lbl.position = Vector2(0, 370)
-	sub_lbl.size = Vector2(1080, 50)
-	sub_lbl.add_theme_font_size_override("font_size", 26)
-	sub_lbl.add_theme_color_override("font_color", Color("#FFD000"))
-	sub_lbl.add_theme_color_override("font_shadow_color", Color("#080811"))
-	sub_lbl.add_theme_constant_override("shadow_offset_y", 3)
-	hud_start_screen.add_child(sub_lbl)
-
-	# Vibe Pill Container (Beside/Above "TAP TO DRIVE")
-	var pill_box := Control.new()
-	pill_box.position = Vector2(240, 1380)
-	pill_box.size = Vector2(600, 76)
-	pill_box.mouse_filter = Control.MOUSE_FILTER_STOP
-	hud_start_screen.add_child(pill_box)
-
-	var pill_bg := ColorRect.new()
-	pill_bg.size = Vector2(600, 76)
-	pill_bg.color = Color(0.06, 0.07, 0.12, 0.92)
-	pill_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill_box.add_child(pill_bg)
-
-	var pill_border := ReferenceRect.new()
-	pill_border.size = Vector2(600, 76)
-	pill_border.border_color = Color("#00E5FF")
-	pill_border.border_width = 3.0
-	pill_border.editor_only = false
-	pill_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pill_box.add_child(pill_border)
-
-	var btn_prev := Button.new()
-	btn_prev.text = "◀"
-	btn_prev.position = Vector2(8, 8)
-	btn_prev.size = Vector2(60, 60)
-	btn_prev.focus_mode = Control.FOCUS_NONE
-	btn_prev.mouse_filter = Control.MOUSE_FILTER_STOP
-	btn_prev.add_theme_font_size_override("font_size", 32)
-	btn_prev.pressed.connect(func(): _cycle_start_biome(-1))
-	pill_box.add_child(btn_prev)
-
-	hud_vibe_label = Label.new()
-	hud_vibe_label.text = BIOMES[current_biome_id]["name"]
-	hud_vibe_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hud_vibe_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hud_vibe_label.position = Vector2(75, 0)
-	hud_vibe_label.size = Vector2(450, 76)
-	hud_vibe_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud_vibe_label.add_theme_font_size_override("font_size", 30)
-	hud_vibe_label.add_theme_color_override("font_color", Color("#00E5FF"))
-	hud_vibe_label.add_theme_color_override("font_shadow_color", Color("#000000"))
-	hud_vibe_label.add_theme_constant_override("shadow_offset_y", 3)
-	pill_box.add_child(hud_vibe_label)
-
-	var btn_next := Button.new()
-	btn_next.text = "▶"
-	btn_next.position = Vector2(532, 8)
-	btn_next.size = Vector2(60, 60)
-	btn_next.focus_mode = Control.FOCUS_NONE
-	btn_next.mouse_filter = Control.MOUSE_FILTER_STOP
-	btn_next.add_theme_font_size_override("font_size", 32)
-	btn_next.pressed.connect(func(): _cycle_start_biome(1))
-	pill_box.add_child(btn_next)
-
-	var start_tap_lbl := Label.new()
-	start_tap_lbl.text = "TAP TO DRIVE"
-	start_tap_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	start_tap_lbl.position = Vector2(0, 1490)
-	start_tap_lbl.size = Vector2(1080, 80)
-	start_tap_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	start_tap_lbl.add_theme_font_size_override("font_size", 42)
-	start_tap_lbl.add_theme_color_override("font_color", Color("#FFFFFF"))
-	start_tap_lbl.add_theme_color_override("font_shadow_color", Color("#000000"))
-	start_tap_lbl.add_theme_constant_override("shadow_offset_y", 4)
-	hud_start_screen.add_child(start_tap_lbl)
-
-	var tw_tap := create_tween().set_loops()
-	tw_tap.tween_property(start_tap_lbl, "modulate:a", 0.35, 0.7).set_trans(Tween.TRANS_SINE)
-	tw_tap.tween_property(start_tap_lbl, "modulate:a", 1.0, 0.7).set_trans(Tween.TRANS_SINE)
+	# Connect live 3D SubViewport camera textures into the manga comic page panels
+	if is_instance_valid(panorama_subviewport) and is_instance_valid(hero_subviewport) and is_instance_valid(wheel_subviewport):
+		manga_comic_page.set_viewport_textures(
+			panorama_subviewport.get_texture(),
+			hero_subviewport.get_texture(),
+			wheel_subviewport.get_texture()
+		)
 
 	# Manga Stage Tier Upgrade Banner
 	hud_stage_banner = Control.new()
@@ -7637,8 +9316,9 @@ func _input(event: InputEvent) -> void:
 	if not _audio_unlocked and event.is_pressed():
 		_audio_unlocked = true
 		AudioServer.set_bus_mute(0, false)
-		if is_instance_valid(engine_audio_player) and not engine_audio_player.playing:
-			engine_audio_player.play()
+		if current_state != GameState.START:
+			if is_instance_valid(engine_audio_player) and not engine_audio_player.playing:
+				engine_audio_player.play()
 		if is_instance_valid(rally_music_player) and not rally_music_player.playing:
 			_play_random_rally_track()
 
@@ -7737,6 +9417,7 @@ func _physics_process(delta: float) -> void:
 		radio_chatter_cooldown -= delta
 	_process_audio_mixing(delta)
 	if current_state == GameState.START:
+		_update_start_screen_cameras(delta)
 		_process_suspension_and_vibration(delta)
 		_update_camera(delta)
 		_update_hud(delta)
@@ -7766,7 +9447,7 @@ func _physics_process(delta: float) -> void:
 	if fork_active:
 		if not fork_transition_done and player_z <= active_fork_mid_z:
 			var chosen_biome: String = fork_left_biome if player_lane_x < 0.0 else fork_right_biome
-			_apply_biome_transition(chosen_biome)
+			_apply_biome_transition(chosen_biome, true)
 			fork_transition_done = true
 		elif fork_transition_done and player_z <= active_fork_exit_z:
 			fork_active = false
@@ -7777,6 +9458,7 @@ func _physics_process(delta: float) -> void:
 			cam_fov_punch_timer = 0.35
 			_trigger_stage_badge(stage_tier, int(round(_get_stage_top_speed_kmh(stage_tier))))
 			_trigger_radio_chatter("TACHIBANA SPOTTER", "Tunnel exit clear! Entering " + BIOMES[current_biome_id]["name"] + "!", Color("#00FF88"))
+			_trigger_smooth_tunnel_exit_transition(current_biome_id)
 
 	_process_rival_ai(delta)
 	_process_road_recycler()
@@ -7934,17 +9616,18 @@ func _process_day_night_cycle(delta: float) -> void:
 	# Update Sun DirectionalLight3D
 	var car_tints := [
 		Color(1.0, 1.0, 1.0, 1.0),
-		Color(1.08, 0.88, 0.78, 1.0),
-		Color(0.55, 0.60, 0.76, 1.0),
-		Color(0.92, 0.82, 0.88, 1.0),
+		Color(1.0, 0.98, 0.97, 1.0),
+		Color(0.90, 0.92, 0.98, 1.0),
+		Color(0.98, 0.98, 1.0, 1.0),
 		Color(1.0, 1.0, 1.0, 1.0)
 	]
 	var cur_car_tint: Color = car_tints[idx].lerp(car_tints[idx + 1], s)
 
 	if is_instance_valid(sun_light):
 		sun_light.rotation_degrees = Vector3(cur_sun_pit, cur_sun_yaw, 0.0)
-		sun_light.light_color = cur_sun_col
-		sun_light.light_energy = lerp(sun_light.light_energy, cur_sun_nrg, 8.0 * delta)
+		if not tunnel_exit_active:
+			sun_light.light_color = cur_sun_col
+			sun_light.light_energy = lerp(sun_light.light_energy, cur_sun_nrg, 8.0 * delta)
 		sun_light.light_volumetric_fog_energy = 0.0
 		var sun_fwd_dir := -sun_light.global_transform.basis.z
 		if is_instance_valid(hero_body_shader_mat):
@@ -7965,28 +9648,30 @@ func _process_day_night_cycle(delta: float) -> void:
 		world_env_resource.volumetric_fog_density = 0.001
 		world_env_resource.volumetric_fog_emission_energy = 0.0
 		world_env_resource.background_energy_multiplier = 1.0
-		world_env_resource.ambient_light_color = cur_amb_col
-		world_env_resource.ambient_light_energy = lerp(world_env_resource.ambient_light_energy, cur_amb_nrg, 8.0 * delta)
-		world_env_resource.fog_light_color = cur_fog_col
-		world_env_resource.fog_light_energy = cur_fog_nrg
+		if not tunnel_exit_active:
+			world_env_resource.ambient_light_color = cur_amb_col
+			world_env_resource.ambient_light_energy = lerp(world_env_resource.ambient_light_energy, cur_amb_nrg, 8.0 * delta)
+			world_env_resource.fog_light_color = cur_fog_col
+			world_env_resource.fog_light_energy = cur_fog_nrg
 		world_env_resource.volumetric_fog_albedo = Color(0, 0, 0, 0)
 		world_env_resource.volumetric_fog_emission = Color(0, 0, 0, 0)
 
 	# Update Sky Gradient (throttled to avoid GPU radiance map cubemap re-baking every 16ms)
-	if is_instance_valid(anime_sky_mat) and current_biome_id == "shuto_dusk":
-		anime_sky_mat.set_shader_parameter("biome_mode", 0)
-		anime_sky_mat.set_shader_parameter("shuto_top", cur_sky_top)
-		anime_sky_mat.set_shader_parameter("shuto_hor", cur_sky_hor)
-	if is_instance_valid(procedural_sky_mat) and abs(day_cycle_progress - last_sky_update_progress) >= 0.005:
-		last_sky_update_progress = day_cycle_progress
-		procedural_sky_mat.sky_top_color = cur_sky_top
-		procedural_sky_mat.sky_horizon_color = cur_sky_hor
-		procedural_sky_mat.ground_horizon_color = cur_gnd_hor
-		procedural_sky_mat.ground_bottom_color = cur_gnd_bot
-		procedural_sky_mat.sun_angle_max = 10.0
-		procedural_sky_mat.sun_curve = 0.50
-		procedural_sky_mat.energy_multiplier = 1.0
-		procedural_sky_mat.sky_energy_multiplier = 1.0
+	if not tunnel_exit_active:
+		if is_instance_valid(anime_sky_mat) and current_biome_id == "shuto_dusk":
+			anime_sky_mat.set_shader_parameter("biome_mode", 0)
+			anime_sky_mat.set_shader_parameter("shuto_top", cur_sky_top)
+			anime_sky_mat.set_shader_parameter("shuto_hor", cur_sky_hor)
+		if is_instance_valid(procedural_sky_mat) and abs(day_cycle_progress - last_sky_update_progress) >= 0.005:
+			last_sky_update_progress = day_cycle_progress
+			procedural_sky_mat.sky_top_color = cur_sky_top
+			procedural_sky_mat.sky_horizon_color = cur_sky_hor
+			procedural_sky_mat.ground_horizon_color = cur_gnd_hor
+			procedural_sky_mat.ground_bottom_color = cur_gnd_bot
+			procedural_sky_mat.sun_angle_max = 10.0
+			procedural_sky_mat.sun_curve = 0.50
+			procedural_sky_mat.energy_multiplier = 1.0
+			procedural_sky_mat.sky_energy_multiplier = 1.0
 
 	# Update Vehicle Headlights & Projected Ground Beam
 	var h_active: bool = (night_factor > 0.05)
@@ -8162,6 +9847,14 @@ func _process_player_motion(delta: float) -> void:
 	var max_lat: float = MAX_LAT_SPEED * (1.30 if drift_active else 1.0)
 	var target_lat_vel: float = steer_input * max_lat
 	player_lat_velocity = lerp(player_lat_velocity, target_lat_vel, (9.0 if drift_active else 14.0) * delta)
+
+	# Scrape destabilization: damped fishtail oscillations rocking lateral inertia
+	if scrape_destabilize_timer > 0.0:
+		scrape_destabilize_timer -= delta
+		var progress: float = clampf(scrape_destabilize_timer / 0.65, 0.0, 1.0)
+		var wobble_force: float = sin(scrape_destabilize_timer * 26.0) * progress * 6.5 * -scrape_destabilize_dir
+		player_lat_velocity += wobble_force * delta * 15.0
+
 	player_lane_x += player_lat_velocity * delta
 
 	# Road boundaries & Guardrail Contact Spark Wedges
@@ -8218,6 +9911,11 @@ func _process_suspension_and_vibration(delta: float) -> void:
 		if is_instance_valid(smoke_right):
 			smoke_right.emitting = false
 
+	# Scrape fishtail rotational torque
+	if scrape_destabilize_timer > 0.0:
+		var progress: float = clampf(scrape_destabilize_timer / 0.65, 0.0, 1.0)
+		target_yaw += sin(scrape_destabilize_timer * 26.0) * progress * scrape_destabilize_yaw
+
 	body_turn_yaw = lerp_angle(body_turn_yaw, target_yaw, (9.0 if drift_active else 18.0) * delta)
 	visual_rig.rotation.y = body_turn_yaw
 
@@ -8225,6 +9923,9 @@ func _process_suspension_and_vibration(delta: float) -> void:
 	var target_roll: float = -player_lat_velocity * 0.014 + bank_rad * 0.30
 	if drift_active:
 		target_roll *= 1.3
+	if scrape_destabilize_timer > 0.0:
+		var progress: float = clampf(scrape_destabilize_timer / 0.65, 0.0, 1.0)
+		target_roll += -scrape_destabilize_dir * deg_to_rad(8.0) * progress
 
 	# Dynamic Pitch
 	var target_pitch: float = 0.0
@@ -8452,15 +10153,16 @@ func _play_nitro_sound() -> void:
 		nitro_audio_player.pitch_scale = 1.35 if nitro_tier == 2 else 1.15
 		nitro_audio_player.play()
 
-func _show_nitro_flames(show: bool) -> void:
+func _show_nitro_flames(enable_flame: bool) -> void:
 	if not is_instance_valid(exhaust_flame_l) or not is_instance_valid(exhaust_flame_r):
 		return
-	if show:
+	if enable_flame:
 		exhaust_flame_l.material_override = nitro_flame_mat if nitro_flame_mat else toon_flame_mat
 		exhaust_flame_r.material_override = nitro_flame_mat if nitro_flame_mat else toon_flame_mat
 		exhaust_flame_l.visible = true
 		exhaust_flame_r.visible = true
-		var flame_scale: Vector3 = (Vector3(2.2, 2.2, 2.2) if nitro_tier == 2 else Vector3(1.6, 1.6, 1.6)) * randf_range(0.9, 1.2)
+		var z_stretch: float = randf_range(1.15, 1.45)
+		var flame_scale: Vector3 = (Vector3(1.2, 1.2, 1.5 * z_stretch) if nitro_tier == 2 else Vector3(1.0, 1.0, 1.2 * z_stretch))
 		exhaust_flame_l.scale = flame_scale
 		exhaust_flame_r.scale = flame_scale
 		if is_instance_valid(exhaust_bumper_flash):
@@ -8540,11 +10242,37 @@ func _spawn_floating_comic_text(world_pos: Vector3, text: String, color: Color =
 func _trigger_traffic_scrape(td: TrafficVehicleData, effective_x: float) -> void:
 	var side: float = sign(player_lane_x - effective_x)
 	if side == 0.0: side = 1.0
-	player_lat_velocity = side * 3.5
-	player_lane_x += side * 0.06
-	screen_shake = max(screen_shake, 0.14)
-	_emit_guardrail_sparks(side, 0.016)
+
+	# 1. Powerful lateral momentum kick throwing player outward
+	player_lat_velocity = side * 8.5
+	player_lane_x += side * 0.12
+
+	# 2. Friction drag: bleed forward speed by 18% & cancel active boosts
+	player_speed = max(player_speed * 0.82, _get_stage_cruise_speed() * 0.65)
+	graze_speed_kick_timer = 0.0
+	if nitro_active:
+		nitro_active = false
+		nitro_speed_mult = 1.0
+		_show_nitro_flames(false)
+	combo_timer = max(0.5, combo_timer * 0.5)
+
+	# 3. Dynamic chassis fishtail & handling compromise (0.65s recovery)
+	scrape_destabilize_timer = 0.65
+	scrape_destabilize_dir = side
+	scrape_destabilize_yaw = -side * deg_to_rad(15.0)
+
+	# 4. Impact feedback: heavy screen shake, scrape sound, and spark spray
+	screen_shake = max(screen_shake, 0.28)
+	_emit_guardrail_sparks(side, 0.035)
 	_play_scrape_sound()
+
+	# 5. Push the scraped vehicle away with physics reaction
+	if td:
+		td.flinch_swerve_offset = -side * 0.45
+		td.flinch_timer = 0.65
+		_trigger_traffic_flinch(td)
+		if is_instance_valid(td.instance):
+			_spawn_floating_comic_text(td.instance.global_position + Vector3(0.0, 1.8, 0.0), "SCRAPE!!", Color("#FF3344"), Color("#000000"), 36)
 
 func _try_activate_double_tap_nitro() -> void:
 	if nitro_charge < 50.0:
@@ -8579,24 +10307,24 @@ func _try_activate_double_tap_nitro() -> void:
 func _apply_graze_rewards(td: TrafficVehicleData) -> void:
 	td.grazed = true
 	td.graze_grace_active = true
-	td.graze_grace_timer = 0.35
+	td.graze_grace_timer = 0.18
 	near_miss_count += 1
 	combo_multiplier = mini(combo_multiplier + 1, 4)
-	combo_timer = 2.5
+	combo_timer = 2.0
 	_trigger_graze_microfreeze()
 	_trigger_traffic_flinch(td)
 
-	# High-Reward Graze Payoffs:
-	var boost_inj: float = 50.0 if drift_active else 30.0
+	# High-Reward Graze Payoffs (Balanced: rewarding without instant 100% overfill):
+	var boost_inj: float = 24.0 if drift_active else 14.0
 	nitro_charge = min(100.0, nitro_charge + boost_inj)
 	drift_charge = min(100.0, drift_charge + boost_inj)
-	graze_speed_kick_timer = 0.4
-	player_speed += player_speed * 0.04
-	cam_fov_punch = 2.0
-	cam_fov_punch_timer = 0.15
+	graze_speed_kick_timer = 0.22
+	player_speed += player_speed * 0.018
+	cam_fov_punch = 1.5
+	cam_fov_punch_timer = 0.12
 	_play_graze_chime()
 
-	var g_msg: String = "DRIFT GRAZE! +50%" if drift_active else "GRAZE! +30% BOOST"
+	var g_msg: String = "DRIFT GRAZE! +24%" if drift_active else "GRAZE! +14% BOOST"
 	_spawn_floating_comic_text(td.instance.global_position + Vector3(0.0, 1.8, 0.0), g_msg, Color("#FFF01F"), Color("#000000"), 36)
 
 func _process_traffic_and_collisions(delta: float) -> void:
@@ -8766,41 +10494,45 @@ func _process_traffic_and_collisions(delta: float) -> void:
 		var effective_x: float = td.lane_offset + td.flinch_swerve_offset
 		var dx: float = abs(effective_x - player_lane_x)
 
-		# Inset the lateral (X-axis) width of the player's fatal crash hitbox by 0.12m on left and right edges
-		var fatal_crash_limit_x: float = (HERO_HALF_W - 0.12) + td.half_w
+		# Inset the lateral (X-axis) width of the player's fatal crash hitbox:
+		# ONLY glancing side contact on the outer 0.05m of the fender is non-fatal!
+		var fatal_crash_limit_x: float = (HERO_HALF_W - 0.05) + td.half_w
 		var side_rub_limit_x: float = HERO_HALF_W + td.half_w
 		var crash_limit_z: float = HERO_HALF_L + td.half_l
 
-		# Instant Physical Impact -> Scrape or Crash!
+		# Instant Physical Impact -> Scrape or Fatal Crash!
 		if dz < crash_limit_z and dx < side_rub_limit_x:
-			if td.is_roadblock and not td.graze_grace_active:
+			if td.is_roadblock:
 				_trigger_crash(td, "CRASHED INTO ROADBLOCK!")
 				return
-			elif td.graze_grace_active or dx >= fatal_crash_limit_x:
-				# Non-fatal glancing scrape / graze ghost exit clip!
-				_trigger_traffic_scrape(td, effective_x)
-			else:
-				# Direct rear-end impact -> Fatal CRASH!
-				_trigger_crash(td, "CRASHED!")
+			# Any rear-end / frontal overlap (dx < fatal_crash_limit_x) is 100% FATAL!
+			# NEVER bypassed or saved by graze grace!
+			if dx < fatal_crash_limit_x:
+				_trigger_crash(td, "CRASHED INTO TRAFFIC!")
 				return
+			else:
+				# Pure horizontal side-swipe / fender rub
+				_trigger_traffic_scrape(td, effective_x)
 
-		# Roadblock & Graze Scoring
-		elif not td.grazed and dz < (crash_limit_z + 0.90) and dx < (side_rub_limit_x + 0.90):
-			if td.is_roadblock:
+		# Roadblock & Graze Scoring (Skill-testing Razor-Close Flank Pass)
+		# Graze MUST be a lateral pass (dx >= fatal_crash_limit_x * 0.82) in razor proximity.
+		# Direct rear approach (dx < fatal_crash_limit_x * 0.82) NEVER triggers a graze!
+		elif not td.grazed and dx >= (fatal_crash_limit_x * 0.82):
+			if td.is_roadblock and dz < (crash_limit_z + 0.30) and dx < (side_rub_limit_x + 0.30):
 				var pts: int = 2500 * combo_multiplier
 				score += pts
 				hud_combo_label.text = "⚡ ROADBLOCK ESCAPE! +" + str(pts) + " ⚡"
 				hud_combo_label.modulate = Color(1.0, 0.85, 0.1, 1.0)
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
 				_apply_graze_rewards(td)
-			elif td.is_disrupted:
+			elif td.is_disrupted and dz < (crash_limit_z + 0.30) and dx < (side_rub_limit_x + 0.30):
 				var pts: int = 800 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else "x" + str(combo_multiplier) + " CHAIN!")
 				hud_combo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
 				_apply_graze_rewards(td)
-			elif dz < (crash_limit_z + 0.60) and dx < (side_rub_limit_x + 0.60):
+			elif dz < (crash_limit_z + 0.22) and dx < (side_rub_limit_x + 0.20):
 				var pts: int = 250 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else ("x" + str(combo_multiplier) + " CHAIN!" if combo_multiplier > 1 else "GRAZE!"))
@@ -8819,10 +10551,10 @@ func _process_traffic_and_collisions(delta: float) -> void:
 						_trigger_radio_chatter("TACHIBANA SPOTTER", "Pursuit evaded! Clean escape through traffic!", Color("#00FF88"))
 
 func _trigger_graze_microfreeze() -> void:
-	Engine.time_scale = 0.08
+	Engine.time_scale = 0.30
 	var tw := create_tween()
 	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tw.tween_interval(0.035)
+	tw.tween_interval(0.020)
 	tw.tween_callback(func(): Engine.time_scale = 1.0)
 	_bounce_combo_badge()
 
@@ -9024,16 +10756,26 @@ func _set_weather_state(state: WeatherState) -> void:
 		if state == WeatherState.SUNNY:
 			if leaf_mat and leaf_green_tex:
 				leaf_mat.albedo_texture = leaf_green_tex
-			leaf_particles.emitting = true
-			leaf_particles.amount = 45
-			weather_transition_tween.tween_property(leaf_particles, "color:a", 1.0, 2.0)
+			if current_biome_id == "shuto_dusk":
+				leaf_particles.emitting = true
+				leaf_particles.visible = true
+				leaf_particles.amount = 45
+				weather_transition_tween.tween_property(leaf_particles, "color:a", 1.0, 2.0)
+			else:
+				leaf_particles.emitting = false
+				leaf_particles.visible = false
 			_trigger_radio_chatter("TACHIBANA SPOTTER", "Sun breaking through! Peak highway grip!", Color("#FFD000"))
 		elif state == WeatherState.RAIN:
 			if leaf_mat and leaf_autumn_tex:
 				leaf_mat.albedo_texture = leaf_autumn_tex
-			leaf_particles.emitting = true
-			leaf_particles.amount = 75
-			weather_transition_tween.tween_property(leaf_particles, "color:a", 1.0, 2.0)
+			if current_biome_id == "shuto_dusk":
+				leaf_particles.emitting = true
+				leaf_particles.visible = true
+				leaf_particles.amount = 75
+				weather_transition_tween.tween_property(leaf_particles, "color:a", 1.0, 2.0)
+			else:
+				leaf_particles.emitting = false
+				leaf_particles.visible = false
 			_trigger_radio_chatter("TACHIBANA SPOTTER", "Autumn storm on the bay! Watch for standing water puddles!", Color("#00E5FF"))
 		elif state == WeatherState.SNOW:
 			weather_transition_tween.tween_property(leaf_particles, "color:a", 0.0, 1.8)
@@ -9059,10 +10801,10 @@ func _trigger_exhaust_backfire() -> void:
 	backfire_light_timer = 0.02
 	if is_instance_valid(exhaust_flame_l):
 		exhaust_flame_l.visible = true
-		exhaust_flame_l.scale = (Vector3(1.6, 1.6, 1.6) if is_in_tunnel else Vector3(1.0, 1.0, 1.0)) * randf_range(0.85, 1.25)
+		exhaust_flame_l.scale = (Vector3(1.15, 1.15, 1.35) if is_in_tunnel else Vector3(0.95, 0.95, 1.10)) * randf_range(0.85, 1.25)
 	if is_instance_valid(exhaust_flame_r):
 		exhaust_flame_r.visible = true
-		exhaust_flame_r.scale = (Vector3(1.6, 1.6, 1.6) if is_in_tunnel else Vector3(1.0, 1.0, 1.0)) * randf_range(0.85, 1.25)
+		exhaust_flame_r.scale = (Vector3(1.15, 1.15, 1.35) if is_in_tunnel else Vector3(0.95, 0.95, 1.10)) * randf_range(0.85, 1.25)
 	if is_instance_valid(exhaust_bumper_flash):
 		exhaust_bumper_flash.visible = true
 
@@ -9102,9 +10844,9 @@ func _trigger_traffic_flinch(td: TrafficVehicleData) -> void:
 			(td.taillight_mat as StandardMaterial3D).emission = Color(1.0, 0.05, 0.05)
 			(td.taillight_mat as StandardMaterial3D).emission_energy_multiplier = 3.5
 
-	# Lerp a momentary 0.3m lateral swerve toward their lane shoulder
+	# Subtle 0.08m nervous wobble (does NOT clear the lane for free!)
 	var shoulder_dir: float = 1.0 if td.lane_offset >= 0.0 else -1.0
-	td.flinch_target_swerve = shoulder_dir * 0.3
+	td.flinch_target_swerve = shoulder_dir * 0.08
 
 	# Spawn a 2D billboarded comic exclamation mark ("!") badge above their roof for 0.4 seconds
 	if is_instance_valid(td.instance):
@@ -9361,6 +11103,78 @@ func _process_highway_hazards(delta: float) -> void:
 						var p_tw := pud.node.create_tween()
 						p_tw.tween_property(pud.node, "scale", Vector3(0.2, 0.2, 0.2), 0.3)
 
+	# 9. BIOME CUSTOM ROAD OBSTACLES SIMULATION
+	for i in range(active_custom_obstacles.size() - 1, -1, -1):
+		var obs: BiomeCustomObstacleData = active_custom_obstacles[i]
+		if obs.global_z > player_z + 40.0:
+			if is_instance_valid(obs.node):
+				obs.node.queue_free()
+			active_custom_obstacles.remove_at(i)
+			continue
+
+		if current_state != GameState.RACING:
+			continue
+
+		var dz: float = abs(obs.global_z - player_z)
+		var dx: float = abs(obs.global_x - player_lane_x)
+
+		match obs.type:
+			"kei_van":
+				# Hazard lights blink at 1.5 Hz
+				obs.hazard_timer += delta
+				if obs.hazard_timer >= 0.33:
+					obs.hazard_timer = 0.0
+					obs.hazard_state = not obs.hazard_state
+					for ln in obs.light_nodes:
+						if is_instance_valid(ln):
+							ln.visible = obs.hazard_state
+
+				# Physical collision with Kei Van
+				var fatal_crash_limit_x: float = (HERO_HALF_W - 0.05) + obs.half_w
+				var side_rub_limit_x: float = HERO_HALF_W + obs.half_w
+				var crash_limit_z: float = HERO_HALF_L + obs.half_l
+
+				if dz < crash_limit_z and dx < side_rub_limit_x:
+					if dx < fatal_crash_limit_x:
+						_trigger_crash(null, "CRASHED INTO DOUBLE-PARKED VAN!")
+						return
+					else:
+						_trigger_traffic_scrape(null, obs.global_x)
+
+			"manhole":
+				# Passing over steam grate kicks up slight tire thump & steam hiss
+				if not obs.triggered and dz < 1.6 and dx < 1.2:
+					obs.triggered = true
+					_play_proc_audio("pop")
+					screen_shake = max(screen_shake, 0.05)
+
+			"black_ice":
+				# Corner apex ice sheet increases slip angle and boosts drift-charge rate by +35%
+				if dz < obs.half_l and dx < obs.half_w:
+					if drift_active:
+						drift_charge = min(100.0, drift_charge + 35.0 * delta)
+					var slip_dir: float = sign(player_lat_velocity) if abs(player_lat_velocity) > 0.1 else 1.0
+					player_lat_velocity += slip_dir * 3.5 * delta
+					screen_shake = max(screen_shake, 0.03)
+
+			"snowbank":
+				# Sculpted snowbank encroaching 1.2m into shoulder
+				# Side-scraping triggers snow spray + soft slowdown instead of instant crash!
+				if dz < obs.half_l and dx < obs.half_w:
+					player_speed = max(player_speed * (1.0 - 0.16 * delta), 25.0)
+					var push_side: float = 1.0 if obs.global_x < 0.0 else -1.0
+					player_lane_x += push_side * 2.2 * delta
+					player_lat_velocity = push_side * 3.0
+					_play_scrape_sound()
+					screen_shake = max(screen_shake, 0.12)
+					_emit_guardrail_sparks(push_side, delta)
+
+			"sand_drift":
+				# Windblown sand tongue across ocean-side lane edge kicks up golden sand spray
+				if dz < obs.half_l and dx < obs.half_w:
+					player_speed = max(player_speed * (1.0 - 0.12 * delta), 28.0)
+					screen_shake = max(screen_shake, 0.04)
+
 	# 10. WEATHER PARTICLE POSITION TRACKING & DYNAMIC DIRECTIONAL RAIN WIND
 	if is_instance_valid(car_root):
 		var car_pos := car_root.global_position
@@ -9387,6 +11201,11 @@ func _process_highway_hazards(delta: float) -> void:
 			tunnel_backfire_light.light_energy = 0.0
 
 func _update_hud(delta: float) -> void:
+	if current_state == GameState.START and not is_launching_to_race:
+		if is_instance_valid(hud_gameplay_container):
+			hud_gameplay_container.visible = false
+		return
+
 	top_speed_achieved = max(top_speed_achieved, player_speed)
 	displayed_score = lerp(displayed_score, float(score), 12.0 * delta)
 

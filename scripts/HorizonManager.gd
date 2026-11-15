@@ -130,6 +130,75 @@ func _construct_coastal_horizon() -> void:
 	c_inst2.position = Vector3(32.0, 14.5, -mountain_distance - 14.0)
 	enoshima_island.add_child(c_inst2)
 
+	# Vermilion Red Shinto Torii Gate at water's edge of Enoshima Island
+	var torii_node := Node3D.new()
+	torii_node.name = "ToriiGate"
+	torii_node.position = Vector3(26.0, 1.5, -mountain_distance - 18.0)
+
+	var torii_mat := StandardMaterial3D.new()
+	torii_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	torii_mat.albedo_color = Color("#DC2626") # Vivid Shinto vermilion red
+
+	var torii_black_mat := StandardMaterial3D.new()
+	torii_black_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	torii_black_mat.albedo_color = Color("#111827") # Black lacquered roof cap
+
+	# Twin vertical Hasira pillars
+	var pil_mesh := CylinderMesh.new()
+	pil_mesh.top_radius = 0.50
+	pil_mesh.bottom_radius = 0.62
+	pil_mesh.height = 11.5
+	pil_mesh.radial_segments = 8
+	for px in [-4.2, 4.2]:
+		var pil := MeshInstance3D.new()
+		pil.mesh = pil_mesh
+		pil.material_override = torii_mat
+		pil.position = Vector3(px, 5.75, 0.0)
+		pil.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		torii_node.add_child(pil)
+
+	# Lower horizontal tie-beam (Nuki)
+	var nuki_mesh := BoxMesh.new()
+	nuki_mesh.size = Vector3(11.8, 0.70, 0.55)
+	var nuki := MeshInstance3D.new()
+	nuki.mesh = nuki_mesh
+	nuki.material_override = torii_mat
+	nuki.position = Vector3(0.0, 8.2, 0.0)
+	nuki.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	torii_node.add_child(nuki)
+
+	# Upper lintel (Kasagi & Shimaki)
+	var kasa_mesh := BoxMesh.new()
+	kasa_mesh.size = Vector3(14.5, 0.95, 0.75)
+	var kasa := MeshInstance3D.new()
+	kasa.mesh = kasa_mesh
+	kasa.material_override = torii_mat
+	kasa.position = Vector3(0.0, 11.2, 0.0)
+	kasa.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	torii_node.add_child(kasa)
+
+	# Black roof cap strip on top of Kasagi
+	var cap_mesh := BoxMesh.new()
+	cap_mesh.size = Vector3(14.8, 0.22, 0.85)
+	var cap := MeshInstance3D.new()
+	cap.mesh = cap_mesh
+	cap.material_override = torii_black_mat
+	cap.position = Vector3(0.0, 11.75, 0.0)
+	cap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	torii_node.add_child(cap)
+
+	# Central tablet strut (Gakuzuka)
+	var gaku_mesh := BoxMesh.new()
+	gaku_mesh.size = Vector3(0.70, 2.1, 0.35)
+	var gaku := MeshInstance3D.new()
+	gaku.mesh = gaku_mesh
+	gaku.material_override = torii_black_mat
+	gaku.position = Vector3(0.0, 9.6, 0.0)
+	gaku.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	torii_node.add_child(gaku)
+
+	enoshima_island.add_child(torii_node)
+
 	enoshima_island.visible = false
 	add_child(enoshima_island)
 
@@ -162,7 +231,8 @@ func _construct_shinjuku_horizon() -> void:
 
 	var win_glow_mat := StandardMaterial3D.new()
 	win_glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	win_glow_mat.albedo_color = Color("#FFB844") # Amber office light grid
+	win_glow_mat.vertex_color_use_as_albedo = true
+	win_glow_mat.albedo_color = Color.WHITE # Tiny warm amber & cyan window grids
 	win_glow_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	var red_beacon_mat := StandardMaterial3D.new()
@@ -226,6 +296,8 @@ func _construct_shinjuku_horizon() -> void:
 				var wp1 := Vector3(cx + 0.65, col_y_start, z - 0.1)
 				var wp2 := Vector3(cx + 0.65, col_y_start + col_h, z - 0.1)
 				var wp3 := Vector3(cx - 0.65, col_y_start + col_h, z - 0.1)
+				var w_col: Color = Color("#00E5FF") if ((c + abs(int(x))) % 3 == 0) else Color("#FFB844")
+				win_st.set_color(w_col)
 				win_st.add_vertex(wp0); win_st.add_vertex(wp1); win_st.add_vertex(wp2)
 				win_st.add_vertex(wp0); win_st.add_vertex(wp2); win_st.add_vertex(wp3)
 
@@ -406,6 +478,37 @@ func update_palette(night_factor: float) -> void:
 	var night_col := Color("#2D3552")
 	set_horizon_palette(sunset_col.lerp(night_col, clampf(night_factor, 0.0, 1.0)))
 
+var horizon_transition_tween: Tween
+
+func smooth_transition_to_biome(biome_id: String, duration: float = 1.5) -> void:
+	if horizon_transition_tween and horizon_transition_tween.is_valid():
+		horizon_transition_tween.kill()
+	horizon_transition_tween = create_tween().set_parallel(true)
+
+	var target_near: Color = Color("#3B4259")
+	var target_far: Color = Color("#7A7CA8")
+
+	match biome_id:
+		"shuto_dusk":
+			target_near = Color("#3B4259")
+			target_far = Color("#7A7CA8")
+		"neo_shinjuku":
+			target_near = Color("#14101E")
+			target_far = Color("#2A1E34")
+		"hakone_snow":
+			target_near = Color("#4D627A")
+			target_far = Color("#8FAEC8")
+		"enoshima_coast":
+			target_near = Color("#5C2B1C")
+			target_far = Color("#BA4628")
+
+	if mountain_mat:
+		horizon_transition_tween.tween_property(mountain_mat, "albedo_color", target_near, duration).set_trans(Tween.TRANS_SINE)
+	if far_mountain_mat:
+		horizon_transition_tween.tween_property(far_mountain_mat, "albedo_color", target_far, duration).set_trans(Tween.TRANS_SINE)
+
+	set_biome_style(biome_id)
+
 func set_biome_style(biome_id: String) -> void:
 	match biome_id:
 		"shuto_dusk":
@@ -437,13 +540,15 @@ func set_biome_style(biome_id: String) -> void:
 			if is_instance_valid(hakone_alpine_peaks): hakone_alpine_peaks.visible = false
 
 		"hakone_snow":
-			# Distant snow-capped alpine peaks rising above touge pass
+			# Distant snow-capped alpine peaks rising above touge pass at dawn
 			if is_instance_valid(left_ridge): left_ridge.visible = false
 			if is_instance_valid(right_ridge): right_ridge.visible = false
 			if is_instance_valid(enoshima_island): enoshima_island.visible = false
 			if is_instance_valid(sun_disc): sun_disc.visible = false
 			if is_instance_valid(shinjuku_skyline): shinjuku_skyline.visible = false
 			if is_instance_valid(hakone_alpine_peaks): hakone_alpine_peaks.visible = true
+			if mountain_mat: mountain_mat.albedo_color = Color("#4D627A")
+			if far_mountain_mat: far_mountain_mat.albedo_color = Color("#8FAEC8")
 
 func _build_continuous_mountain_range(is_left: bool) -> Node3D:
 	var root_node := Node3D.new()

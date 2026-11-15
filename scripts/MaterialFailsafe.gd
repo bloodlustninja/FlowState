@@ -2,14 +2,14 @@ class_name MaterialFailsafe
 extends RefCounted
 
 const TRAFFIC_PALETTE: Array[Color] = [
-	Color("#E62429"), # Vibrant Anime Crimson Red
 	Color("#0A66C2"), # Electric Sapphire Blue
 	Color("#FFB703"), # Solar Ochre Gold
 	Color("#10B981"), # Vibrant Mint Emerald
+	Color("#00E5FF"), # Electric Cyan
+	Color("#E62429"), # Vibrant Anime Crimson Red
 	Color("#FF5E00"), # Tangerine Orange
 	Color("#8B5CF6"), # Anime Purple
-	Color("#E91E63"), # Hot Magenta Pink
-	Color("#00E5FF")  # Electric Cyan
+	Color("#DDE2EC")  # Clean Pearl Silver
 ]
 
 static var multi_shader: Shader = preload("res://shaders/comic_car_multi.gdshader")
@@ -48,20 +48,20 @@ static func create_rim_material() -> StandardMaterial3D:
 static func create_stripe_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color("#0047AB") # Cobalt blue racing stripe
+	mat.albedo_color = Color("#111827") # Dark charcoal/navy racing stripe
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
 
 static func create_body_material(paint: Color, sun_dir: Vector3 = Vector3(-0.5, -0.8, -0.3), has_stripes: bool = false, is_two_tone: bool = false) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = multi_shader
-	mat.set_shader_parameter("paper_white", Color("#F59E0B"))
+	mat.set_shader_parameter("paper_white", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
 	mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-	mat.set_shader_parameter("stripe_blue", Color("#003C9E"))
-	mat.set_shader_parameter("navy_diffuser", Color("#1F3861"))
+	mat.set_shader_parameter("stripe_blue", Color("#111827")) # Dark charcoal/navy #111827
+	mat.set_shader_parameter("navy_diffuser", Color("#111827")) # Dark charcoal/navy #111827
 	mat.set_shader_parameter("ink_black", Color("#0A0914"))
 	mat.set_shader_parameter("ink_shadow", Color(0.05, 0.05, 0.09, 1.0))
-	mat.set_shader_parameter("shadow_tint", Color("#1E202B"))
+	mat.set_shader_parameter("shadow_tint", Color("#94A3B8")) # Cool-slate manga shadow #94A3B8
 	mat.set_shader_parameter("paint_color", paint)
 	mat.set_shader_parameter("sun_direction", sun_dir)
 	mat.set_shader_parameter("shadow_cut", 0.38)
