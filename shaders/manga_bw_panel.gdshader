@@ -11,7 +11,7 @@ shader_type canvas_item;
 // - 'bw_ink_mix' and 'wipe_radius' for seamless zoom dive into full-color 3D!
 // =============================================================================
 
-uniform float bw_ink_mix : hint_range(0.0, 1.0) = 1.0;
+uniform float bw_ink_mix : hint_range(0.0, 1.0) = 0.75;
 uniform float wipe_radius : hint_range(0.0, 2.5) = 0.0;
 uniform vec2 wipe_center = vec2(0.5, 0.5);
 uniform float halftone_scale : hint_range(0.1, 2.0) = 0.55;
@@ -82,9 +82,11 @@ void fragment() {
 	float dist_from_center = length(wipe_uv);
 	float wipe_mask = smoothstep(wipe_radius - 0.15, wipe_radius + 0.15, dist_from_center);
 
-	// Combined blend factor: 1.0 = B&W Manga Page, 0.0 = Vibrant 3D Color
+	// Combined blend factor: 0.75 = 25% Color + 75% Manga Ink, 0.0 = Vibrant 3D Color
 	float effective_bw = clamp(bw_ink_mix * wipe_mask, 0.0, 1.0);
 
-	vec3 final_rgb = mix(col.rgb, bw_col, effective_bw);
+	// Subtle saturation pop so 25% color reads rich and vivid like manga watercolor
+	vec3 sat_col = mix(vec3(lum), col.rgb, 1.20);
+	vec3 final_rgb = mix(sat_col, bw_col, effective_bw);
 	COLOR = vec4(final_rgb, col.a);
 }

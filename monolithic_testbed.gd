@@ -9256,6 +9256,7 @@ func _setup_hud() -> void:
 	control.add_child(hud_start_screen)
 
 	manga_comic_page = MangaComicPage.new()
+	manga_comic_page.set_anchors_preset(Control.PRESET_FULL_RECT)
 	manga_comic_page.set_current_biome(current_biome_id)
 	manga_comic_page.page_flip_requested.connect(_on_manga_page_flip)
 	manga_comic_page.launch_requested.connect(_on_manga_launch_requested)
@@ -9275,7 +9276,7 @@ func _setup_hud() -> void:
 	hud_stage_banner.position = Vector2(190, 480)
 	hud_stage_banner.size = Vector2(700, 160)
 	hud_stage_banner.visible = false
-	control.add_child(hud_stage_banner)
+	hud_gameplay_container.add_child(hud_stage_banner)
 
 	var stg_bg := ColorRect.new()
 	stg_bg.size = Vector2(700, 160)

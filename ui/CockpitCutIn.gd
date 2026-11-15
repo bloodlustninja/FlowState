@@ -67,8 +67,9 @@ func _draw() -> void:
 	var h: float = size.y
 	var data: Dictionary = BIOME_CUTIN_DATA.get(current_biome_id, BIOME_CUTIN_DATA["shuto_dusk"])
 
-	# 1. Warm Vintage Manga Paper Background
-	draw_rect(Rect2(0, 0, w, h), PAPER_COLOR, true)
+	# 1. Warm Vintage Manga Paper Background with 25% Biome Color Wash
+	var bg_color: Color = PAPER_COLOR.lerp(data["accent"], 0.22)
+	draw_rect(Rect2(0, 0, w, h), bg_color, true)
 
 	# 2. Screentone Halftone Dot Stippling (Procedural 45-degree grid in upper quadrant)
 	var dot_step: float = 14.0
