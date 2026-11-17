@@ -10,13 +10,13 @@ render_mode blend_mix, depth_draw_opaque, cull_disabled, unshaded;
 // 4. Cool winter alpine ambient tone
 // =============================================================================
 
-uniform vec4 sun_tint : source_color = vec4(0.96, 0.98, 1.05, 1.0);
-uniform vec4 rock_sun_color : source_color = vec4(0.886, 0.910, 0.941, 1.0);    // Clean Solid Alpine Granite #E2E8F0
-uniform vec4 rock_mid_color : source_color = vec4(0.33, 0.41, 0.49, 1.0);    // Slate Granite #55687C
-uniform vec4 rock_shadow_color : source_color = vec4(0.17, 0.21, 0.27, 1.0); // Deep Shadow Slate #2B3644
-uniform vec4 snow_top_color : source_color = vec4(0.99, 0.99, 1.0, 1.0);     // Pure White Snow #FCFDFF
-uniform vec4 snow_shadow_color : source_color = vec4(0.74, 0.84, 0.92, 1.0);  // Soft Cyan Snow Shadow #BDD6EB
-uniform vec4 crevice_ink_color : source_color = vec4(0.06, 0.08, 0.12, 1.0); // Dark Comic Ink #10141E
+uniform vec4 sun_tint : source_color = vec4(0.96, 0.98, 1.02, 1.0);
+uniform vec4 rock_sun_color : source_color = vec4(0.796, 0.835, 0.882, 1.0);    // Soft cool-slate lit #CBD5E1
+uniform vec4 rock_mid_color : source_color = vec4(0.580, 0.639, 0.722, 1.0);    // Soft ice-blue shadow #94A3B8
+uniform vec4 rock_shadow_color : source_color = vec4(0.392, 0.455, 0.545, 1.0); // Deep shadow slate #64748B
+uniform vec4 snow_top_color : source_color = vec4(0.796, 0.835, 0.882, 1.0);     // Soft cool-slate lit snow #CBD5E1
+uniform vec4 snow_shadow_color : source_color = vec4(0.580, 0.639, 0.722, 1.0);  // Soft ice-blue shadow snow #94A3B8
+uniform vec4 crevice_ink_color : source_color = vec4(0.031, 0.035, 0.051, 1.0); // Bold black ink crease #08090D
 uniform float hatch_density : hint_range(50.0, 300.0) = 145.0;
 uniform bool enable_hatching = false;
 

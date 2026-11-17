@@ -4,13 +4,13 @@ render_mode blend_mix, depth_draw_opaque, cull_back;
 // Auto Modellista & Initial D Manga Cel-Shaded Vehicle Shader
 // Variable Pen-Pressure Smoothstep Inking + Auto Modellista Livery + Manga Speed Wedges
 
-uniform vec4 paper_white : source_color = vec4(0.84, 0.86, 0.90, 1.0);  // Studio off-white #D6DBE6
+uniform vec4 paper_white : source_color = vec4(0.867, 0.890, 0.925, 1.0);  // Crisp studio-white body #DDE3EC
 uniform vec4 slate_grey : source_color = vec4(0.43, 0.45, 0.52, 1.0);   // Slate grey lower flank #6E7485
-uniform vec4 stripe_blue : source_color = vec4(0.067, 0.094, 0.153, 1.0);  // Dark charcoal/navy #111827
+uniform vec4 stripe_blue : source_color = vec4(0.11, 0.31, 0.85, 1.0);  // Bold Japanese Wangan Racing Blue #1D4ED8
 uniform vec4 navy_diffuser : source_color = vec4(0.067, 0.094, 0.153, 1.0); // Lower rear diffuser dark charcoal/navy #111827
 uniform vec4 ink_black : source_color = vec4(0.04, 0.04, 0.06, 1.0);    // Bold manga ink #0A0914
 uniform vec4 ink_shadow : source_color = vec4(0.05, 0.05, 0.09, 1.0);   // Deep core shadow ink
-uniform vec4 paint_color : source_color = vec4(0.84, 0.86, 0.90, 1.0);  // Studio off-white #D6DBE6
+uniform vec4 paint_color : source_color = vec4(0.867, 0.890, 0.925, 1.0);  // Crisp studio-white body #DDE3EC
 uniform vec4 day_night_tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);  // Ambient sky tint
 uniform float sodium_intensity : hint_range(0.0, 1.0) = 0.0;            // Overhead sodium streetlight wash
 uniform vec4 sodium_color : source_color = vec4(1.0, 0.65, 0.15, 1.0);

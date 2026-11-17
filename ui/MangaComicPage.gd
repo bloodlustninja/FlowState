@@ -812,10 +812,16 @@ func play_dive_in_transition(callback: Callable) -> void:
 	if is_instance_valid(header_bar):
 		tw_hero.tween_property(header_bar, "position:y", -80.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 
-	# 4. On finish: call coordinator completion callback
+	# 4. On finish: strictly hide all start page elements and call coordinator completion callback
 	var seq := create_tween()
 	seq.tween_interval(0.55)
 	seq.tween_callback(func():
+		visible = false
+		if is_instance_valid(paper_bg): paper_bg.visible = false
+		if is_instance_valid(hero_panel_root): hero_panel_root.visible = false
+		if is_instance_valid(p1_root): p1_root.visible = false
+		if is_instance_valid(p3_root): p3_root.visible = false
+		if is_instance_valid(p4_root): p4_root.visible = false
 		if callback.is_valid():
 			callback.call()
 	)

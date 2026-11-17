@@ -405,7 +405,7 @@ const BIOMES: Dictionary = {
 		"sky_horizon": Color("#E8827A"),
 		"ground_horizon": Color("#242B3D"),
 		"sun_color": Color("#FFF8EB"),
-		"sun_energy": 0.75,
+		"sun_energy": 0.85,
 		"ambient_color": Color("#2A283D"),
 		"ambient_energy": 0.28,
 		"fog_color": Color("#242B3D"),
@@ -436,15 +436,15 @@ const BIOMES: Dictionary = {
 		"name": "HAKONE DAWN",
 		"kanji": "箱根 DAWN",
 		"badge": "STAGE 3: HAKONE SNOW PEAKS // ALPINE DAWN 06:30",
-		"sky_top": Color("#BAE6FD"),     # Pale morning ice-blue sky (#BAE6FD)
-		"sky_mid": Color("#E0F2FE"),     # Soft morning frost azure
+		"sky_top": Color("#7DD3FC"),     # Rich pale ice-blue morning sky (#7DD3FC)
+		"sky_mid": Color("#BAE6FD"),     # Soft morning frost azure
 		"sky_horizon": Color("#FBCFE8"), # Soft rose-gold sunrise horizon (#FBCFE8)
 		"ground_horizon": Color("#7898B4"),
-		"sun_color": Color("#FFF1F2"),   # Soft rose sunrise light
-		"sun_energy": 0.80,
+		"sun_color": Color("#FFE4E6"),   # Soft rose sunrise light
+		"sun_energy": 0.90,
 		"ambient_color": Color("#9AB6D2"),
 		"ambient_energy": 0.42,
-		"fog_color": Color("#FBCFE8"),   # Soft morning rose-gold fog mist
+		"fog_color": Color("#CBD5E1"),   # Soft morning cool-slate fog mist
 		"fog_density": 0.00015,
 		"weather": "snow",
 		"traffic_min_dist": 450.0,
@@ -454,12 +454,12 @@ const BIOMES: Dictionary = {
 		"name": "ENOSHIMA COAST",
 		"kanji": "江の島 AFTERNOON",
 		"badge": "STAGE 4: ENOSHIMA SEASIDE // GOLDEN AFTERNOON 16:30",
-		"sky_top": Color("#FB7185"),     # Warm coastal rose sky (#FB7185)
-		"sky_mid": Color("#F472B6"),     # Sunset coral pink
+		"sky_top": Color("#FB923C"),     # Warm golden-amber afternoon sky (#FB923C)
+		"sky_mid": Color("#F59E0B"),     # Sunset golden amber
 		"sky_horizon": Color("#FDE68A"), # Warm golden-amber coastal sky (#FDE68A)
 		"ground_horizon": Color("#1D3850"),
 		"sun_color": Color("#FFE080"),
-		"sun_energy": 0.85,
+		"sun_energy": 0.92,
 		"ambient_color": Color("#804838"), # Warm golden-hour sunset ambient
 		"ambient_energy": 0.52,
 		"fog_color": Color("#F06B4D"),
@@ -712,6 +712,8 @@ var hud_hazard_label: Label
 var hazard_tween: Tween
 var background_rig: Node3D
 var horizon_manager: HorizonManager
+var landmark_system: BiomeLandmarkSystem
+var is_capturing_landmarks: bool = false
 
 var hud_speed_label: Label
 var hud_combo_container: Control
@@ -788,11 +790,15 @@ func _rebuild_start_chunks() -> void:
 	next_chunk_z = 0.0
 	chunk_spawn_count = 0
 	_setup_road_system()
+	if is_instance_valid(landmark_system):
+		landmark_system.purge()
 
 func _apply_biome_transition(new_biome_id: String, inside_tunnel: bool = false) -> void:
 	if not new_biome_id in BIOMES:
 		return
 	current_biome_id = new_biome_id
+	if is_instance_valid(landmark_system):
+		landmark_system.on_biome_transition(new_biome_id)
 	var b_data: Dictionary = BIOMES[new_biome_id]
 
 	# Sky & Atmosphere (apply immediately if not inside tunnel or if captured)
@@ -823,6 +829,8 @@ func _apply_biome_transition(new_biome_id: String, inside_tunnel: bool = false) 
 
 	# Dedicated Horizon Clusters & Time-Of-Day Synchronization
 	_sync_biome_horizon_and_tod(new_biome_id)
+	if new_biome_id == "enoshima_coast":
+		_purge_hakone_props_for_enoshima()
 
 	# Road surface shader biome mode
 	if is_instance_valid(road_shader_mat):
@@ -971,8 +979,8 @@ func _trigger_smooth_tunnel_exit_transition(new_biome_id: String) -> void:
 			hud_tunnel_sun_flash.color = flash_color
 			sun_flash_tween.tween_property(hud_tunnel_sun_flash, "color:a", 0.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		if is_instance_valid(world_env_resource):
-			sun_flash_tween.tween_property(world_env_resource, "tonemap_exposure", 1.0, 0.6).from(1.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			sun_flash_tween.tween_property(world_env_resource, "glow_bloom", 0.12, 0.6).from(0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			sun_flash_tween.tween_property(world_env_resource, "tonemap_exposure", 0.85, 0.6).from(1.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			sun_flash_tween.tween_property(world_env_resource, "glow_bloom", 0.08, 0.6).from(0.18).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			if is_instance_valid(leaf_particles):
 				leaf_particles.emitting = (new_biome_id == "shuto_dusk")
 				leaf_particles.visible = (new_biome_id == "shuto_dusk")
@@ -1129,6 +1137,11 @@ func _ready() -> void:
 	_setup_background_layers()
 	_apply_biome_transition(current_biome_id)
 	_setup_road_system()
+	landmark_system = BiomeLandmarkSystem.new()
+	landmark_system.name = "BiomeLandmarkSystem"
+	landmark_system.sample_road_x_cb = Callable(self, "_sample_road_x")
+	landmark_system.sample_road_tangent_cb = Callable(self, "_sample_road_tangent")
+	add_child(landmark_system)
 	_setup_skid_pool()
 	_setup_spark_pools()
 	_setup_player_car()
@@ -1273,6 +1286,58 @@ func _run_biome_captures() -> void:
 			var car_file: String = artifact_dir + "/capture_car_" + b_id + ".png"
 			img_car.save_png(car_file)
 			print("CAPTURED CAR: ", b_id)
+
+		# Capture Mid-Stage Signature Landmark (1,250m mark)
+		is_capturing_landmarks = true
+		stage_start_z = 0.0
+		player_z = -1205.0
+		var lm_target_z: float = -1250.0
+		var lm_cx: float = _sample_road_x(lm_target_z)
+		if is_instance_valid(car_root):
+			car_root.visible = false
+
+		# Cleanly rebuild road chunks around 1,250m
+		for chunk in road_chunks:
+			if is_instance_valid(chunk):
+				chunk.queue_free()
+		road_chunks.clear()
+		next_chunk_z = -1080.0
+		for ci in range(NUM_CHUNKS):
+			var ch = _create_road_chunk(next_chunk_z)
+			add_child(ch)
+			road_chunks.append(ch)
+			next_chunk_z -= CHUNK_LENGTH
+
+		if is_instance_valid(landmark_system):
+			landmark_system.update(player_z, stage_start_z, b_id, false, 0.016)
+
+		var cam_z: float = -1215.0
+		var cam_cx: float = _sample_road_x(cam_z)
+
+		if is_instance_valid(follow_cam):
+			match b_id:
+				"shuto_dusk":
+					follow_cam.position = Vector3(cam_cx, 3.2, -1195.0)
+					follow_cam.look_at(Vector3(lm_cx, 16.0, lm_target_z), Vector3.UP)
+				"neo_shinjuku":
+					follow_cam.position = Vector3(cam_cx, 2.5, -1220.0)
+					follow_cam.look_at(Vector3(lm_cx, 8.5, lm_target_z), Vector3.UP)
+				"hakone_snow":
+					follow_cam.position = Vector3(cam_cx, 3.5, cam_z)
+					follow_cam.look_at(Vector3(lm_cx + 12.5, 6.0, lm_target_z), Vector3.UP)
+				"enoshima_coast":
+					follow_cam.position = Vector3(cam_cx, 3.5, cam_z)
+					follow_cam.look_at(Vector3(lm_cx + 24.0, 15.0, lm_target_z), Vector3.UP)
+
+		for f in range(25):
+			await get_tree().process_frame
+
+		var img_lm := get_viewport().get_texture().get_image()
+		if img_lm:
+			var lm_file: String = artifact_dir + "/capture_landmark_" + b_id + ".png"
+			img_lm.save_png(lm_file)
+			print("CAPTURED LANDMARK: ", b_id)
+		is_capturing_landmarks = false
 
 	if FileAccess.file_exists("res://capture_requested.tmp"):
 		DirAccess.remove_absolute("res://capture_requested.tmp")
@@ -1677,8 +1742,8 @@ func _setup_materials() -> void:
 		pine_snow_mat.set_shader_parameter("rim_color", Color(1.0, 1.0, 1.0, 0.0))
 
 	if not snowbank_mat:
-		snowbank_mat = _create_manga_env_mat(Color("#F1F5F9"), false, 0.036)
-		snowbank_mat.set_shader_parameter("shadow_tint", Color("#CBD5E1"))
+		snowbank_mat = _create_manga_env_mat(Color("#CBD5E1"), false, 0.036)
+		snowbank_mat.set_shader_parameter("shadow_tint", Color("#94A3B8"))
 		snowbank_mat.set_shader_parameter("ink_color", Color("#08090D"))
 		snowbank_mat.set_shader_parameter("rim_color", Color(1.0, 1.0, 1.0, 0.0))
 
@@ -2013,16 +2078,16 @@ func _setup_environment() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED # Prevents cheap specular washing out toon lines
 
 	# 3. POST-PROCESSING & COLOR GRADING
-	# Tonemap Mode: TONEMAPPER_FILMIC (increases contrast, deepens black ink levels)
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.0
+	# Tonemap Mode: TONE_MAPPER_ACES (calibrated studio filmic curve, eliminates HDR whiteout)
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_exposure = 0.85
 
-	# 1. CALIBRATE BLOOM & GLOW (Additive blend, HDR threshold 1.6 prevents white paint flare)
+	# Calibrated Bloom & Glow (Additive blend, threshold 1.25, intensity <= 0.18)
 	env.glow_enabled = true
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-	env.glow_hdr_threshold = 1.6 # CRITICAL: prevents matte white car paint from blooming
-	env.glow_bloom = 0.12        # Soft, controlled halos only on emissive lights
-	env.glow_intensity = 0.75
+	env.glow_hdr_threshold = 1.25 # Crisp specular threshold
+	env.glow_bloom = 0.08        # Controlled halos on emissive lights
+	env.glow_intensity = 0.18    # Eliminates blinding white glare across snow/beach biomes
 
 	# Disable SSAO and Volumetric Fog to eliminate depth-buffer scanline tearing, froxel banding, and z-fighting on mobile GPUs
 	env.ssao_enabled = false
@@ -3135,6 +3200,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 	var chunk_root := Node3D.new()
 	chunk_root.position.z = start_z
+	chunk_root.set_meta("biome", current_biome_id)
 
 	var road_st := SurfaceTool.new()
 	road_st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -3363,11 +3429,23 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			water_st.set_normal(Vector3.UP); water_st.set_uv(Vector2(1.0, float(i))); water_st.add_vertex(ocean_far)
 
 		elif current_biome_id == "hakone_snow":
-			var h_n1: float = sin(global_z * 0.022) * 3.5 + cos(global_z * 0.055) * 2.0
-			var h_n2: float = sin(global_z * 0.11) * 1.2 + cos(global_z * 0.24) * 0.6
+			var h_dist_from_stage: float = abs(global_z - stage_start_z)
+			var in_lake_break: bool = (h_dist_from_stage >= 1175.0 and h_dist_from_stage <= 1325.0)
+			var break_blend: float = 0.0
+			if in_lake_break:
+				if h_dist_from_stage < 1205.0:
+					break_blend = smoothstep(1175.0, 1205.0, h_dist_from_stage)
+				elif h_dist_from_stage > 1295.0:
+					break_blend = 1.0 - smoothstep(1295.0, 1325.0, h_dist_from_stage)
+				else:
+					break_blend = 1.0
+			var cliff_y_mult: float = 1.0 - break_blend
+
+			var h_n1: float = (sin(global_z * 0.022) * 3.5 + cos(global_z * 0.055) * 2.0) * cliff_y_mult
+			var h_n2: float = (sin(global_z * 0.11) * 1.2 + cos(global_z * 0.24) * 0.6) * cliff_y_mult
 			var h_block: float = floor(global_z / 5.5)
 			var h_crag_x: float = sin(h_block * 21.3) * 2.4 + cos(h_block * 43.1) * 1.5
-			var h_crag_y: float = cos(h_block * 33.7) * 3.2
+			var h_crag_y: float = cos(h_block * 33.7) * 3.2 * cliff_y_mult
 
 			# RIGHT FLAT SNOW SHOULDER STRIP (between +8.5m and +10.2m)
 			var r_sh_start := right_pt
@@ -3375,14 +3453,14 @@ func _create_road_chunk(start_z: float) -> Node3D:
 
 			# RIGHT: Sheer craggy granite rock cliff with jagged snow ledges (Shifted outward to X >= +10.2m)
 			var r_pt0 := r_sh_end
-			var r_pt1 := r_sh_end + (right_vec * 0.35) + Vector3(0.0, 0.4, 0.0)
-			var r_pt2 := r_sh_end + (right_vec * (1.6 + h_crag_x * 0.4 + h_n2 * 0.2)) + Vector3(0.0, 9.5 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Vertical granite wall 1
-			var r_pt3 := r_sh_end + (right_vec * (5.5 + h_crag_x * 0.8 + h_n1 * 0.4)) + Vector3(0.0, 11.2 + h_crag_y * 0.6 + h_n1 * 0.8, 0.0) # Snow shelf 1
-			var r_pt4 := r_sh_end + (right_vec * (7.8 + h_crag_x * 0.9 + h_n1 * 0.5)) + Vector3(0.0, 26.0 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Vertical granite wall 2
-			var r_pt5 := r_sh_end + (right_vec * (15.5 + h_crag_x * 1.2 + h_n1 * 0.9)) + Vector3(0.0, 29.5 + h_crag_y * 1.2 + h_n1 * 1.6, 0.0) # Snow shelf 2
-			var r_pt6 := r_sh_end + (right_vec * (20.5 + h_crag_x * 1.5 + h_n1 * 1.2)) + Vector3(0.0, 52.0 + h_crag_y * 2.0 + h_n1 * 2.8, 0.0) # Upper precipice
-			var r_pt7 := r_sh_end + (right_vec * (42.0 + h_n1 * 2.0)) + Vector3(0.0, 58.0 + h_n1 * 3.0, 0.0) # Cliff crest
-			var r_pt8 := r_sh_end + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, 80.0 + h_n1 * 4.0, 0.0) # Distant ridge
+			var r_pt1 := r_sh_end + (right_vec * 0.35) + Vector3(0.0, 0.4 * cliff_y_mult, 0.0)
+			var r_pt2 := r_sh_end + (right_vec * (1.6 + h_crag_x * 0.4 + h_n2 * 0.2)) + Vector3(0.0, (9.5 + h_crag_y * 0.6 + h_n1 * 0.8) * cliff_y_mult, 0.0) # Vertical granite wall 1
+			var r_pt3 := r_sh_end + (right_vec * (5.5 + h_crag_x * 0.8 + h_n1 * 0.4)) + Vector3(0.0, (11.2 + h_crag_y * 0.6 + h_n1 * 0.8) * cliff_y_mult, 0.0) # Snow shelf 1
+			var r_pt4 := r_sh_end + (right_vec * (7.8 + h_crag_x * 0.9 + h_n1 * 0.5)) + Vector3(0.0, (26.0 + h_crag_y * 1.2 + h_n1 * 1.6) * cliff_y_mult, 0.0) # Vertical granite wall 2
+			var r_pt5 := r_sh_end + (right_vec * (15.5 + h_crag_x * 1.2 + h_n1 * 0.9)) + Vector3(0.0, (29.5 + h_crag_y * 1.2 + h_n1 * 1.6) * cliff_y_mult, 0.0) # Snow shelf 2
+			var r_pt6 := r_sh_end + (right_vec * (20.5 + h_crag_x * 1.5 + h_n1 * 1.2)) + Vector3(0.0, (52.0 + h_crag_y * 2.0 + h_n1 * 2.8) * cliff_y_mult, 0.0) # Upper precipice
+			var r_pt7 := r_sh_end + (right_vec * (42.0 + h_n1 * 2.0)) + Vector3(0.0, (58.0 + h_n1 * 3.0) * cliff_y_mult, 0.0) # Cliff crest
+			var r_pt8 := r_sh_end + (right_vec * (110.0 + h_n1 * 3.5)) + Vector3(0.0, (80.0 + h_n1 * 4.0) * cliff_y_mult, 0.0) # Distant ridge
 
 			var hs_u: float = float(i) / float(CHUNK_SEGMENTS)
 			var bands: Array = [
@@ -3626,9 +3704,11 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				var plateau_palm := seg_left - (seg_rv * (54.0 + seg_rnd * 18.0)) + Vector3(0.0, 56.5 + seg_rnd * 1.5, 0.0)
 				_add_3d_palm_tree(trunk_st, foliage_st, plateau_palm, 1.35 + seg_rnd * 0.40, seg_rnd)
 			elif i % 4 == 1:
-				# Right sandy beach strip at Y = 0.0m (X = +10.5m to +15.0m, offset 1.5m to 6.0m from right road edge)
-				var beach_palm := seg_right + (seg_rv * (1.5 + seg_rnd * 4.5))
-				_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 1.15 + seg_rnd * 0.35, seg_rnd + 1.0)
+				# Right sandy beach strip at Y = 0.0m (suppressed around 1,250m landmark pier)
+				var in_pier_zone: bool = (abs(seg_gz - stage_start_z) >= 1215.0 and abs(seg_gz - stage_start_z) <= 1285.0)
+				if not in_pier_zone:
+					var beach_palm := seg_right + (seg_rv * (1.5 + seg_rnd * 4.5))
+					_add_3d_palm_tree(trunk_st, foliage_st, beach_palm, 1.15 + seg_rnd * 0.35, seg_rnd + 1.0)
 
 		elif current_biome_id == "hakone_snow" and not is_fork_approach and not is_twin_tunnel:
 			if i % 6 == 0:
@@ -3660,17 +3740,19 @@ func _create_road_chunk(start_z: float) -> Node3D:
 				var sc_lh: float = clampf(1.0 + fposmod(seg_rnd * 4.3, 0.30), 0.85, 1.35)
 				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_lh, sc_lh, seg_rnd + 3.1)
 
-			# Right craggy cliff ledges and crest (X >= +11.0m)
-			if i % 4 == 2:
-				# Mid-cliff snow shelf (X = 6.8 + 6.0..10.0 = +12.8m .. +16.8m, Y ≈ 11.5m)
-				var sp_r_mid := seg_right + (seg_rv * (6.0 + fposmod(seg_rnd * 5.7, 4.0))) + Vector3(0.0, 11.5 + fposmod(seg_rnd * 3.1, 1.8), 0.0)
-				var sc_rm: float = clampf(0.90 + fposmod(seg_rnd * 2.9, 0.35), 0.85, 1.35)
-				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_mid, sc_rm, seg_rnd + 2.4)
-			elif i % 4 == 0:
-				# High cliff crest (X = 6.8 + 36.0..45.0 = +42.8m .. +51.8m, Y ≈ 58.0m)
-				var sp_r_high := seg_right + (seg_rv * (36.0 + fposmod(seg_rnd * 7.1, 9.0))) + Vector3(0.0, 58.0 + fposmod(seg_rnd * 3.8, 2.2), 0.0)
-				var sc_rh: float = clampf(1.05 + fposmod(seg_rnd * 4.9, 0.25), 0.85, 1.35)
-				_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_high, sc_rh, seg_rnd + 4.7)
+			# Right craggy cliff ledges and crest (X >= +11.0m, suppressed during Lake Ashi 150m overlook)
+			var in_lake_ashi_break: bool = (abs(seg_gz - stage_start_z) >= 1170.0 and abs(seg_gz - stage_start_z) <= 1330.0)
+			if not in_lake_ashi_break:
+				if i % 4 == 2:
+					# Mid-cliff snow shelf (X = 6.8 + 6.0..10.0 = +12.8m .. +16.8m, Y ≈ 11.5m)
+					var sp_r_mid := seg_right + (seg_rv * (6.0 + fposmod(seg_rnd * 5.7, 4.0))) + Vector3(0.0, 11.5 + fposmod(seg_rnd * 3.1, 1.8), 0.0)
+					var sc_rm: float = clampf(0.90 + fposmod(seg_rnd * 2.9, 0.35), 0.85, 1.35)
+					_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_mid, sc_rm, seg_rnd + 2.4)
+				elif i % 4 == 0:
+					# High cliff crest (X = 6.8 + 36.0..45.0 = +42.8m .. +51.8m, Y ≈ 58.0m)
+					var sp_r_high := seg_right + (seg_rv * (36.0 + fposmod(seg_rnd * 7.1, 9.0))) + Vector3(0.0, 58.0 + fposmod(seg_rnd * 3.8, 2.2), 0.0)
+					var sc_rh: float = clampf(1.05 + fposmod(seg_rnd * 4.9, 0.25), 0.85, 1.35)
+					_add_3d_snow_pine(trunk_st, pine_foliage_st, pine_snow_st, sp_r_high, sc_rh, seg_rnd + 4.7)
 
 		elif current_biome_id == "neo_shinjuku" and not is_fork_approach and not is_twin_tunnel:
 			# Continuous wall-to-wall Japanese urban apartment / storefront canyon (Ref Image 2)
@@ -3838,6 +3920,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var snow_mesh := snow_st.commit()
 		if is_instance_valid(snow_mesh) and snow_mesh.get_surface_count() > 0:
 			var sn_inst := MeshInstance3D.new()
+			sn_inst.name = "HakoneSnowBank"
 			sn_inst.mesh = snow_mesh
 			sn_inst.material_override = snowbank_mat
 			sn_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -3846,6 +3929,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var pf_mesh := pine_foliage_st.commit()
 		if is_instance_valid(pf_mesh) and pf_mesh.get_surface_count() > 0:
 			var pf_inst := MeshInstance3D.new()
+			pf_inst.name = "HakoneSnowPineFoliage"
 			pf_inst.mesh = pf_mesh
 			pf_inst.material_override = snow_foliage_mat
 			pf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -3854,6 +3938,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var ps_mesh := pine_snow_st.commit()
 		if is_instance_valid(ps_mesh) and ps_mesh.get_surface_count() > 0:
 			var ps_inst := MeshInstance3D.new()
+			ps_inst.name = "HakoneSnowPineCaps"
 			ps_inst.mesh = ps_mesh
 			ps_inst.material_override = pine_snow_mat
 			ps_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -3862,6 +3947,7 @@ func _create_road_chunk(start_z: float) -> Node3D:
 		var tr_mesh := trunk_st.commit()
 		if is_instance_valid(tr_mesh) and tr_mesh.get_surface_count() > 0:
 			var tr_inst := MeshInstance3D.new()
+			tr_inst.name = "HakoneCedarTrunk"
 			tr_inst.mesh = tr_mesh
 			tr_inst.material_override = cedar_trunk_mat
 			tr_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -4053,6 +4139,24 @@ func _create_road_chunk(start_z: float) -> Node3D:
 			l_delin.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			l_post.add_child(l_delin)
 			chunk_root.add_child(l_post)
+
+		# Continuous Physical Static Collision Walls along Asphalt Edges (+/- 8.5m in Hakone Snow)
+		var col_half_w: float = 8.5 if current_biome_id == "hakone_snow" else (9.0 if current_biome_id == "enoshima_coast" else 10.0)
+		var col_body := StaticBody3D.new()
+		col_body.name = "GuardrailStaticCollision"
+		var r_col := CollisionShape3D.new()
+		var r_box := BoxShape3D.new()
+		r_box.size = Vector3(0.60, 4.0, CHUNK_LENGTH)
+		r_col.shape = r_box
+		r_col.position = Vector3(col_half_w + 0.30, 1.5, -CHUNK_LENGTH * 0.5)
+		col_body.add_child(r_col)
+		var l_col := CollisionShape3D.new()
+		var l_box := BoxShape3D.new()
+		l_box.size = Vector3(0.60, 4.0, CHUNK_LENGTH)
+		l_col.shape = l_box
+		l_col.position = Vector3(-col_half_w - 0.30, 1.5, -CHUNK_LENGTH * 0.5)
+		col_body.add_child(l_col)
+		chunk_root.add_child(col_body)
 
 	if current_biome_id == "shuto_dusk":
 		for joint_step in [0.0, 40.0, 80.0]:
@@ -7142,9 +7246,9 @@ func _setup_player_car() -> void:
 			# 1. Base Body Material: Solid-State Comic Ink Shader
 			var ink_mat := ShaderMaterial.new()
 			ink_mat.shader = preload("res://shaders/comic_ink_car.gdshader")
-			ink_mat.set_shader_parameter("paper_white", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
+			ink_mat.set_shader_parameter("paper_white", Color("#DDE3EC")) # Crisp studio-white body #DDE3EC
 			ink_mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-			ink_mat.set_shader_parameter("stripe_blue", Color("#111827")) # Dark charcoal/navy #111827
+			ink_mat.set_shader_parameter("stripe_blue", Color("#1D4ED8")) # Bold Japanese Wangan Racing Blue #1D4ED8
 			ink_mat.set_shader_parameter("navy_diffuser", Color("#111827")) # Dark charcoal/navy #111827
 			ink_mat.set_shader_parameter("ink_black", Color("#0A0914"))
 			ink_mat.set_shader_parameter("shadow_tint", Color("#94A3B8")) # Cool-slate manga shadow #94A3B8
@@ -7172,7 +7276,7 @@ func _setup_player_car() -> void:
 
 			# Apply MaterialFailsafe to protect taillights & glass, while applying comic ink to body
 			var sun_fwd := -sun_light.global_transform.basis.z if is_instance_valid(sun_light) else Vector3(-0.5, -0.8, -0.3)
-			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#F5F7FA"), sun_fwd, true)
+			hero_body_shader_mat = MaterialFailsafe.apply_vehicle_materials(model_inst, "muscle", Color("#DDE3EC"), sun_fwd, true)
 
 			# 3D Auto Modellista GT Racing Wing (Trunk Elevated GT Spoiler)
 			var gt_wing := _create_gt_racing_wing()
@@ -7374,14 +7478,14 @@ func _create_gt_racing_wing() -> Node3D:
 
 	var white_mat := ShaderMaterial.new()
 	white_mat.shader = spoiler_sh
-	white_mat.set_shader_parameter("base_color", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
+	white_mat.set_shader_parameter("base_color", Color("#DDE3EC")) # Crisp studio-white body #DDE3EC
 	white_mat.set_shader_parameter("ink_shadow", Color(0.08, 0.08, 0.14, 1.0))
 	white_mat.set_shader_parameter("shadow_cut", 0.38)
 	white_mat.set_shader_parameter("hatch_base_spacing", 3.6)
 
 	var blue_mat := ShaderMaterial.new()
 	blue_mat.shader = spoiler_sh
-	blue_mat.set_shader_parameter("base_color", Color("#111827")) # Dark charcoal/navy #111827
+	blue_mat.set_shader_parameter("base_color", Color("#1D4ED8")) # Bold Japanese Wangan Racing Blue #1D4ED8
 	blue_mat.set_shader_parameter("ink_shadow", Color(0.03, 0.06, 0.18, 1.0))
 	blue_mat.set_shader_parameter("shadow_cut", 0.38)
 	blue_mat.set_shader_parameter("hatch_base_spacing", 3.6)
@@ -7840,6 +7944,8 @@ func _reset_race() -> void:
 
 	next_chunk_z = 0.0
 	_setup_road_system()
+	if is_instance_valid(landmark_system):
+		landmark_system.purge()
 
 	player_z = 0.0
 	player_lane_x = 0.0
@@ -8262,7 +8368,7 @@ func _process_rival_ai(delta: float) -> void:
 			_play_scrape_sound()
 			if is_instance_valid(rival_root):
 				_spawn_floating_comic_text(rival_root.global_position + Vector3(0.0, 2.0, 0.0), "RIVAL SCRAPE!!", Color("#FF3344"), Color("#000000"), 38)
-	elif not rival_grazed and dx_hero >= (fatal_w * 0.85) and dz_hero < (crash_l + 0.22) and dx_hero < (side_rub_w + 0.20):
+	elif not rival_grazed and dx_hero >= (fatal_w * 0.85) and dz_hero < (crash_l + 0.40) and dx_hero < (side_rub_w + 0.38):
 		rival_grazed = true
 		near_miss_count += 1
 		combo_multiplier = mini(combo_multiplier + 1, 4)
@@ -8475,6 +8581,8 @@ func _update_start_screen_cameras(delta: float) -> void:
 		wheel_close_cam.look_at(wheel_target, Vector3.UP)
 
 func _update_camera(delta: float) -> void:
+	if is_capturing_landmarks:
+		return
 	if current_state == GameState.CRASHED and crash_orbit_active:
 		var orbit_rad: float = deg_to_rad(crash_orbit_angle)
 		var orbit_dist: float = 4.8
@@ -9466,6 +9574,7 @@ func _physics_process(delta: float) -> void:
 			var chosen_biome: String = fork_left_biome if player_lane_x < 0.0 else fork_right_biome
 			_apply_biome_transition(chosen_biome, true)
 			fork_transition_done = true
+			_purge_and_rebuild_upcoming_chunks_for_biome(chosen_biome)
 		elif fork_transition_done and player_z <= active_fork_exit_z:
 			fork_active = false
 			stage_tier += 1
@@ -9476,9 +9585,13 @@ func _physics_process(delta: float) -> void:
 			_trigger_stage_badge(stage_tier, int(round(_get_stage_top_speed_kmh(stage_tier))))
 			_trigger_radio_chatter("TACHIBANA SPOTTER", "Tunnel exit clear! Entering " + BIOMES[current_biome_id]["name"] + "!", Color("#00FF88"))
 			_trigger_smooth_tunnel_exit_transition(current_biome_id)
+			if current_biome_id == "enoshima_coast":
+				_purge_hakone_props_for_enoshima()
 
 	_process_rival_ai(delta)
 	_process_road_recycler()
+	if is_instance_valid(landmark_system):
+		landmark_system.update(player_z, stage_start_z, current_biome_id, fork_active, delta)
 	_process_highway_hazards(delta)
 	_process_skid_marks(delta)
 	_process_weather_cycle(delta)
@@ -10107,6 +10220,46 @@ func _update_tod_indicator(biome_id: String = "") -> void:
 		_:
 			hud_tod_toggle_btn.text = "🌅 DUSK 18:30"
 
+func _purge_hakone_props_for_enoshima() -> void:
+	for chunk in road_chunks:
+		if not is_instance_valid(chunk):
+			continue
+		for child in chunk.get_children():
+			if not is_instance_valid(child):
+				continue
+			var cname := child.name.to_lower()
+			if "snow" in cname or "pine" in cname or "cedar" in cname or "hut" in cname or "guardpost" in cname or "pole" in cname:
+				child.queue_free()
+			elif child is MeshInstance3D:
+				var mi := child as MeshInstance3D
+				if mi.material_override in [snow_foliage_mat, pine_snow_mat, snowbank_mat, cedar_trunk_mat, snow_rock_mat]:
+					child.queue_free()
+
+func _purge_and_rebuild_upcoming_chunks_for_biome(new_biome_id: String) -> void:
+	if is_instance_valid(landmark_system):
+		landmark_system.purge()
+	if new_biome_id == "enoshima_coast":
+		_purge_hakone_props_for_enoshima()
+
+	var chunks_to_replace: Array[Node3D] = []
+	for chunk in road_chunks:
+		if not is_instance_valid(chunk):
+			continue
+		var chunk_z: float = chunk.position.z
+		if chunk_z < player_z - 30.0:
+			var c_biome: String = str(chunk.get_meta("biome", ""))
+			if c_biome != "" and c_biome != new_biome_id:
+				chunks_to_replace.append(chunk)
+
+	for old_chunk in chunks_to_replace:
+		var cz: float = old_chunk.position.z
+		var idx: int = road_chunks.find(old_chunk)
+		if idx != -1:
+			var fresh_chunk := _create_road_chunk(cz)
+			add_child(fresh_chunk)
+			road_chunks[idx] = fresh_chunk
+			old_chunk.queue_free()
+
 func _process_crashed_state(delta: float) -> void:
 	if is_instance_valid(trail_left):
 		trail_left.visible = false
@@ -10417,15 +10570,19 @@ func _try_activate_double_tap_nitro() -> void:
 func _apply_graze_rewards(td: TrafficVehicleData) -> void:
 	td.grazed = true
 	td.graze_grace_active = true
-	td.graze_grace_timer = 0.18
+	td.graze_grace_timer = 0.45
 	near_miss_count += 1
 	combo_multiplier = mini(combo_multiplier + 1, 4)
 	combo_timer = 2.0
 	_trigger_graze_microfreeze()
 	_trigger_traffic_flinch(td)
+	_spawn_diffuser_ground_sparks()
+	var spark_side: float = sign(player_lane_x - td.lane_offset)
+	if spark_side == 0.0: spark_side = 1.0
+	_emit_guardrail_sparks(spark_side, 0.035)
 
-	# High-Reward Graze Payoffs (Balanced: rewarding without instant 100% overfill):
-	var boost_inj: float = 24.0 if drift_active else 14.0
+	# High-Reward Graze Payoffs (+50% Boost / Near Miss):
+	var boost_inj: float = 50.0
 	nitro_charge = min(100.0, nitro_charge + boost_inj)
 	drift_charge = min(100.0, drift_charge + boost_inj)
 	graze_speed_kick_timer = 0.22
@@ -10434,18 +10591,19 @@ func _apply_graze_rewards(td: TrafficVehicleData) -> void:
 	cam_fov_punch_timer = 0.12
 	_play_graze_chime()
 
-	var g_msg: String = "DRIFT GRAZE! +24%" if drift_active else "GRAZE! +14% BOOST"
+	var g_msg: String = "+50% BOOST // NEAR MISS!"
 	_spawn_floating_comic_text(td.instance.global_position + Vector3(0.0, 1.8, 0.0), g_msg, Color("#FFF01F"), Color("#000000"), 36)
 
 func _process_traffic_and_collisions(delta: float) -> void:
 	var t_ms: float = Time.get_ticks_msec() * 0.001
 
 	for td in traffic_pool:
-		# Collision immunity grace timer
+		# Collision immunity grace timer & Anti-double-trigger cooldown (0.45s)
 		if td.graze_grace_active:
 			td.graze_grace_timer -= delta
 			if td.graze_grace_timer <= 0.0:
 				td.graze_grace_active = false
+				td.grazed = false
 
 		# Adaptive Following: Check distance to vehicle directly ahead in same lane
 		var closest_ahead_gap: float = 999.0
@@ -10628,21 +10786,21 @@ func _process_traffic_and_collisions(delta: float) -> void:
 		# Graze MUST be a lateral pass (dx >= fatal_crash_limit_x * 0.82) in razor proximity.
 		# Direct rear approach (dx < fatal_crash_limit_x * 0.82) NEVER triggers a graze!
 		elif not td.grazed and dx >= (fatal_crash_limit_x * 0.82):
-			if td.is_roadblock and dz < (crash_limit_z + 0.30) and dx < (side_rub_limit_x + 0.30):
+			if td.is_roadblock and dz < (crash_limit_z + 0.40) and dx < (side_rub_limit_x + 0.38):
 				var pts: int = 2500 * combo_multiplier
 				score += pts
 				hud_combo_label.text = "⚡ ROADBLOCK ESCAPE! +" + str(pts) + " ⚡"
 				hud_combo_label.modulate = Color(1.0, 0.85, 0.1, 1.0)
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
 				_apply_graze_rewards(td)
-			elif td.is_disrupted and dz < (crash_limit_z + 0.30) and dx < (side_rub_limit_x + 0.30):
+			elif td.is_disrupted and dz < (crash_limit_z + 0.40) and dx < (side_rub_limit_x + 0.38):
 				var pts: int = 800 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else "x" + str(combo_multiplier) + " CHAIN!")
 				hud_combo_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 				_spawn_floating_graze_badge(td.instance.global_position, pts)
 				_apply_graze_rewards(td)
-			elif dz < (crash_limit_z + 0.22) and dx < (side_rub_limit_x + 0.20):
+			elif dz < (crash_limit_z + 0.40) and dx < (side_rub_limit_x + 0.38):
 				var pts: int = 250 * combo_multiplier
 				score += pts
 				hud_combo_label.text = ("🔥 FEVER! x" + str(combo_multiplier) if combo_multiplier >= 4 else ("x" + str(combo_multiplier) + " CHAIN!" if combo_multiplier > 1 else "GRAZE!"))
@@ -10661,10 +10819,10 @@ func _process_traffic_and_collisions(delta: float) -> void:
 						_trigger_radio_chatter("TACHIBANA SPOTTER", "Pursuit evaded! Clean escape through traffic!", Color("#00FF88"))
 
 func _trigger_graze_microfreeze() -> void:
-	Engine.time_scale = 0.30
+	Engine.time_scale = 0.22
 	var tw := create_tween()
 	tw.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tw.tween_interval(0.020)
+	tw.tween_interval(0.026)
 	tw.tween_callback(func(): Engine.time_scale = 1.0)
 	_bounce_combo_badge()
 
@@ -11404,3 +11562,10 @@ func _update_hud(delta: float) -> void:
 	else:
 		if is_instance_valid(hud_combo_container):
 			hud_combo_container.visible = false
+
+	# Ensure start screen & comic pages are strictly hidden during gameplay
+	if current_state == GameState.RACING:
+		if is_instance_valid(hud_start_screen) and hud_start_screen.visible:
+			hud_start_screen.visible = false
+		if is_instance_valid(manga_comic_page) and manga_comic_page.visible:
+			manga_comic_page.visible = false

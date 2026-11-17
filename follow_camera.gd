@@ -14,8 +14,8 @@ const ROTATIONAL_LAG_TIME: float = 0.14              # SmoothDamp lag time
 const LOOK_AHEAD_FACTOR: float = 0.20                # Lateral look-ahead
 
 # Near-Miss Impact Punch
-const PUNCH_TIME_DILATION_SCALE: float = 0.1
-const PUNCH_DURATION_SEC: float = 0.040
+const PUNCH_TIME_DILATION_SCALE: float = 0.22
+const PUNCH_DURATION_SEC: float = 0.026
 const PUNCH_DISTANCE: float = 0.25
 
 @export var target_vehicle: AGVehicle

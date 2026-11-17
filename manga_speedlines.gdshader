@@ -27,13 +27,16 @@ void fragment() {
 			vec2 d = uv - origin;
 			d.x *= (1.0 / max(aspect, 0.01));
 			float r = length(d);
-			if (r < 0.001) {
+			
+			// Clamp radius safely away from zero and discard near-horizontal branch cut
+			// Eliminates residual horizontal black/white scanline flicker across mobile GPUs
+			if (r < 0.08 || abs(d.y) < 0.02) {
 				discard;
 			}
-			// Smooth radial polar coordinates (atan(d.y, d.x)) normalized strictly to [0.0, 1.0]
-			// Eliminates negative modulo jumps & horizontal scanline tears near screen center/axis
+			
+			// Smooth radial polar coordinates (atan(d.y, d.x)) normalized and clamped strictly to [0.001, 0.999]
 			float a = atan(d.y, d.x);
-			float norm_a = clamp((a + 3.14159265) / 6.2831853, 0.0, 1.0);
+			float norm_a = clamp((a + 3.14159265) / 6.2831853, 0.001, 0.999);
 
 			// High frequency flashing (24 FPS stepped anime cadence)
 			float t_step = floor(TIME * 24.0);

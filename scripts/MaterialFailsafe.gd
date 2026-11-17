@@ -48,16 +48,16 @@ static func create_rim_material() -> StandardMaterial3D:
 static func create_stripe_material() -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.albedo_color = Color("#111827") # Dark charcoal/navy racing stripe
+	mat.albedo_color = Color("#1D4ED8") # Bold Japanese Wangan Racing Blue #1D4ED8
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
 
 static func create_body_material(paint: Color, sun_dir: Vector3 = Vector3(-0.5, -0.8, -0.3), has_stripes: bool = false, is_two_tone: bool = false) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = multi_shader
-	mat.set_shader_parameter("paper_white", Color("#F5F7FA")) # Crisp Pearl White #F5F7FA
+	mat.set_shader_parameter("paper_white", Color("#DDE3EC")) # Crisp studio-white body #DDE3EC
 	mat.set_shader_parameter("slate_grey", Color("#6E7485"))
-	mat.set_shader_parameter("stripe_blue", Color("#111827")) # Dark charcoal/navy #111827
+	mat.set_shader_parameter("stripe_blue", Color("#1D4ED8")) # Bold Japanese Wangan Racing Blue #1D4ED8
 	mat.set_shader_parameter("navy_diffuser", Color("#111827")) # Dark charcoal/navy #111827
 	mat.set_shader_parameter("ink_black", Color("#0A0914"))
 	mat.set_shader_parameter("ink_shadow", Color(0.05, 0.05, 0.09, 1.0))

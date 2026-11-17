@@ -7,8 +7,8 @@ render_mode cull_front, unshaded, depth_draw_always;
 // Guardrails, buildings, rock cliffs, trees, and street furniture.
 // =============================================================================
 
-uniform vec4 outline_color : source_color = vec4(0.031, 0.035, 0.051, 1.0); // #08090D Bold Manga Ink
-uniform float outline_width : hint_range(0.01, 0.12) = 0.042;                // 0.042m true world thickness
+uniform vec4 outline_color : source_color = vec4(0.035, 0.043, 0.063, 1.0); // #090B10 Bold Manga Ink
+uniform float outline_width : hint_range(0.01, 0.12) = 0.040;                // 0.040m true world thickness
 
 void vertex() {
 	// Normalize by world matrix scale so vertex extrusion is strictly world-consistent

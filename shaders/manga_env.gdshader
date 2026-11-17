@@ -98,5 +98,6 @@ void fragment() {
 		shaded = mix(shaded, rim_color.rgb, rim * rim_color.a);
 	}
 
-	ALBEDO = shaded;
+	// Clamp final RGB <= vec3(0.95) to prevent HDR blowout
+	ALBEDO = min(shaded, vec3(0.95));
 }

@@ -16,7 +16,8 @@ const OUTLINE_SHADER: Shader = preload("res://inverted_hull_outline.gdshader")
 
 # Palette Constants
 const COLOR_SHADOW: Color = Color(0.169, 0.118, 0.227)        # #2B1E3A Deep Violet
-const GRAZE_CLEARANCE: float = 0.40                           # Spec: <0.4m proximity grazing
+const GRAZE_CLEARANCE_LATERAL: float = 0.38                   # Spec: 0.38m lateral graze proximity
+const GRAZE_CLEARANCE_LONGITUDINAL: float = 0.40              # Spec: 0.40m longitudinal graze proximity
 
 # Vehicle Profile Definitions
 const VEHICLE_PROFILES: Dictionary = {
@@ -122,8 +123,8 @@ func _setup_collision_and_graze() -> void:
 	
 	var graze_col := CollisionShape3D.new()
 	var graze_box := BoxShape3D.new()
-	# Expand exactly by GRAZE_CLEARANCE (0.4m) along X and Z
-	graze_box.size = vehicle_size + Vector3(GRAZE_CLEARANCE * 2.0, 0.4, GRAZE_CLEARANCE * 2.0)
+	# Expand exactly by GRAZE_CLEARANCE_LATERAL (0.38m) and GRAZE_CLEARANCE_LONGITUDINAL (0.40m)
+	graze_box.size = vehicle_size + Vector3(GRAZE_CLEARANCE_LATERAL * 2.0, 0.4, GRAZE_CLEARANCE_LONGITUDINAL * 2.0)
 	graze_col.shape = graze_box
 	graze_col.position.y = vehicle_size.y * 0.5
 	graze_area.add_child(graze_col)
@@ -143,6 +144,10 @@ func _on_graze_body_entered(body: Node3D) -> void:
 		var lateral_dir: float = sign(rel_pos.x)
 		has_been_grazed = true
 		near_miss_occurred.emit(self, lateral_dir)
+		get_tree().create_timer(0.45).timeout.connect(func(): has_been_grazed = false)
+
+func reset_graze() -> void:
+	has_been_grazed = false
 
 func _apply_comic_materials_recursive(node: Node) -> void:
 	if node is MeshInstance3D:

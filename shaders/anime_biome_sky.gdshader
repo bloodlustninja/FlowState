@@ -24,14 +24,14 @@ uniform vec4 shinjuku_top : source_color = vec4(0.075, 0.086, 0.149, 1.0);  // #
 uniform vec4 shinjuku_mid : source_color = vec4(0.180, 0.071, 0.208, 1.0);  // #2E1235 (Deep Plum-Magenta)
 uniform vec4 shinjuku_hor : source_color = vec4(0.290, 0.082, 0.231, 1.0);  // #4A153B (Glowing Crimson Twilight Dusk)
 
-// Enoshima Coast (Golden Afternoon / 16:30: #FDE68A -> #FB7185)
-uniform vec4 enoshima_top : source_color = vec4(0.984, 0.443, 0.522, 1.0);  // #FB7185 (Warm Coastal Rose)
-uniform vec4 enoshima_mid : source_color = vec4(0.957, 0.447, 0.714, 1.0);  // #F472B6 (Sunset Coral Pink)
+// Enoshima Coast (Golden Afternoon / 16:30: #FDE68A -> #FB923C)
+uniform vec4 enoshima_top : source_color = vec4(0.984, 0.573, 0.235, 1.0);  // #FB923C (Warm Golden-Amber Sky)
+uniform vec4 enoshima_mid : source_color = vec4(0.961, 0.620, 0.043, 1.0);  // #F59E0B (Golden Amber Mid)
 uniform vec4 enoshima_hor : source_color = vec4(0.992, 0.902, 0.541, 1.0);  // #FDE68A (Warm Golden-Amber Horizon)
 
-// Hakone Snow (Crisp Alpine Dawn / 06:30: #BAE6FD -> #FBCFE8)
-uniform vec4 hakone_top : source_color = vec4(0.729, 0.902, 0.992, 1.0);    // #BAE6FD (Pale Morning Ice-Blue)
-uniform vec4 hakone_mid : source_color = vec4(0.878, 0.949, 0.996, 1.0);    // #E0F2FE (Soft Morning Frost Azure)
+// Hakone Snow (Crisp Alpine Dawn / 06:30: #7DD3FC -> #BAE6FD -> #FBCFE8)
+uniform vec4 hakone_top : source_color = vec4(0.490, 0.827, 0.988, 1.0);    // #7DD3FC (Rich Pale Ice-Blue Zenith)
+uniform vec4 hakone_mid : source_color = vec4(0.729, 0.902, 0.992, 1.0);    // #BAE6FD (Pale Morning Ice-Blue)
 uniform vec4 hakone_hor : source_color = vec4(0.984, 0.812, 0.910, 1.0);    // #FBCFE8 (Soft Rose-Gold Sunrise Horizon)
 
 void sky() {
